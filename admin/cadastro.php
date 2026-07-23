@@ -19,6 +19,22 @@ if (isset($_GET['excluir'])) {
     exit;
 }
 
+// Logar como cliente
+if (isset($_GET['logar_como'])) {
+    $id = intval($_GET['logar_como']);
+    $stmt = $pdo->prepare("SELECT id, nome_razao, email, ativo FROM clientes WHERE id = ?");
+    $stmt->execute([$id]);
+    $cli = $stmt->fetch();
+    if ($cli && $cli['ativo']) {
+        $_SESSION['user_id'] = $cli['id'];
+        $_SESSION['user_nome'] = $cli['nome_razao'];
+        $_SESSION['user_email'] = $cli['email'];
+        $_SESSION['user_avatar'] = null;
+        header('Location: /cobranca/usuario/index.php');
+        exit;
+    }
+}
+
 // Editar cliente
 if (isset($_GET['editar'])) {
     $id = intval($_GET['editar']);
@@ -247,7 +263,10 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                     <a href="?editar=<?= $c['id'] ?>" class="btn btn-sm btn-outline-primary" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="?excluir=<?= $c['id'] ?>" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="return confirmarExclusao('<?= htmlspecialchars($c['nome_razao']) ?>')">
+                                    <a href="?logar_como=<?= $c['id'] ?>" target="_blank" class="btn btn-sm btn-outline-success" title="Logar como este cliente" onclick="showConfirm('Logar como cliente','Deseja logar como <?= htmlspecialchars(addslashes($c['nome_razao'])) ?>?','?logar_como=<?= $c['id'] ?>','success'); return false;">
+                                        <i class="fas fa-sign-in-alt"></i>
+                                    </a>
+                                    <a href="?excluir=<?= $c['id'] ?>" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="confirmarExclusao('<?= htmlspecialchars(addslashes($c['nome_razao'])) ?>','?excluir=<?= $c['id'] ?>'); return false;">
                                         <i class="fas fa-trash"></i>
                                     </a>
                                 </td>

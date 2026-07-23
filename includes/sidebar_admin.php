@@ -23,6 +23,12 @@ $basePath = '/cobranca/admin';
         <a href="<?= $basePath ?>/livro_caixa.php" class="nav-link <?= $currentPage === 'livro_caixa' ? 'active' : '' ?>">
             <i class="fas fa-book"></i> Livro Caixa
         </a>
+        <a href="<?= $basePath ?>/inadimplencia.php" class="nav-link <?= $currentPage === 'inadimplencia' ? 'active' : '' ?>">
+            <i class="fas fa-exclamation-triangle"></i> Inadimplência
+        </a>
+        <a href="<?= $basePath ?>/fluxo_caixa.php" class="nav-link <?= $currentPage === 'fluxo_caixa' ? 'active' : '' ?>">
+            <i class="fas fa-chart-line"></i> Fluxo de Caixa
+        </a>
 
         <div class="nav-section">Configurações</div>
         <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>">
@@ -41,10 +47,13 @@ $basePath = '/cobranca/admin';
             <i class="fas fa-envelope-open-text"></i> Template E-mail
         </a>
         <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>">
-            <i class="fas fa-headset"></i> Config. Financeiro
+            <i class="fas fa-headset"></i> Contato/Financeiro
         </a>
 
         <div class="nav-section">Conta</div>
+        <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
+            <i class="fas fa-users-cog"></i> Usuários Admin
+        </a>
         <a href="<?= $basePath ?>/perfil.php" class="nav-link <?= $currentPage === 'perfil' ? 'active' : '' ?>">
             <i class="fas fa-user-edit"></i> Meu Perfil
         </a>

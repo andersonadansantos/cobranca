@@ -101,8 +101,31 @@ function formatMoney(value) {
 }
 
 // Confirmar exclusão
-function confirmarExclusao(nome) {
-    return confirm('Tem certeza que deseja excluir ' + nome + '?');
+function confirmarExclusao(nome, url) {
+    var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    document.getElementById('confirmModalTitle').textContent = 'Confirmar Exclusão';
+    document.getElementById('confirmModalBody').textContent = 'Tem certeza que deseja excluir ' + nome + '?';
+    document.getElementById('confirmModalBtn').href = url;
+    modal.show();
+}
+
+function showConfirm(title, message, url, modalType) {
+    modalType = modalType || 'danger';
+    var modalId = modalType === 'primary' ? 'confirmModalPrimary' : modalType === 'success' ? 'confirmModalSuccess' : 'confirmModal';
+    var modal = new bootstrap.Modal(document.getElementById(modalId));
+    document.getElementById(modalId + 'Title').textContent = title;
+    document.getElementById(modalId + 'Body').textContent = message;
+    document.getElementById(modalId + 'Btn').href = url;
+    modal.show();
+}
+
+function showConfirmForm(title, message, formElement) {
+    var modal = new bootstrap.Modal(document.getElementById('confirmModalForm'));
+    document.getElementById('confirmModalFormTitle').textContent = title;
+    document.getElementById('confirmModalFormBody').textContent = message;
+    var btn = document.getElementById('confirmModalFormBtn');
+    btn.onclick = function() { formElement.submit(); };
+    modal.show();
 }
 
 // Copiar para área de transferência

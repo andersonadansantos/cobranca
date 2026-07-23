@@ -258,7 +258,7 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
                                         <i class="fas fa-file-invoice me-1"></i> Boleto
                                     </a>
                                 <?php elseif ($fatura['status'] !== 'pago'): ?>
-                                    <a href="?id=<?= $faturaId ?>&gerar_boleto=1" class="btn btn-outline-primary btn-sm w-100" onclick="return confirm('Gerar boleto para pagamento?')">
+                                    <a href="?id=<?= $faturaId ?>&gerar_boleto=1" class="btn btn-outline-primary btn-sm w-100" onclick="showConfirm('Gerar Boleto','Deseja gerar o boleto para pagamento?','?id=<?= $faturaId ?>&gerar_boleto=1','primary'); return false;">
                                         <i class="fas fa-barcode me-1"></i> Boleto
                                     </a>
                                 <?php endif; ?>

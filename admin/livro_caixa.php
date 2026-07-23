@@ -312,11 +312,11 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                         <td><?= htmlspecialchars($e['descricao']) ?></td>
                                         <td class="text-end text-success fw-bold">R$ <?= number_format($e['valor'], 2, ',', '.') ?></td>
                                         <td class="text-end">
-                                            <form method="POST" class="d-inline" onsubmit="return confirm('Excluir esta entrada?')">
-                                                <input type="hidden" name="acao" value="excluir_entrada">
-                                                <input type="hidden" name="id" value="<?= $e['id'] ?>">
-                                                <button class="btn btn-sm btn-outline-danger py-0"><i class="fas fa-trash"></i></button>
-                                            </form>
+                                             <form method="POST" class="d-inline" id="formExcluirEntrada<?= $e['id'] ?>">
+                                                 <input type="hidden" name="acao" value="excluir_entrada">
+                                                 <input type="hidden" name="id" value="<?= $e['id'] ?>">
+                                                 <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="showConfirmForm('Excluir Entrada','Excluir esta entrada?','formExcluirEntrada<?= $e['id'] ?>')"><i class="fas fa-trash"></i></button>
+                                             </form>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -367,11 +367,11 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                         <td><?= htmlspecialchars($s['descricao']) ?></td>
                                         <td class="text-end text-danger fw-bold">R$ <?= number_format($s['valor'], 2, ',', '.') ?></td>
                                         <td class="text-end">
-                                            <form method="POST" class="d-inline" onsubmit="return confirm('Excluir esta saída?')">
-                                                <input type="hidden" name="acao" value="excluir_saida">
-                                                <input type="hidden" name="id" value="<?= $s['id'] ?>">
-                                                <button class="btn btn-sm btn-outline-danger py-0"><i class="fas fa-trash"></i></button>
-                                            </form>
+                                             <form method="POST" class="d-inline" id="formExcluirSaida<?= $s['id'] ?>">
+                                                 <input type="hidden" name="acao" value="excluir_saida">
+                                                 <input type="hidden" name="id" value="<?= $s['id'] ?>">
+                                                 <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="showConfirmForm('Excluir Saída','Excluir esta saída?','formExcluirSaida<?= $s['id'] ?>')"><i class="fas fa-trash"></i></button>
+                                             </form>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -431,7 +431,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                             </td>
                                             <td class="text-end text-warning fw-bold">R$ <?= number_format($c['valor'], 2, ',', '.') ?></td>
                                             <td class="text-end">
-                                                <a href="?ano=<?= $anoFiltro ?>&mes=<?= $mesFiltro ?>&excluir_custo=<?= $c['id'] ?>" class="btn btn-sm btn-outline-danger py-0" onclick="return confirm('Excluir este custo?')"><i class="fas fa-trash"></i></a>
+                                                 <a href="?ano=<?= $anoFiltro ?>&mes=<?= $mesFiltro ?>&excluir_custo=<?= $c['id'] ?>" class="btn btn-sm btn-outline-danger py-0" onclick="showConfirm('Excluir Custo','Excluir este custo mensal?','?ano=<?= $anoFiltro ?>&mes=<?= $mesFiltro ?>&excluir_custo=<?= $c['id'] ?>'); return false;"><i class="fas fa-trash"></i></a>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

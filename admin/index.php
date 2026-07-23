@@ -15,6 +15,37 @@ $totalFaturas = $pdo->query("SELECT COUNT(*) FROM faturas WHERE status IN ('pend
 $totalRecebido = $pdo->query("SELECT COALESCE(SUM(valor),0) FROM faturas WHERE status = 'pago' AND MONTH(data_pagamento) = MONTH(NOW()) AND YEAR(data_pagamento) = YEAR(NOW())")->fetchColumn();
 $totalPendente = $pdo->query("SELECT COALESCE(SUM(valor_final),0) FROM faturas WHERE status IN ('pendente','vencido','atrasado')")->fetchColumn();
 
+$receitaMes = $pdo->query("
+    SELECT MONTH(data_pagamento) AS mes, YEAR(data_pagamento) AS ano, SUM(valor_final) AS total
+    FROM faturas WHERE status = 'pago' AND data_pagamento IS NOT NULL
+    AND data_pagamento >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+    GROUP BY YEAR(data_pagamento), MONTH(data_pagamento)
+    ORDER BY ano, mes
+")->fetchAll();
+
+$chartMeses = [];
+$chartValores = [];
+$nomesMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+foreach ($receitaMes as $rm) {
+    $chartMeses[] = $nomesMeses[$rm['mes'] - 1] . '/' . substr($rm['ano'], -2);
+    $chartValores[] = floatval($rm['total']);
+}
+
+$statusDist = $pdo->query("
+    SELECT status, COUNT(*) AS qtd FROM faturas
+    GROUP BY status ORDER BY qtd DESC
+")->fetchAll();
+
+$chartStatusLabels = [];
+$chartStatusValores = [];
+$chartStatusCores = [];
+$coreStatus = ['pago'=>'#198754','pendente'=>'#ffc107','atrasado'=>'#dc3545','vencido'=>'#fd7e14','cancelado'=>'#6c757d'];
+foreach ($statusDist as $sd) {
+    $chartStatusLabels[] = ucfirst($sd['status']);
+    $chartStatusValores[] = intval($sd['qtd']);
+    $chartStatusCores[] = $coreStatus[$sd['status']] ?? '#6c757d';
+}
+
 $perPage = intval($_GET['per_page'] ?? 10);
 if (!in_array($perPage, [10, 20, 50, 100])) $perPage = 10;
 $page = max(1, intval($_GET['page'] ?? 1));
@@ -102,6 +133,29 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <div class="stat-label">Total Pendente</div>
                         </div>
                         <div class="stat-icon" style="background: var(--cor-perigo);"><i class="fas fa-clock"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-8">
+                <div class="table-card">
+                    <div class="p-3 border-bottom">
+                        <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Receita Mensal (últimos 6 meses)</h6>
+                    </div>
+                    <div class="p-3" style="height:280px;">
+                        <canvas id="chartReceita"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="table-card">
+                    <div class="p-3 border-bottom">
+                        <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Status das Faturas</h6>
+                    </div>
+                    <div class="p-3" style="height:280px;">
+                        <canvas id="chartStatus"></canvas>
                     </div>
                 </div>
             </div>
@@ -200,5 +254,47 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         </div>
     </div>
 </div>
+
+<script>
+new Chart(document.getElementById('chartReceita'), {
+    type: 'bar',
+    data: {
+        labels: <?= json_encode($chartMeses) ?>,
+        datasets: [{
+            label: 'Receita (R$)',
+            data: <?= json_encode($chartValores) ?>,
+            backgroundColor: 'rgba(25,135,84,0.7)',
+            borderColor: '#198754',
+            borderWidth: 1,
+            borderRadius: 6
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') } }
+        }
+    }
+});
+new Chart(document.getElementById('chartStatus'), {
+    type: 'doughnut',
+    data: {
+        labels: <?= json_encode($chartStatusLabels) ?>,
+        datasets: [{
+            data: <?= json_encode($chartStatusValores) ?>,
+            backgroundColor: <?= json_encode($chartStatusCores) ?>,
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } } }
+    }
+});
+</script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

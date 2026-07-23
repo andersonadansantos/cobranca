@@ -217,7 +217,7 @@ $nomeSistema = getNomeSistema();
                                 <i class="fas fa-file-invoice"></i> Ver Boleto
                             </a>
                         <?php elseif ($fatura['status'] !== 'pago'): ?>
-                            <a href="?id=<?= $faturaId ?>&gerar_boleto=1" class="app-btn app-btn-outline" onclick="return confirm('Gerar boleto?')">
+                            <a href="?id=<?= $faturaId ?>&gerar_boleto=1" class="app-btn app-btn-outline" onclick="document.getElementById('modalAppConfirm').style.display='flex'; return false;">
                                 <i class="fas fa-barcode"></i> Gerar Boleto
                             </a>
                         <?php endif; ?>
@@ -351,6 +351,17 @@ $nomeSistema = getNomeSistema();
     });
     </script>
     <?php endif; endif; ?>
+
+    <div id="modalAppConfirm" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:16px; padding:24px; text-align:center; max-width:300px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+            <h6 style="font-weight:700; margin-bottom:8px;">Gerar Boleto</h6>
+            <p style="color:#6c757d; font-size:0.85rem; margin-bottom:16px;">Deseja gerar o boleto para pagamento?</p>
+            <div style="display:flex; gap:8px;">
+                <button onclick="document.getElementById('modalAppConfirm').style.display='none'" style="flex:1; padding:10px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; font-size:0.85rem; cursor:pointer;">Cancelar</button>
+                <a href="?id=<?= $faturaId ?>&gerar_boleto=1" style="flex:1; padding:10px; border:none; border-radius:10px; background:#6C5CE7; color:#fff; font-size:0.85rem; text-decoration:none; text-align:center;">Confirmar</a>
+            </div>
+        </div>
+    </div>
 
     <div id="appPagamentoSucesso" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
         <div style="background:#fff; border-radius:16px; padding:32px 24px; text-align:center; max-width:300px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.2);">

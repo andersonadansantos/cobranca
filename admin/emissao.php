@@ -138,39 +138,38 @@ $filtro_status = $_GET['filtro_status'] ?? '';
 $filtro_busca = trim($_GET['filtro_busca'] ?? '');
 
 $sql = "
-    SELECT fr.*, c.nome_razao, c.cpf_cnpj, c.celular, c.telefone,
-    (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_link,
-    (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_numero,
-    (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_status
-    FROM faturas_recorrentes fr 
-    JOIN clientes c ON fr.cliente_id = c.id 
-    WHERE fr.ativo = 1 OR fr.status = 'cancelado'
+    SELECT base.* FROM (
+        SELECT fr.*, c.nome_razao, c.cpf_cnpj, c.celular, c.telefone,
+        (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_link,
+        (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_numero,
+        (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_status
+        FROM faturas_recorrentes fr 
+        JOIN clientes c ON fr.cliente_id = c.id 
+        WHERE (fr.ativo = 1 OR fr.status = 'cancelado')
+    ) AS base
+    WHERE 1=1
 ";
 $params = [];
 
 if ($filtro_status !== '') {
-    $sql .= " AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) = ?";
+    $sql .= " AND base.ultimo_status = ?";
     $params[] = $filtro_status;
 }
 if ($filtro_busca !== '') {
-    $sql .= " AND (c.nome_razao LIKE ? OR c.cpf_cnpj LIKE ?)";
+    $sql .= " AND (base.nome_razao LIKE ? OR base.cpf_cnpj LIKE ?)";
     $params[] = '%' . $filtro_busca . '%';
     $params[] = '%' . $filtro_busca . '%';
 }
 
-$sql .= " ORDER BY fr.criado_em DESC";
+$sql .= " ORDER BY base.criado_em DESC";
 
-$countSql = "SELECT COUNT(*) FROM faturas_recorrentes fr JOIN clientes c ON fr.cliente_id = c.id WHERE fr.ativo = 1 OR fr.status = 'cancelado'";
-$countParams = [];
-if ($filtro_status !== '') {
-    $countSql .= " AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) = ?";
-    $countParams[] = $filtro_status;
-}
-if ($filtro_busca !== '') {
-    $countSql .= " AND (c.nome_razao LIKE ? OR c.cpf_cnpj LIKE ?)";
-    $countParams[] = '%' . $filtro_busca . '%';
-    $countParams[] = '%' . $filtro_busca . '%';
-}
+$countSql = "SELECT COUNT(*) FROM (
+    SELECT fr.id FROM faturas_recorrentes fr 
+    JOIN clientes c ON fr.cliente_id = c.id 
+    WHERE (fr.ativo = 1 OR fr.status = 'cancelado')
+    AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) <=> ?
+) AS cnt";
+$countParams = [$filtro_status !== '' ? $filtro_status : null];
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($countParams);
 $totalFaturasRecorrentes = $countStmt->fetchColumn();

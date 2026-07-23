@@ -198,7 +198,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                         </a>
                                     <?php endif; ?>
                                     <?php if ($f['status'] !== 'pago'): ?>
-                                        <a href="?cancelar=<?= $f['id'] ?>" class="btn btn-sm btn-outline-warning" title="Cancelar" onclick="return confirm('Cancelar esta fatura?')">
+                                        <a href="?cancelar=<?= $f['id'] ?>" class="btn btn-sm btn-outline-warning" title="Cancelar" onclick="showConfirm('Cancelar Fatura','Deseja cancelar a fatura <?= htmlspecialchars(addslashes($f['numero'])) ?>?','?cancelar=<?= $f['id'] ?>'); return false;">
                                             <i class="fas fa-ban"></i>
                                         </a>
                                     <?php endif; ?>
