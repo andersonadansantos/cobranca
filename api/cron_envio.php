@@ -1,0 +1,160 @@
+﻿<?php
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/settings.php';
+require_once __DIR__ . '/../config/email_helpers.php';
+require_once __DIR__ . '/../config/mercadopago.php';
+
+$pdo = getConnection();
+if (!$pdo) { die("Erro de conexao"); }
+
+$log = [];
+$hoje = date('Y-m-d');
+
+$faturasPendentes = $pdo->prepare("SELECT * FROM faturas WHERE status IN ('pendente','vencido','atrasado') AND (mp_payment_id IS NOT NULL AND mp_payment_id != '' OR inter_codigo_solicitacao IS NOT NULL AND inter_codigo_solicitacao != '')");
+$faturasPendentes->execute();
+$pendentes = $faturasPendentes->fetchAll();
+
+$apiAtiva = getApiAtiva();
+
+foreach ($pendentes as $fat) {
+    $novoStatus = null;
+    $dataPagamento = null;
+
+    if ($apiAtiva === 'inter' && !empty($fat['inter_codigo_solicitacao'])) {
+        $detalhe = consultarCobrancaInter($fat['inter_codigo_solicitacao']);
+        if ($detalhe && !isset($detalhe['erro'])) {
+            $situacao = strtoupper($detalhe['situacao'] ?? $detalhe['cobranca']['situacao'] ?? '');
+            if (in_array($situacao, ['PAGA','RECEBIDO'])) { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
+            elseif ($situacao === 'VENCIDA') { $novoStatus = 'vencido'; }
+            elseif (in_array($situacao, ['EXPIRADA','CANCELADA'])) { $novoStatus = 'cancelado'; }
+        }
+    } elseif ($apiAtiva === 'bb' && !empty($fat['mp_payment_id'])) {
+        $detalhe = consultarBoletoBB($fat['mp_payment_id']);
+        if ($detalhe && !isset($detalhe['erro'])) {
+            $situacao = strtoupper($detalhe['situacaoBoleto']['codigoSituacaoBoleto'] ?? '');
+            if (in_array($situacao, ['BAIXADO','PAGO','RECEBIDO'])) { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
+        }
+    } elseif ($apiAtiva === 'mercadopago' && !empty($fat['mp_payment_id'])) {
+        $pagamento = consultarPagamento($fat['mp_payment_id']);
+        if ($pagamento) {
+            $statusMP = $pagamento['status'] ?? '';
+            if ($statusMP === 'approved') { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
+            elseif (in_array($statusMP, ['cancelled','refunded'])) { $novoStatus = 'cancelado'; }
+        }
+    }
+
+        if ($novoStatus !== null && $novoStatus !== $fat['status']) {
+            $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
+            $stmt->execute([$novoStatus, $dataPagamento, $fat['id']]);
+            if ($novoStatus === 'pago') {
+                $stmtLog = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, 'approved', 'Baixa automatica via cron', ?, ?, ?)");
+                $stmtLog->execute([$fat['id'], $fat['mp_payment_id'] ?? $fat['inter_codigo_solicitacao'] ?? '', $fat['valor_final'], $apiAtiva, json_encode(['source' => 'cron'])]);
+                if (!empty($fat['email'])) {
+                    $fat['data_pagamento'] = $dataPagamento;
+                    enviarEmailPagamento($fat);
+                }
+            }
+        $log[] = "[baixa] {$fat['numero']} -> {$novoStatus}";
+    }
+}
+
+$cronAtivo = getConfig('cron_envio_ativo', '0');
+if ($cronAtivo !== '1') {
+    file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - " . implode(" | ", $log) . "\n", FILE_APPEND);
+    die("CRON executado (baixa): " . count($log) . " acoes\n");
+}
+
+$smtpHost = getConfig('smtp_host', '');
+$smtpPort = getConfig('smtp_port', '587');
+$smtpUser = getConfig('smtp_usuario', '');
+$smtpPass = getConfig('smtp_senha', '');
+$smtpFrom = getConfig('smtp_from_email', '');
+$smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobranca');
+$smtpSsl  = getConfig('smtp_ssl', 'tls');
+
+if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) { die("SMTP nao configurado"); }
+
+$regua1 = (getConfig('regua_1_enviar_geracao', '0') === '1');
+$regua2 = intval(getConfig('regua_2_dias_antes', '0'));
+$regua3 = intval(getConfig('regua_3_dias_antes', '0'));
+$regua4 = (getConfig('regua_4_no_vencimento', '0') === '1');
+$regua5 = intval(getConfig('regua_5_dias_depois', '0'));
+
+function buscarFaturas($pdo, $statuses) {
+    $ph = implode(',', array_fill(0, count($statuses), '?'));
+    $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ($ph) AND c.email IS NOT NULL AND c.email != ''");
+    $stmt->execute($statuses);
+    return $stmt->fetchAll();
+}
+
+function enviarEAtualizar($pdo, $fat, $tipo, $assunto, $html, $txt, $s, &$log) {
+    $enviado = enviarEmail($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt);
+    if ($enviado) {
+        $stmt = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = ? WHERE id = ?");
+        $stmt->execute([$tipo, $fat['id']]);
+        $log[] = "[$tipo] {$fat['numero']} -> {$fat['email']}";
+    } else {
+        $log[] = "[erro {$tipo}] {$fat['numero']} -> {$fat['email']}";
+    }
+}
+
+function montarAssunto($antes, $fat) {
+    $chave = $antes ? 'template_email_assunto_antes' : 'template_email_assunto_depois';
+    $assunto = getConfig($chave, 'Fatura ' . $fat['numero']);
+    return str_replace(['{numero}', '{data_vencimento}', '{valor}'], [
+        $fat['numero'], date('d/m/Y', strtotime($fat['data_vencimento'])), number_format($fat['valor_final'], 2, ',', '.')
+    ], $assunto);
+}
+
+$s = ['host'=>$smtpHost,'port'=>$smtpPort,'user'=>$smtpUser,'pass'=>$smtpPass,'from'=>$smtpFrom,'nome'=>$smtpNome,'ssl'=>$smtpSsl];
+$faturas = buscarFaturas($pdo, ['pendente', 'vencido', 'atrasado']);
+
+// REGRA 1: Envio na geracao (so se nunca enviou)
+if ($regua1) {
+    foreach ($faturas as $fat) {
+        if ($fat['ultimo_envio_tipo'] !== null) continue;
+        enviarEAtualizar($pdo, $fat, 'geracao', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', 0), montarMensagemTxt($fat, 'antes', 0), $s, $log);
+    }
+}
+
+// REGRA 2: 1o lembrete - X dias antes do vencimento
+if ($regua2 > 0) {
+    $dataAlvo = date('Y-m-d', strtotime("+{$regua2} days"));
+    foreach ($faturas as $fat) {
+        if ($fat['data_vencimento'] !== $dataAlvo) continue;
+        if (in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) continue;
+        enviarEAtualizar($pdo, $fat, 'lembrete1', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', $regua2), montarMensagemTxt($fat, 'antes', $regua2), $s, $log);
+    }
+}
+
+// REGRA 3: 2o lembrete - X dias antes do vencimento
+if ($regua3 > 0) {
+    $dataAlvo = date('Y-m-d', strtotime("+{$regua3} days"));
+    foreach ($faturas as $fat) {
+        if ($fat['data_vencimento'] !== $dataAlvo) continue;
+        if (in_array($fat['ultimo_envio_tipo'], ['lembrete2','vencimento','atraso'])) continue;
+        enviarEAtualizar($pdo, $fat, 'lembrete2', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', $regua3), montarMensagemTxt($fat, 'antes', $regua3), $s, $log);
+    }
+}
+
+// REGRA 4: Lembrete final - no dia do vencimento
+if ($regua4) {
+    foreach ($faturas as $fat) {
+        if ($fat['data_vencimento'] !== $hoje) continue;
+        if (in_array($fat['ultimo_envio_tipo'], ['vencimento','atraso'])) continue;
+        enviarEAtualizar($pdo, $fat, 'vencimento', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', 0), montarMensagemTxt($fat, 'antes', 0), $s, $log);
+    }
+}
+
+// REGRA 5: Atraso - X dias depois do vencimento
+if ($regua5 > 0) {
+    $dataAlvo = date('Y-m-d', strtotime("-{$regua5} days"));
+    foreach ($faturas as $fat) {
+        if ($fat['data_vencimento'] !== $dataAlvo) continue;
+        if ($fat['ultimo_envio_tipo'] === 'atraso') continue;
+        enviarEAtualizar($pdo, $fat, 'atraso', montarAssunto(false, $fat), montarMensagemHtml($fat, 'depois', $regua5), montarMensagemTxt($fat, 'depois', $regua5), $s, $log);
+    }
+}
+
+file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - " . implode(" | ", $log) . "\n", FILE_APPEND);
+echo "CRON executado: " . count($log) . " acoes\n";

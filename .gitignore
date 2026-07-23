@@ -1,0 +1,7 @@
+config/database.php
+config/inter_certs/
+assets/img/avatars/
+assets/img/banners/
+assets/boletos_inter/
+api/cron_log.txt
+*.log
