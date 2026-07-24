@@ -42,7 +42,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sqlFile = __DIR__ . '/../estrutura_banco.sql';
             if (file_exists($sqlFile)) {
                 $sql = file_get_contents($sqlFile);
-                $pdo->exec($sql);
+                $sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql);
+                $sql = preg_replace('/\r\n/', "\n", $sql);
+                $statements = array_filter(array_map('trim', explode(";\n", $sql)));
+                foreach ($statements as $stmt) {
+                    if (!empty($stmt) && !preg_match('/^--/', $stmt)) {
+                        try { $pdo->exec($stmt); } catch (PDOException $e) {}
+                    }
+                }
             }
 
             $dsn2 = "mysql:host=$dbHost;port=$dbPort;dbname=$dbName;charset=utf8mb4";

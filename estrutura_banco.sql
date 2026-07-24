@@ -1,4 +1,4 @@
-﻿-- =====================================================
+-- =====================================================
 -- BANCO DE DADOS: cobranca
 -- Sistema: WD_payments
 -- Compatível com: MySQL 5.7+, MySQL 8.x, MariaDB 10.x
