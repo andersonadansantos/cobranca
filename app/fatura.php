@@ -100,7 +100,8 @@ $nomeSistema = getNomeSistema();
     <meta name="theme-color" content="#6C5CE7">
     <title>Fatura <?= htmlspecialchars($fatura['numero']) ?></title>
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/svg+xml" href="/cobranca/assets/img/avatars/user.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon.php?size=192">
+    <link rel="apple-touch-icon" href="icon.php?size=192">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="css/app.css" rel="stylesheet">
@@ -373,5 +374,6 @@ $nomeSistema = getNomeSistema();
             <a href="dashboard.php" class="app-btn app-btn-success" style="width:100%; text-align:center; text-decoration:none;">Voltar ao Painel</a>
         </div>
     </div>
+    <script src="pwa.js"></script>
 </body>
 </html>

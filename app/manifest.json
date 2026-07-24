@@ -1,18 +1,74 @@
 {
     "name": "Sistema de Cobrança",
     "short_name": "Cobrança",
-    "description": "Área do Cliente",
-    "start_url": "index.php",
+    "description": "Área do Cliente - Cobrança",
+    "start_url": "/cobranca/app/index.php",
+    "scope": "/cobranca/app/",
     "display": "standalone",
     "background_color": "#f0f2f5",
     "theme_color": "#6C5CE7",
-    "orientation": "portrait",
+    "orientation": "portrait-primary",
+    "lang": "pt-BR",
+    "dir": "ltr",
+    "id": "/cobranca/app/",
+    "categories": ["finance", "business"],
     "icons": [
         {
-            "src": "/cobranca/assets/img/avatars/user.svg",
-            "sizes": "any",
-            "type": "image/svg+xml",
+            "src": "icon.php?size=72",
+            "sizes": "72x72",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icon.php?size=96",
+            "sizes": "96x96",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icon.php?size=128",
+            "sizes": "128x128",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icon.php?size=144",
+            "sizes": "144x144",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icon.php?size=152",
+            "sizes": "152x152",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icon.php?size=192",
+            "sizes": "192x192",
+            "type": "image/png",
             "purpose": "any maskable"
+        },
+        {
+            "src": "icon.php?size=384",
+            "sizes": "384x384",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icon.php?size=512",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "screenshots": [],
+    "shortcuts": [
+        {
+            "name": "Minhas Faturas",
+            "short_name": "Faturas",
+            "url": "dashboard.php",
+            "icons": [{"src": "icon.php?size=96", "sizes": "96x96"}]
         }
     ]
 }

@@ -291,6 +291,27 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 
+<script>
+document.querySelectorAll('form').forEach(function(f) {
+    f.addEventListener('submit', function() {
+        var acao = this.querySelector('[name="acao"]');
+        if (acao && acao.value === 'testar_smtp') {
+            var fields = ['smtp_host','smtp_port','smtp_usuario','smtp_senha','smtp_from_email','smtp_from_nome','smtp_ssl'];
+            var card = this.closest('.form-card');
+            var saveForm = card ? card.querySelector('form:first-of-type') : null;
+            if (saveForm) {
+                var self = this;
+                fields.forEach(function(k) {
+                    var s = saveForm.querySelector('[name="'+k+'"]');
+                    var t = self.querySelector('[name="'+k+'"]');
+                    if (s && t) t.value = s.value;
+                });
+            }
+        }
+    });
+});
+</script>
+
 <?php
 function testarConexaoSmtp($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $testEmail) {
     $errno = 0;
@@ -308,9 +329,11 @@ function testarConexaoSmtp($host, $port, $user, $pass, $fromEmail, $fromNome, $s
 
     @fputs($connexion, "EHLO " . gethostname() . "\r\n");
     stream_set_timeout($connexion, 5);
+    $ehloResponse = '';
     for ($i = 0; $i < 10; $i++) {
         $response = @fgets($connexion, 512);
-        if (substr($response, 0, 4) === '250') break;
+        $ehloResponse .= $response;
+        if (substr($response, 0, 3) === '250' && substr($response, 3, 1) === ' ') break;
     }
 
     if ($ssl === 'tls') {
@@ -325,32 +348,49 @@ function testarConexaoSmtp($host, $port, $user, $pass, $fromEmail, $fromNome, $s
                 return ['sucesso' => false, 'mensagem' => "Falha ao iniciar TLS."];
             }
             @fputs($connexion, "EHLO " . gethostname() . "\r\n");
+            $ehloResponse = '';
             for ($i = 0; $i < 10; $i++) {
                 $response = @fgets($connexion, 512);
-                if (substr($response, 0, 4) === '250') break;
+                $ehloResponse .= $response;
+                if (substr($response, 0, 3) === '250' && substr($response, 3, 1) === ' ') break;
             }
         }
     }
 
-    @fputs($connexion, "AUTH LOGIN\r\n");
-    $response = @fgets($connexion, 512);
-    if (substr($response, 0, 3) !== '334') {
-        @fclose($connexion);
-        return ['sucesso' => false, 'mensagem' => "Servidor não aceitou AUTH LOGIN."];
+    $authPlain = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'PLAIN') !== false;
+    $authLogin = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'LOGIN') !== false;
+
+    if ($authPlain) {
+        @fputs($connexion, "AUTH PLAIN\r\n");
+        $response = @fgets($connexion, 512);
+        if (substr($response, 0, 3) === '334') {
+            @fputs($connexion, base64_encode("\0" . $user . "\0" . $pass) . "\r\n");
+            $response = @fgets($connexion, 512);
+            if (substr($response, 0, 3) === '235') {
+                $authOk = true;
+            }
+        }
     }
 
-    @fputs($connexion, base64_encode($user) . "\r\n");
-    $response = @fgets($connexion, 512);
-    if (substr($response, 0, 3) !== '334') {
-        @fclose($connexion);
-        return ['sucesso' => false, 'mensagem' => "Falha no usuário SMTP."];
+    if (empty($authOk) && $authLogin) {
+        @fputs($connexion, "AUTH LOGIN\r\n");
+        $response = @fgets($connexion, 512);
+        if (substr($response, 0, 3) === '334') {
+            @fputs($connexion, base64_encode($user) . "\r\n");
+            $response = @fgets($connexion, 512);
+            if (substr($response, 0, 3) === '334') {
+                @fputs($connexion, base64_encode($pass) . "\r\n");
+                $response = @fgets($connexion, 512);
+                if (substr($response, 0, 3) === '235') {
+                    $authOk = true;
+                }
+            }
+        }
     }
 
-    @fputs($connexion, base64_encode($pass) . "\r\n");
-    $response = @fgets($connexion, 512);
-    if (substr($response, 0, 3) !== '235') {
+    if (empty($authOk)) {
         @fclose($connexion);
-        return ['sucesso' => false, 'mensagem' => "Falha na autenticação. Verifique usuário e senha."];
+        return ['sucesso' => false, 'mensagem' => "Servidor não aceitou AUTH PLAIN nem AUTH LOGIN. Verifique host, porta e criptografia."];
     }
 
     @fputs($connexion, "MAIL FROM:<{$fromEmail}>\r\n");

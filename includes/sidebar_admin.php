@@ -13,6 +13,9 @@ $basePath = '/cobranca/admin';
         <div class="nav-section">Menu Principal</div>
         <a href="<?= $basePath ?>/index.php" class="nav-link <?= $currentPage === 'index' ? 'active' : '' ?>">
             <i class="fas fa-chart-pie"></i> Painel Geral
+            <?php if (($totalAlerta ?? 0) > 0): ?>
+                <span class="badge bg-danger ms-auto" style="font-size:0.65rem;"><?= $totalAlerta ?></span>
+            <?php endif; ?>
         </a>
         <a href="<?= $basePath ?>/cadastro.php" class="nav-link <?= $currentPage === 'cadastro' ? 'active' : '' ?>">
             <i class="fas fa-building"></i> Cadastro
@@ -48,6 +51,12 @@ $basePath = '/cobranca/admin';
         </a>
         <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>">
             <i class="fas fa-headset"></i> Contato/Financeiro
+        </a>
+        <a href="<?= $basePath ?>/backup.php" class="nav-link <?= $currentPage === 'backup' ? 'active' : '' ?>">
+            <i class="fas fa-database"></i> Backup
+        </a>
+        <a href="<?= $basePath ?>/whatsapp.php" class="nav-link <?= $currentPage === 'whatsapp' ? 'active' : '' ?>">
+            <i class="fab fa-whatsapp" style="color:#25D366;"></i> WhatsApp
         </a>
 
         <div class="nav-section">Conta</div>

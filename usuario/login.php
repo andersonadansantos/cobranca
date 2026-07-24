@@ -13,7 +13,12 @@ if (isLoggedInUser()) {
 
 $erro = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$rateLimit = checkLoginRateLimit('user', 'all');
+if ($rateLimit['blocked']) {
+    $erro = 'Muitas tentativas. Tente novamente em ' . $rateLimit['minutes'] . ' minuto(s).';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
     $recaptcha = trim($_POST['g-recaptcha-response'] ?? '');
     if (empty($recaptcha)) {
         $erro = 'Confirme que você não é um robô.';
@@ -40,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: index.php');
             exit;
         } else {
+            recordLoginAttempt('user', 'all');
             $erro = 'CPF/CNPJ não encontrado.';
         }
     }

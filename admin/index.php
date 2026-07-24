@@ -46,6 +46,17 @@ foreach ($statusDist as $sd) {
     $chartStatusCores[] = $coreStatus[$sd['status']] ?? '#6c757d';
 }
 
+$faturasAlerta = $pdo->query("
+    SELECT f.numero, f.valor_final, f.data_vencimento, c.nome_razao,
+           DATEDIFF(f.data_vencimento, CURDATE()) AS dias_restantes
+    FROM faturas f JOIN clientes c ON f.cliente_id = c.id
+    WHERE f.status IN ('pendente','vencido','atrasado')
+      AND f.data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+    ORDER BY f.data_vencimento ASC
+")->fetchAll();
+$totalAlerta = count($faturasAlerta);
+$valorAlerta = array_sum(array_column($faturasAlerta, 'valor_final'));
+
 $perPage = intval($_GET['per_page'] ?? 10);
 if (!in_array($perPage, [10, 20, 50, 100])) $perPage = 10;
 $page = max(1, intval($_GET['page'] ?? 1));
@@ -91,6 +102,20 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     </div>
 
     <div class="content-area fade-in">
+        <?php if ($totalAlerta > 0): ?>
+        <div class="alert alert-warning d-flex align-items-center mb-4" role="alert" style="border-left:4px solid #ffc107;">
+            <i class="fas fa-bell me-3" style="font-size:1.2rem;"></i>
+            <div>
+                <strong><?= $totalAlerta ?> fatura(s)</strong> vencendo em até 3 dias — Total: R$ <?= number_format($valorAlerta, 2, ',', '.') ?>
+                <br><small>
+                <?php foreach ($faturasAlerta as $fa): ?>
+                    <?= htmlspecialchars($fa['numero']) ?> (<?= htmlspecialchars($fa['nome_razao']) ?>) — vence em <?= $fa['dias_restantes'] == 0 ? 'hoje' : $fa['dias_restantes'] . ' dia(s)' ?>&nbsp;&nbsp;
+                <?php endforeach; ?>
+                </small>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="row g-4 mb-4">
             <div class="col-md-3">
                 <div class="stat-card">

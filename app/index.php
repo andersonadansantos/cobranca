@@ -8,7 +8,12 @@ if (isLoggedInUser()) {
 
 $erro = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$rateLimit = checkLoginRateLimit('user', 'all');
+if ($rateLimit['blocked']) {
+    $erro = 'Muitas tentativas. Tente novamente em ' . $rateLimit['minutes'] . ' minuto(s).';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
     $recaptcha = trim($_POST['g-recaptcha-response'] ?? '');
     if (empty($recaptcha)) {
         $erro = 'Confirme que você não é um robô.';
@@ -35,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: dashboard.php');
             exit;
         } else {
+            recordLoginAttempt('user', 'all');
             $erro = 'CPF/CNPJ não encontrado.';
         }
     }
@@ -54,11 +60,13 @@ $nomeSistema = getNomeSistema();
     <meta name="theme-color" content="#6C5CE7">
     <title><?= htmlspecialchars($nomeSistema) ?></title>
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/svg+xml" href="/cobranca/assets/img/avatars/user.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon.php?size=192">
+    <link rel="apple-touch-icon" href="icon.php?size=192">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="css/app.css" rel="stylesheet">
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="pwa.js"></script>
 </head>
 <body>
     <div class="app-login">

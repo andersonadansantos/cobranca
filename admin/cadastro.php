@@ -234,6 +234,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <div class="table-card">
             <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
                 <h6 class="mb-0"><i class="fas fa-users me-2"></i>Clientes Cadastrados (<?= count($clientes) ?>)</h6>
+                <a href="export_csv.php?tipo=clientes" class="btn btn-sm btn-outline-success"><i class="fas fa-file-csv me-1"></i>Exportar CSV</a>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover">

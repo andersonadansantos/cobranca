@@ -107,9 +107,11 @@ if (!function_exists('enviarEmail')) {
 
         @fputs($connexion, "EHLO " . gethostname() . "\r\n");
         stream_set_timeout($connexion, 5);
+        $ehloResponse = '';
         for ($i = 0; $i < 10; $i++) {
             $r = @fgets($connexion, 512);
-            if (substr($r, 0, 4) === '250') break;
+            $ehloResponse .= $r;
+            if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
         }
 
         if ($ssl === 'tls') {
@@ -120,20 +122,48 @@ if (!function_exists('enviarEmail')) {
                 stream_context_set_option($connexion, 'ssl', 'verify_peer_name', false);
                 @stream_socket_enable_crypto($connexion, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
                 @fputs($connexion, "EHLO " . gethostname() . "\r\n");
+                $ehloResponse = '';
                 for ($i = 0; $i < 10; $i++) {
                     $r = @fgets($connexion, 512);
-                    if (substr($r, 0, 4) === '250') break;
+                    $ehloResponse .= $r;
+                    if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
                 }
             }
         }
 
-        @fputs($connexion, "AUTH LOGIN\r\n");
-        $r = @fgets($connexion, 512);
-        @fputs($connexion, base64_encode($user) . "\r\n");
-        @fgets($connexion, 512);
-        @fputs($connexion, base64_encode($pass) . "\r\n");
-        $r = @fgets($connexion, 512);
-        if (substr($r, 0, 3) !== '235') {
+        $authPlain = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'PLAIN') !== false;
+        $authLogin = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'LOGIN') !== false;
+        $authOk = false;
+
+        if ($authPlain) {
+            @fputs($connexion, "AUTH PLAIN\r\n");
+            $r = @fgets($connexion, 512);
+            if (substr($r, 0, 3) === '334') {
+                @fputs($connexion, base64_encode("\0" . $user . "\0" . $pass) . "\r\n");
+                $r = @fgets($connexion, 512);
+                if (substr($r, 0, 3) === '235') {
+                    $authOk = true;
+                }
+            }
+        }
+
+        if (!$authOk && $authLogin) {
+            @fputs($connexion, "AUTH LOGIN\r\n");
+            $r = @fgets($connexion, 512);
+            if (substr($r, 0, 3) === '334') {
+                @fputs($connexion, base64_encode($user) . "\r\n");
+                $r = @fgets($connexion, 512);
+                if (substr($r, 0, 3) === '334') {
+                    @fputs($connexion, base64_encode($pass) . "\r\n");
+                    $r = @fgets($connexion, 512);
+                    if (substr($r, 0, 3) === '235') {
+                        $authOk = true;
+                    }
+                }
+            }
+        }
+
+        if (!$authOk) {
             @fclose($connexion);
             return false;
         }
