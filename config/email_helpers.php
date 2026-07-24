@@ -71,11 +71,11 @@ if (!function_exists('montarMensagemHtml')) {
 
         $chaveTemplate = ($tipo === 'antes') ? 'template_email_corpo_antes' : 'template_email_corpo_depois';
         $templateHtml = getConfig($chaveTemplate, '');
+        $corPrimaria = getCorPrimaria();
 
         if (!empty($templateHtml)) {
             $mensagemHtml = $templateHtml;
         } else {
-            $corPrimaria = getCorPrimaria();
             $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><div style="background:' . $corPrimaria . ';padding:24px 30px;text-align:center;">' . $logoTag . '</div><div style="padding:30px;">{{CONTEUDO}}</div></div></body></html>';
         }
 
@@ -293,11 +293,11 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
         $logoTag = getLogoTagEmail();
 
         $templateHtml = getConfig('template_email_corpo_pagamento', '');
+        $corPrimaria = getCorPrimaria();
 
         if (!empty($templateHtml)) {
             $mensagemHtml = $templateHtml;
         } else {
-            $corPrimaria = getCorPrimaria();
             $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><div style="background:' . $corPrimaria . ';padding:24px 30px;text-align:center;">' . $logoTag . '</div><div style="padding:30px;">{{CONTEUDO}}</div></div></body></html>';
         }
 
