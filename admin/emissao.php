@@ -101,8 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
             }
 
-            $stmt = $pdo->prepare("INSERT INTO faturas (cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente')");
-            $stmt->execute([$cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc]);
+            $stmt = $pdo->prepare("INSERT INTO faturas (cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?)");
+            $stmt->execute([$cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken()]);
             $faturaId = $pdo->lastInsertId();
 
             $stmtCliente = $pdo->prepare("SELECT nome_razao, email FROM clientes WHERE id = ?");

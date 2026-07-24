@@ -7,6 +7,19 @@ if (!function_exists('getLinkFatura')) {
     function getLinkFatura($faturaId) {
         $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $token = '';
+        $pdo = getConnection();
+        if ($pdo) {
+            $stmt = $pdo->prepare("SELECT acesso_token FROM faturas WHERE id = ?");
+            $stmt->execute([$faturaId]);
+            $row = $stmt->fetch();
+            if ($row && !empty($row['acesso_token'])) {
+                $token = $row['acesso_token'];
+            }
+        }
+        if ($token) {
+            return "{$protocolo}://{$host}/cobranca/usuario/fatura.php?id={$faturaId}&token={$token}";
+        }
         return "{$protocolo}://{$host}/cobranca/usuario/fatura.php?id={$faturaId}";
     }
 }

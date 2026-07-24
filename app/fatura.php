@@ -4,6 +4,9 @@ header('Pragma: no-cache');
 header('Expires: 0');
 
 require_once __DIR__ . '/../includes/auth.php';
+if (!isLoggedInUser() && !empty($_GET['token'])) {
+    autoLoginByToken($_GET['token']);
+}
 requireUser();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/mercadopago.php';

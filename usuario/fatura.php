@@ -1,9 +1,13 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+if (!isLoggedInUser() && !empty($_GET['token'])) {
+    autoLoginByToken($_GET['token']);
+}
 requireUser();
 
 if (isMobileDevice()) {
-    header('Location: /cobranca/app/fatura.php?id=' . intval($_GET['id'] ?? 0));
+    $redirToken = !empty($_GET['token']) ? '&token=' . urlencode($_GET['token']) : '';
+    header('Location: /cobranca/app/fatura.php?id=' . intval($_GET['id'] ?? 0) . $redirToken);
     exit;
 }
 require_once __DIR__ . '/../config/database.php';

@@ -230,3 +230,28 @@ function clearLoginAttempts($contexto, $identificador) {
     $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE contexto = ? AND identificador = ?");
     $stmt->execute([$contexto, $identificador]);
 }
+
+function autoLoginByToken($token) {
+    if (empty($token) || isLoggedInUser()) return false;
+    $pdo = getConnection();
+    if (!$pdo) return false;
+
+    $stmt = $pdo->prepare("SELECT f.id, f.cliente_id, c.nome_razao, c.cpf_cnpj, c.tipo_pessoa, c.avatar FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.acesso_token = ? AND f.status != 'cancelado' LIMIT 1");
+    $stmt->execute([$token]);
+    $row = $stmt->fetch();
+
+    if ($row) {
+        $_SESSION['user_id'] = $row['cliente_id'];
+        $_SESSION['user_nome'] = $row['nome_razao'];
+        $_SESSION['user_cpf_cnpj'] = $row['cpf_cnpj'];
+        $_SESSION['user_tipo'] = $row['tipo_pessoa'];
+        $_SESSION['user_avatar'] = $row['avatar'] ?? null;
+        clearLoginAttempts('user', $row['cpf_cnpj']);
+        return $row['id'];
+    }
+    return false;
+}
+
+function generateAcessoToken() {
+    return bin2hex(random_bytes(32));
+}
