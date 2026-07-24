@@ -217,7 +217,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i> Salvar Lembrete
                             </button>
-                            <button type="submit" class="btn btn-outline-secondary" onclick="document.querySelector('[name=acao]').value='restaurar_antes'">
+                            <button type="submit" class="btn btn-outline-secondary" onclick="this.closest('form').querySelector('[name=acao]').value='restaurar_antes'">
                                 <i class="fas fa-undo me-1"></i> Restaurar Padrão
                             </button>
                         </div>
@@ -271,7 +271,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i> Salvar Cobrança
                             </button>
-                            <button type="submit" class="btn btn-outline-secondary" onclick="document.querySelector('[name=acao]').value='restaurar_depois'">
+                            <button type="submit" class="btn btn-outline-secondary" onclick="this.closest('form').querySelector('[name=acao]').value='restaurar_depois'">
                                 <i class="fas fa-undo me-1"></i> Restaurar Padrão
                             </button>
                         </div>
@@ -315,7 +315,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i> Salvar Pagamento
                             </button>
-                            <button type="submit" class="btn btn-outline-secondary" onclick="document.querySelector('[name=acao]').value='restaurar_pagamento'">
+                            <button type="submit" class="btn btn-outline-secondary" onclick="this.closest('form').querySelector('[name=acao]').value='restaurar_pagamento'">
                                 <i class="fas fa-undo me-1"></i> Restaurar Padrão
                             </button>
                         </div>
