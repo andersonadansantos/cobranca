@@ -3,6 +3,17 @@
 // FUNÇÕES COMPARTILHADAS DE E-MAIL
 // =====================================================
 
+if (!function_exists('getLogoEmail')) {
+    function getLogoEmail() {
+        $logo = getLogo();
+        if (!$logo) return '';
+        if (strpos($logo, 'http') === 0) return $logo;
+        $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'agenciawd.com.br';
+        return "{$protocolo}://{$host}{$logo}";
+    }
+}
+
 if (!function_exists('getLinkFatura')) {
     function getLinkFatura($faturaId) {
         $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -29,7 +40,7 @@ if (!function_exists('montarMensagemHtml')) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
         $linkPag = $fatura['link_pagamento'] ?? '';
-        $logo = getLogo();
+        $logo = getLogoEmail();
         $logoTag = $logo ? '<img src="' . htmlspecialchars($logo) . '" alt="Logo" width="250" style="width:250px;max-width:250px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;">' . htmlspecialchars($nomeSistema) . '</h2>';
 
         $chaveTemplate = ($tipo === 'antes') ? 'template_email_corpo_antes' : 'template_email_corpo_depois';
@@ -253,7 +264,7 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
     function montarMensagemPagamentoHtml($fatura) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
-        $logo = getLogo();
+        $logo = getLogoEmail();
         $logoTag = $logo ? '<img src="' . htmlspecialchars($logo) . '" alt="Logo" width="250" style="width:250px;max-width:250px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;">' . htmlspecialchars($nomeSistema) . '</h2>';
 
         $templateHtml = getConfig('template_email_corpo_pagamento', '');
