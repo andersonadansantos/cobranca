@@ -84,6 +84,16 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<p>Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
             $conteudo .= '<p>Identificamos que sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> vence em <strong>' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</strong>.</p>';
             $conteudo .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">' . htmlspecialchars($fatura['descricao']) . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr></table>';
+            if (!empty($fatura['pix_copia_cola'])) {
+                $conteudo .= '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">';
+                $conteudo .= '<p style="margin:0 0 10px 0;font-weight:bold;color:#166534;">Pague via PIX</p>';
+                if (!empty($fatura['pix_qrcode'])) {
+                    $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
+                }
+                $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
+                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all;color:#333;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
+                $conteudo .= '</div>';
+            }
             $conteudo .= '<p>Acesse sua fatura para mais detalhes e realizar o pagamento:</p>';
             $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:' . $corPrimaria . ';border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
             if ($linkPag) {
@@ -96,6 +106,16 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<p>Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
             $conteudo .= '<p>Sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> encontra-se vencida há <strong>' . intval($diasAtraso) . ' dia(s)</strong>.</p>';
             $conteudo .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">' . htmlspecialchars($fatura['descricao']) . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Vencimento</td><td style="padding:8px 0;border-top:1px solid #eee;">' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</td></tr></table>';
+            if (!empty($fatura['pix_copia_cola'])) {
+                $conteudo .= '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">';
+                $conteudo .= '<p style="margin:0 0 10px 0;font-weight:bold;color:#991b1b;">Pague via PIX</p>';
+                if (!empty($fatura['pix_qrcode'])) {
+                    $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
+                }
+                $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
+                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all;color:#333;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
+                $conteudo .= '</div>';
+            }
             $conteudo .= '<p>Por favor, regularize sua situação o mais rápido possível:</p>';
             $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:#c0392b;border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
             if ($linkPag) {
@@ -120,6 +140,10 @@ if (!function_exists('montarMensagemTxt')) {
             $msg .= "Identificamos que sua fatura {$fatura['numero']} vence em " . date('d/m/Y', strtotime($fatura['data_vencimento'])) . ".\n\n";
             $msg .= "Descrição: {$fatura['descricao']}\n";
             $msg .= "Valor: R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "\n\n";
+            if (!empty($fatura['pix_copia_cola'])) {
+                $msg .= "Pague via PIX:\n";
+                $msg .= "Código: {$fatura['pix_copia_cola']}\n\n";
+            }
             $msg .= "Acesse sua fatura: {$linkFatura}\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";
@@ -132,6 +156,10 @@ if (!function_exists('montarMensagemTxt')) {
             $msg .= "Descrição: {$fatura['descricao']}\n";
             $msg .= "Valor: R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "\n";
             $msg .= "Vencimento: " . date('d/m/Y', strtotime($fatura['data_vencimento'])) . "\n\n";
+            if (!empty($fatura['pix_copia_cola'])) {
+                $msg .= "Pague via PIX:\n";
+                $msg .= "Código: {$fatura['pix_copia_cola']}\n\n";
+            }
             $msg .= "Acesse sua fatura: {$linkFatura}\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";
