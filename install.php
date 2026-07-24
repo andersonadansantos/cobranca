@@ -29,8 +29,6 @@ if ($pdo) {
                         <h3 class="text-danger mb-3">Erro de Conexão</h3>
                         <p>Não foi possível conectar ao banco de dados.</p>
                         <p class="small text-muted">Verifique se o XAMPP está rodando e o MariaDB está ativo.</p>
-                        <hr>
-                        <p class="small">Host: 127.0.0.1:3306 | User: root | DB: cobranca</p>
                     </div>
                 </div>
             </div>

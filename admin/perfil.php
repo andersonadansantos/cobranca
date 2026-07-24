@@ -47,12 +47,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (empty($senhaAtual)) {
                 $mensagem = 'Informe a senha atual para definir uma nova.';
                 $tipo = 'danger';
-            } elseif (md5($senhaAtual) !== $admin['senha']) {
+            } elseif (!password_verify($senhaAtual, $admin['senha']) && md5($senhaAtual) !== $admin['senha']) {
                 $mensagem = 'Senha atual incorreta.';
                 $tipo = 'danger';
             } else {
-                $stmt = $pdo->prepare("UPDATE administradores SET nome=?, email=?, usuario=?, senha=MD5(?) WHERE id=?");
-                $stmt->execute([$nome, $email, $usuario, $novaSenha, $adminId]);
+                $stmt = $pdo->prepare("UPDATE administradores SET nome=?, email=?, usuario=?, senha=? WHERE id=?");
+                $stmt->execute([$nome, $email, $usuario, password_hash($novaSenha, PASSWORD_BCRYPT), $adminId]);
                 $_SESSION['admin_nome'] = $nome;
                 $_SESSION['admin_usuario'] = $usuario;
                 $mensagem = 'Perfil atualizado com sucesso!';

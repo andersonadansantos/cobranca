@@ -86,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $params = [$tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado];
                 
                 if (!empty($senha)) {
-                    $sql .= ", senha=MD5(?)";
-                    $params[] = $senha;
+                    $sql .= ", senha=?";
+                    $params[] = password_hash($senha, PASSWORD_BCRYPT);
                 }
                 
                 $sql .= " WHERE id=?";
@@ -101,8 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($senha)) {
                     $senha = substr($cpf_cnpj, -4) . '123';
                 }
-                $stmt = $pdo->prepare("INSERT INTO clientes (tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, MD5(?))");
-                $stmt->execute([$tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, $senha]);
+                $stmt = $pdo->prepare("INSERT INTO clientes (tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);
                 header('Location: cadastro.php?msg=salvo');
                 exit;
             }

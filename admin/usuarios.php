@@ -26,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $check = $pdo->prepare("SELECT COUNT(*) FROM usuarios_admin WHERE usuario = ? OR email = ?");
             $check->execute([$usuario, $email]);
             if ($check->fetchColumn() == 0) {
-                $stmt = $pdo->prepare("INSERT INTO usuarios_admin (nome, email, usuario, senha, perfil) VALUES (?, ?, ?, MD5(?), ?)");
-                $stmt->execute([$nome, $email, $usuario, $senha, $perfil]);
+                $stmt = $pdo->prepare("INSERT INTO usuarios_admin (nome, email, usuario, senha, perfil) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$nome, $email, $usuario, password_hash($senha, PASSWORD_BCRYPT), $perfil]);
                 $tipo = 'success';
                 $msg = 'Usuário criado com sucesso!';
             } else {
@@ -50,8 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($id && $nome && $email) {
             if ($senha) {
-                $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=?, senha=MD5(?) WHERE id=?");
-                $stmt->execute([$nome, $email, $perfil, $ativo, $senha, $id]);
+                $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=?, senha=? WHERE id=?");
+                $stmt->execute([$nome, $email, $perfil, $ativo, password_hash($senha, PASSWORD_BCRYPT), $id]);
             } else {
                 $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=? WHERE id=?");
                 $stmt->execute([$nome, $email, $perfil, $ativo, $id]);

@@ -44,12 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tipo = 'danger';
         } else {
             $pdo = getConnection();
-            $stmt = $pdo->prepare("SELECT id FROM administradores WHERE id = ? AND senha = MD5(?)");
-            $stmt->execute([$_SESSION['admin_id'], $senhaAtual]);
+            $stmt = $pdo->prepare("SELECT id, senha FROM administradores WHERE id = ?");
+            $stmt->execute([$_SESSION['admin_id']]);
+            $admin = $stmt->fetch();
             
-            if ($stmt->fetch()) {
-                $stmt = $pdo->prepare("UPDATE administradores SET senha = MD5(?) WHERE id = ?");
-                $stmt->execute([$novaSenha, $_SESSION['admin_id']]);
+            if ($admin && (password_verify($senhaAtual, $admin['senha']) || md5($senhaAtual) === $admin['senha'])) {
+                $stmt = $pdo->prepare("UPDATE administradores SET senha = ? WHERE id = ?");
+                $stmt->execute([password_hash($novaSenha, PASSWORD_BCRYPT), $_SESSION['admin_id']]);
                 $mensagem = 'Senha alterada com sucesso!';
                 $tipo = 'success';
             } else {

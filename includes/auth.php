@@ -5,6 +5,23 @@
 
 session_start();
 
+$sessionTimeout = 3600;
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $sessionTimeout) {
+    session_unset();
+    session_destroy();
+    header('Location: /cobranca/index.php');
+    exit;
+}
+$_SESSION['last_activity'] = time();
+
+if (ini_get('session.use_only_cookies') == '0') {
+    ini_set('session.use_only_cookies', '1');
+}
+ini_set('session.cookie_httponly', '1');
+if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    ini_set('session.cookie_secure', '1');
+}
+
 require_once __DIR__ . '/../config/database.php';
 
 function isMobileDevice() {
@@ -38,21 +55,34 @@ function loginAdmin($usuario, $senha) {
     $pdo = getConnection();
     if (!$pdo) return false;
     
-    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE usuario = ? AND senha = MD5(?) AND ativo = 1");
-    $stmt->execute([$usuario, $senha]);
+    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE usuario = ? AND ativo = 1");
+    $stmt->execute([$usuario]);
     $admin = $stmt->fetch();
     
     if ($admin) {
-        $_SESSION['admin_id'] = $admin['id'];
-        $_SESSION['admin_nome'] = $admin['nome'];
-        $_SESSION['admin_usuario'] = $admin['usuario'];
-        $_SESSION['admin_avatar'] = $admin['avatar'] ?? null;
-        
-        $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
-        $stmt->execute([$admin['id']]);
-        
-        clearLoginAttempts('admin', $usuario);
-        return true;
+        $hash = $admin['senha'];
+        $valid = false;
+        if (password_verify($senha, $hash)) {
+            $valid = true;
+        } elseif (strlen($hash) === 32 && md5($senha) === $hash) {
+            $valid = true;
+            $newHash = password_hash($senha, PASSWORD_BCRYPT);
+            $upd = $pdo->prepare("UPDATE administradores SET senha = ? WHERE id = ?");
+            $upd->execute([$newHash, $admin['id']]);
+        }
+        if ($valid) {
+            session_regenerate_id(true);
+            $_SESSION['admin_id'] = $admin['id'];
+            $_SESSION['admin_nome'] = $admin['nome'];
+            $_SESSION['admin_usuario'] = $admin['usuario'];
+            $_SESSION['admin_avatar'] = $admin['avatar'] ?? null;
+            
+            $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
+            $stmt->execute([$admin['id']]);
+            
+            clearLoginAttempts('admin', $usuario);
+            return true;
+        }
     }
     return false;
 }
@@ -68,6 +98,7 @@ function loginUser($cpfCnpj, $senha = '') {
     $cliente = $stmt->fetch();
     
     if ($cliente) {
+        session_regenerate_id(true);
         $_SESSION['user_id'] = $cliente['id'];
         $_SESSION['user_nome'] = $cliente['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $cliente['cpf_cnpj'];
@@ -80,18 +111,33 @@ function loginUser($cpfCnpj, $senha = '') {
 }
 
 function logout() {
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+    }
     session_destroy();
     header('Location: /cobranca/index.php');
     exit;
 }
 
 function logoutAdmin() {
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+    }
     session_destroy();
     header('Location: /cobranca/admin/login.php');
     exit;
 }
 
 function logoutUser() {
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+    }
     session_destroy();
     header('Location: /cobranca/usuario/login.php');
     exit;
@@ -126,6 +172,7 @@ function loginAdminGoogle($googleId, $email, $nome) {
     }
 
     if ($admin) {
+        session_regenerate_id(true);
         $_SESSION['admin_id'] = $admin['id'];
         $_SESSION['admin_nome'] = $admin['nome'];
         $_SESSION['admin_usuario'] = $admin['usuario'];
@@ -157,6 +204,7 @@ function loginUserGoogle($googleId, $email, $nome) {
     }
 
     if ($cliente) {
+        session_regenerate_id(true);
         $_SESSION['user_id'] = $cliente['id'];
         $_SESSION['user_nome'] = $cliente['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $cliente['cpf_cnpj'];
