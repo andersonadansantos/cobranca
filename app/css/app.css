@@ -42,7 +42,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--app-primary) 0%, var(--app-primary-light) 100%);
+    background: #ffffff;
     padding: 24px;
 }
 
