@@ -34,7 +34,7 @@ if (!function_exists('getLogoTagEmail')) {
     function getLogoTagEmail() {
         $b64 = getLogoBase64();
         if ($b64) {
-            return '<img src="' . $b64 . '" alt="Logo" style="width:250px;max-width:250px;height:auto;display:block;margin:0 auto 20px auto;">';
+            return '<img src="' . $b64 . '" alt="Logo" style="width:200px;max-width:200px;height:auto;display:block;margin:0 auto 20px auto;">';
         }
         $nomeSistema = getNomeSistema();
         return '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars($nomeSistema) . '</h2>';

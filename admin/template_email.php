@@ -97,8 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $config = getAllConfig();
 $corPrimaria = getCorPrimaria();
-$logo = getLogo();
-$logoTag = getLogoTagEmail();
+$logoUrl = getLogoEmail();
+$logoTag = $logoUrl ? '<img src="' . htmlspecialchars($logoUrl) . '" alt="Logo" style="width:200px;max-width:200px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars(getNomeSistema()) . '</h2>';
 $defaultTemplate = '<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
@@ -198,10 +198,10 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <div class="col-12">
                                 <label class="form-label">Logo no topo</label>
                                 <input type="file" name="email_logo_antes" class="form-control" accept="image/*">
-                                <?php if ($logo): ?>
+                                <?php if ($logoUrl): ?>
                                     <div class="mt-2">
                                         <small class="text-muted d-block mb-1">Logo atual:</small>
-                                        <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-height:50px;">
+                                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo" style="max-height:50px;">
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -252,10 +252,10 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <div class="col-12">
                                 <label class="form-label">Logo no topo</label>
                                 <input type="file" name="email_logo_depois" class="form-control" accept="image/*">
-                                <?php if ($logo): ?>
+                                <?php if ($logoUrl): ?>
                                     <div class="mt-2">
                                         <small class="text-muted d-block mb-1">Logo atual:</small>
-                                        <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-height:50px;">
+                                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo" style="max-height:50px;">
                                     </div>
                                 <?php endif; ?>
                             </div>
