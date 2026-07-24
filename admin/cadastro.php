@@ -79,6 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($nome_razao) || empty($cpf_cnpj)) {
         $mensagem = 'Nome e CPF/CNPJ são obrigatórios.';
         $tipo = 'danger';
+    } elseif (!empty($senha) && strlen($senha) < 6) {
+        $mensagem = 'A senha deve ter no mínimo 6 caracteres.';
+        $tipo = 'danger';
     } else {
         try {
             if ($id_edit > 0) {
@@ -99,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             } else {
                 if (empty($senha)) {
-                    $senha = substr($cpf_cnpj, -4) . '123';
+                    $senha = bin2hex(random_bytes(6));
                 }
                 $stmt = $pdo->prepare("INSERT INTO clientes (tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);
@@ -191,7 +194,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Senha <?= $editando ? '(deixe vazio para manter)' : '*' ?></label>
-                        <input type="password" name="senha" class="form-control" <?= $editando ? '' : 'required' ?>>
+                        <input type="password" name="senha" class="form-control" minlength="6" <?= $editando ? '' : 'required' ?>>
                     </div>
 
                     <div class="col-md-4">

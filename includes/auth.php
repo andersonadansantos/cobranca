@@ -3,7 +3,17 @@
 // SISTEMA DE AUTENTICAÇÃO
 // =====================================================
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    if (ini_get('session.use_only_cookies') == '0') {
+        ini_set('session.use_only_cookies', '1');
+    }
+    ini_set('session.cookie_httponly', '1');
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        ini_set('session.cookie_secure', '1');
+    }
+
+    session_start();
+}
 
 $sessionTimeout = 3600;
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $sessionTimeout) {
@@ -13,14 +23,6 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) >
     exit;
 }
 $_SESSION['last_activity'] = time();
-
-if (ini_get('session.use_only_cookies') == '0') {
-    ini_set('session.use_only_cookies', '1');
-}
-ini_set('session.cookie_httponly', '1');
-if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
-    ini_set('session.cookie_secure', '1');
-}
 
 require_once __DIR__ . '/../config/database.php';
 

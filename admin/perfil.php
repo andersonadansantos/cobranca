@@ -41,13 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($nome) || empty($email) || empty($usuario)) {
                 $mensagem = 'Nome, e-mail e usuário são obrigatórios.';
                 $tipo = 'danger';
+            } elseif (strlen($novaSenha) < 6) {
+                $mensagem = 'A nova senha deve ter no mínimo 6 caracteres.';
+                $tipo = 'danger';
             } elseif ($novaSenha !== $confirmaSenha) {
                 $mensagem = 'As senhas não conferem.';
                 $tipo = 'danger';
             } elseif (empty($senhaAtual)) {
                 $mensagem = 'Informe a senha atual para definir uma nova.';
                 $tipo = 'danger';
-            } elseif (!password_verify($senhaAtual, $admin['senha']) && md5($senhaAtual) !== $admin['senha']) {
+            } elseif (!password_verify($senhaAtual, $admin['senha']) && !(strlen($admin['senha']) === 32 && md5($senhaAtual) === $admin['senha'])) {
                 $mensagem = 'Senha atual incorreta.';
                 $tipo = 'danger';
             } else {
@@ -166,11 +169,11 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Nova Senha</label>
-                                <input type="password" name="nova_senha" class="form-control">
+                                <input type="password" name="nova_senha" class="form-control" minlength="6">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Confirmar Nova Senha</label>
-                                <input type="password" name="confirma_senha" class="form-control">
+                                <input type="password" name="confirma_senha" class="form-control" minlength="6">
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary mt-3">

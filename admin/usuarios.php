@@ -23,16 +23,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $perfil = $_POST['perfil'] ?? 'atendimento';
 
         if ($nome && $email && $usuario && $senha) {
-            $check = $pdo->prepare("SELECT COUNT(*) FROM usuarios_admin WHERE usuario = ? OR email = ?");
-            $check->execute([$usuario, $email]);
-            if ($check->fetchColumn() == 0) {
-                $stmt = $pdo->prepare("INSERT INTO usuarios_admin (nome, email, usuario, senha, perfil) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$nome, $email, $usuario, password_hash($senha, PASSWORD_BCRYPT), $perfil]);
-                $tipo = 'success';
-                $msg = 'Usuário criado com sucesso!';
-            } else {
+            if (strlen($senha) < 6) {
                 $tipo = 'danger';
-                $msg = 'Usuário ou e-mail já cadastrado.';
+                $msg = 'A senha deve ter no mínimo 6 caracteres.';
+            } else {
+                $check = $pdo->prepare("SELECT COUNT(*) FROM usuarios_admin WHERE usuario = ? OR email = ?");
+                $check->execute([$usuario, $email]);
+                if ($check->fetchColumn() == 0) {
+                    $stmt = $pdo->prepare("INSERT INTO usuarios_admin (nome, email, usuario, senha, perfil) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$nome, $email, $usuario, password_hash($senha, PASSWORD_BCRYPT), $perfil]);
+                    $tipo = 'success';
+                    $msg = 'Usuário criado com sucesso!';
+                } else {
+                    $tipo = 'danger';
+                    $msg = 'Usuário ou e-mail já cadastrado.';
+                }
             }
         } else {
             $tipo = 'danger';
@@ -49,16 +54,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $senha = $_POST['senha'] ?? '';
 
         if ($id && $nome && $email) {
-            if ($senha) {
-                $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=?, senha=? WHERE id=?");
-                $stmt->execute([$nome, $email, $perfil, $ativo, password_hash($senha, PASSWORD_BCRYPT), $id]);
+            if ($senha && strlen($senha) < 6) {
+                $tipo = 'danger';
+                $msg = 'A senha deve ter no mínimo 6 caracteres.';
             } else {
-                $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=? WHERE id=?");
-                $stmt->execute([$nome, $email, $perfil, $ativo, $id]);
+                if ($senha) {
+                    $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=?, senha=? WHERE id=?");
+                    $stmt->execute([$nome, $email, $perfil, $ativo, password_hash($senha, PASSWORD_BCRYPT), $id]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=? WHERE id=?");
+                    $stmt->execute([$nome, $email, $perfil, $ativo, $id]);
+                }
+                $tipo = 'success';
+                $msg = 'Usuário atualizado!';
             }
-            $tipo = 'success';
-            $msg = 'Usuário atualizado!';
-        }
     }
 
     if ($acao === 'excluir') {
@@ -191,7 +200,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <div class="mb-3"><label class="form-label small">Nome</label><input type="text" name="nome" class="form-control" required></div>
                     <div class="mb-3"><label class="form-label small">E-mail</label><input type="email" name="email" class="form-control" required></div>
                     <div class="mb-3"><label class="form-label small">Usuário</label><input type="text" name="usuario" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label small">Senha</label><input type="password" name="senha" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label small">Senha</label><input type="password" name="senha" class="form-control" required minlength="6"></div>
                     <div class="mb-3">
                         <label class="form-label small">Perfil</label>
                         <select name="perfil" class="form-select">
@@ -236,7 +245,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <input type="checkbox" name="ativo" class="form-check-input" id="ativo<?= $u['id'] ?>" <?= $u['ativo'] ? 'checked' : '' ?>>
                         <label class="form-check-label" for="ativo<?= $u['id'] ?>">Ativo</label>
                     </div>
-                    <div class="mb-3"><label class="form-label small">Nova senha (deixe vazio para manter)</label><input type="password" name="senha" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label small">Nova senha (deixe vazio para manter)</label><input type="password" name="senha" class="form-control" minlength="6"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
