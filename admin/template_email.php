@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $config = getAllConfig();
 $corPrimaria = getCorPrimaria();
 $logo = getLogo();
-$logoTag = '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars(getNomeSistema()) . '</h2>';
+$logoTag = getLogoTagEmail();
 $defaultTemplate = '<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>

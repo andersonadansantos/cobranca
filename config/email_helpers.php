@@ -14,6 +14,33 @@ if (!function_exists('getLogoEmail')) {
     }
 }
 
+if (!function_exists('getLogoBase64')) {
+    function getLogoBase64() {
+        $logo = getLogo();
+        if (!$logo) return '';
+        $arquivo = $_SERVER['DOCUMENT_ROOT'] ?? dirname($_SERVER['SCRIPT_FILENAME']);
+        $path = rtrim($arquivo, '/\\') . DIRECTORY_SEPARATOR . ltrim($logo, '/');
+        if (!file_exists($path)) return '';
+        $mime = 'image/png';
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (in_array($ext, ['jpg','jpeg'])) $mime = 'image/jpeg';
+        elseif ($ext === 'gif') $mime = 'image/gif';
+        $data = base64_encode(file_get_contents($path));
+        return "data:{$mime};base64,{$data}";
+    }
+}
+
+if (!function_exists('getLogoTagEmail')) {
+    function getLogoTagEmail() {
+        $b64 = getLogoBase64();
+        if ($b64) {
+            return '<img src="' . $b64 . '" alt="Logo" style="width:250px;max-width:250px;height:auto;display:block;margin:0 auto 20px auto;">';
+        }
+        $nomeSistema = getNomeSistema();
+        return '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars($nomeSistema) . '</h2>';
+    }
+}
+
 if (!function_exists('getLinkFatura')) {
     function getLinkFatura($faturaId) {
         $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -40,7 +67,7 @@ if (!function_exists('montarMensagemHtml')) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
         $linkPag = $fatura['link_pagamento'] ?? '';
-        $logoTag = '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars($nomeSistema) . '</h2>';
+        $logoTag = getLogoTagEmail();
 
         $chaveTemplate = ($tipo === 'antes') ? 'template_email_corpo_antes' : 'template_email_corpo_depois';
         $templateHtml = getConfig($chaveTemplate, '');
@@ -263,7 +290,7 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
     function montarMensagemPagamentoHtml($fatura) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
-        $logoTag = '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars($nomeSistema) . '</h2>';
+        $logoTag = getLogoTagEmail();
 
         $templateHtml = getConfig('template_email_corpo_pagamento', '');
 
