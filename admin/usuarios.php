@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tipo = 'success';
                 $msg = 'Usuário atualizado!';
             }
+        }
     }
 
     if ($acao === 'excluir') {
