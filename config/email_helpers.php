@@ -85,7 +85,7 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<p>Identificamos que sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> vence em <strong>' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</strong>.</p>';
             $conteudo .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">' . htmlspecialchars($fatura['descricao']) . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr></table>';
             $conteudo .= '<p>Acesse sua fatura para mais detalhes e realizar o pagamento:</p>';
-            $conteudo .= '<div style="text-align:center;margin:25px 0;"><a href="' . htmlspecialchars($linkFatura) . '" style="display:inline-block;background:' . $corPrimaria . ';color:#fff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:bold;">Ver Fatura</a></div>';
+            $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:' . $corPrimaria . ';border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
             if ($linkPag) {
                 $conteudo .= '<p style="text-align:center;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';">Pagar agora via Mercado Pago</a></p>';
             }
@@ -97,7 +97,7 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<p>Sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> encontra-se vencida há <strong>' . intval($diasAtraso) . ' dia(s)</strong>.</p>';
             $conteudo .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">' . htmlspecialchars($fatura['descricao']) . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Vencimento</td><td style="padding:8px 0;border-top:1px solid #eee;">' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</td></tr></table>';
             $conteudo .= '<p>Por favor, regularize sua situação o mais rápido possível:</p>';
-            $conteudo .= '<div style="text-align:center;margin:25px 0;"><a href="' . htmlspecialchars($linkFatura) . '" style="display:inline-block;background:#c0392b;color:#fff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:bold;">Ver Fatura</a></div>';
+            $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:#c0392b;border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
             if ($linkPag) {
                 $conteudo .= '<p style="text-align:center;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';">Pagar agora via Mercado Pago</a></p>';
             }
