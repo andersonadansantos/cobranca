@@ -112,19 +112,9 @@ body {
     text-align: center;
 }
 
-.login-left-svg {
-    width: 180px;
-    margin-bottom: 20px;
-}
-
-.login-left-svg svg {
-    width: 100%;
-    height: auto;
-}
-
 .login-left .logo img {
-    max-height: 300px;
-    max-width: 300px;
+    max-height: 250px;
+    max-width: 250px;
     margin-bottom: 20px;
 }
 
