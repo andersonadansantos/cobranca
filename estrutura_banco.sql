@@ -277,7 +277,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- Admin padrão: admin / Admin@2026
 INSERT INTO `administradores` (`usuario`, `senha`, `nome`, `email`, `ativo`)
-VALUES ('admin', '$2y$10$ArxomAS71slOxMAENMAtWehgeHNZ7xrvbBfTxQb1dfgDmJi7WiUEO', 'Administrador', 'admin@sistema.com', 1);
+VALUES ('admin', '$2y$10$WrT7RBnyCfLSnr13mu6QDOO2ErqPG7DwGLJLiWk6sRdqumlT6FCOe', 'Administrador', 'admin@sistema.com', 1);
 
 -- Configurações padrão
 INSERT INTO `configuracoes` (`chave`, `valor`) VALUES
