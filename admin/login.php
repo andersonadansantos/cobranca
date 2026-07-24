@@ -66,6 +66,50 @@ $nomeSistema = getNomeSistema();
     <div class="login-page">
         <div class="login-split">
             <div class="login-left">
+                <div class="login-left-svg">
+                    <svg viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="gradCoin" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#f7c948"/>
+                                <stop offset="100%" style="stop-color:#e6a817"/>
+                            </linearGradient>
+                            <linearGradient id="gradWallet" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#0d6efd"/>
+                                <stop offset="100%" style="stop-color:#0a58ca"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="55" y="85" width="90" height="55" rx="10" fill="url(#gradWallet)" opacity="0.9"/>
+                        <rect x="55" y="85" width="90" height="20" rx="10" fill="#0a58ca"/>
+                        <rect x="125" y="93" width="20" height="10" rx="5" fill="#fff" opacity="0.8"/>
+                        <g>
+                            <animateTransform attributeName="transform" type="translate" values="0,-60;0,0" dur="1.8s" repeatCount="indefinite" begin="0s"/>
+                            <animate attributeName="opacity" values="0;1;1;0" dur="1.8s" repeatCount="indefinite" begin="0s"/>
+                            <circle cx="80" cy="30" r="14" fill="url(#gradCoin)" stroke="#d4a017" stroke-width="1.5"/>
+                            <text x="80" y="35" text-anchor="middle" font-size="12" font-weight="bold" fill="#b8860b">$</text>
+                        </g>
+                        <g>
+                            <animateTransform attributeName="transform" type="translate" values="0,-60;0,0" dur="1.8s" repeatCount="indefinite" begin="0.6s"/>
+                            <animate attributeName="opacity" values="0;1;1;0" dur="1.8s" repeatCount="indefinite" begin="0.6s"/>
+                            <circle cx="105" cy="25" r="12" fill="url(#gradCoin)" stroke="#d4a017" stroke-width="1.5"/>
+                            <text x="105" y="30" text-anchor="middle" font-size="11" font-weight="bold" fill="#b8860b">$</text>
+                        </g>
+                        <g>
+                            <animateTransform attributeName="transform" type="translate" values="0,-55;0,0" dur="1.8s" repeatCount="indefinite" begin="1.2s"/>
+                            <animate attributeName="opacity" values="0;1;1;0" dur="1.8s" repeatCount="indefinite" begin="1.2s"/>
+                            <circle cx="125" cy="28" r="11" fill="url(#gradCoin)" stroke="#d4a017" stroke-width="1.5"/>
+                            <text x="125" y="33" text-anchor="middle" font-size="10" font-weight="bold" fill="#b8860b">$</text>
+                        </g>
+                        <circle cx="35" cy="60" r="3" fill="#f7c948" opacity="0.6">
+                            <animate attributeName="opacity" values="0.6;0.1;0.6" dur="2s" repeatCount="indefinite" begin="0.3s"/>
+                        </circle>
+                        <circle cx="170" cy="55" r="2.5" fill="#f7c948" opacity="0.4">
+                            <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.5s" repeatCount="indefinite" begin="0.8s"/>
+                        </circle>
+                        <polyline points="88,112 95,120 112,103" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0">
+                            <animate attributeName="opacity" values="0;0;1" dur="1.8s" repeatCount="indefinite" begin="0s"/>
+                        </polyline>
+                    </svg>
+                </div>
                 <?php if ($logo): ?>
                     <div class="logo"><img src="<?= htmlspecialchars($logo) ?>" alt="Logo"></div>
                 <?php else: ?>
