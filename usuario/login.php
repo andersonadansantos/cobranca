@@ -68,39 +68,49 @@ $nomeSistema = getNomeSistema();
 </head>
 <body>
     <div class="login-page">
-        <div class="login-card">
-            <div class="logo">
+        <div class="login-split">
+            <div class="login-left">
                 <?php if ($logo): ?>
-                    <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 200px;">
+                    <div class="logo"><img src="<?= htmlspecialchars($logo) ?>" alt="Logo"></div>
                 <?php else: ?>
-                    <i class="fas fa-file-invoice-dollar fa-3x text-primary"></i>
+                    <i class="fas fa-file-invoice-dollar fa-3x mb-3"></i>
                 <?php endif; ?>
-                <h2><?= htmlspecialchars($nomeSistema) ?></h2>
-                <small class="text-muted">Área do Cliente</small>
+                <h3>Acesse sua conta no painel <?= htmlspecialchars($nomeSistema) ?></h3>
+                <p>Entre com suas credenciais e acesse seu painel <?= htmlspecialchars($nomeSistema) ?>.</p>
             </div>
-            
-            <?php if ($erro): ?>
-                <div class="alert alert-danger py-2">
-                    <i class="fas fa-exclamation-circle me-1"></i> <?= $erro ?>
-                </div>
-            <?php endif; ?>
-            
-            <form method="POST">
-                <div class="mb-4">
-                    <label class="form-label">CPF ou CNPJ</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fas fa-id-card"></i></span>
-                        <input type="text" name="cpf_cnpj" class="form-control" placeholder="Digite seu CPF ou CNPJ" required autofocus value="<?= htmlspecialchars($_POST['cpf_cnpj'] ?? '') ?>" inputmode="numeric" pattern="[0-9.\-\/]*">
+            <div class="login-right">
+                <div class="login-form">
+                    <div class="logo">
+                        <?php if ($logo): ?>
+                            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo">
+                        <?php endif; ?>
+                        <h2><?= htmlspecialchars($nomeSistema) ?></h2>
                     </div>
+
+                    <?php if ($erro): ?>
+                        <div class="alert alert-danger py-2">
+                            <i class="fas fa-exclamation-circle me-1"></i> <?= $erro ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="POST">
+                        <div class="mb-4">
+                            <label class="form-label">CPF ou CNPJ</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-id-card"></i></span>
+                                <input type="text" name="cpf_cnpj" class="form-control" placeholder="Digite seu CPF ou CNPJ" required autofocus value="<?= htmlspecialchars($_POST['cpf_cnpj'] ?? '') ?>" inputmode="numeric" pattern="[0-9.\-\/]*">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="g-recaptcha" data-sitekey="6LcVcGEtAAAAAF34K5Uf5bUHqWH2WlPUChwl8VsZ" data-size="normal"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mb-2">
+                            <i class="fas fa-sign-in-alt me-1"></i> Entrar
+                        </button>
+                        <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
+                    </form>
                 </div>
-                <div class="mb-3">
-                    <div class="g-recaptcha" data-sitekey="6LcVcGEtAAAAAF34K5Uf5bUHqWH2WlPUChwl8VsZ" data-size="normal"></div>
-                </div>
-                <button type="submit" class="btn btn-primary w-100 mb-2">
-                    <i class="fas fa-sign-in-alt me-1"></i> Entrar
-                </button>
-                <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
-            </form>
+            </div>
         </div>
     </div>
 </body>

@@ -64,51 +64,61 @@ $nomeSistema = getNomeSistema();
 </head>
 <body>
     <div class="login-page">
-        <div class="login-card">
-            <div class="logo">
+        <div class="login-split">
+            <div class="login-left">
                 <?php if ($logo): ?>
-                    <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 200px;">
+                    <div class="logo"><img src="<?= htmlspecialchars($logo) ?>" alt="Logo"></div>
                 <?php else: ?>
-                    <i class="fas fa-shield-halved fa-3x text-primary"></i>
+                    <i class="fas fa-shield-halved fa-3x mb-3"></i>
                 <?php endif; ?>
-                <h2><?= htmlspecialchars($nomeSistema) ?></h2>
-                <small class="text-muted">Painel Administrativo</small>
+                <h3>Acesse sua conta no painel <?= htmlspecialchars($nomeSistema) ?></h3>
+                <p>Entre com suas credenciais e acesse seu painel <?= htmlspecialchars($nomeSistema) ?>.</p>
             </div>
-            
-            <?php if ($erro): ?>
-                <div class="alert alert-danger py-2">
-                    <i class="fas fa-exclamation-circle me-1"></i> <?= $erro ?>
-                </div>
-            <?php endif; ?>
-            
-            <form method="POST">
-                <div class="mb-3">
-                    <label class="form-label">Usuário</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fas fa-user"></i></span>
-                        <input type="text" name="usuario" class="form-control" placeholder="Digite seu usuário" required autofocus value="<?= htmlspecialchars($_POST['usuario'] ?? '') ?>">
+            <div class="login-right">
+                <div class="login-form">
+                    <div class="logo">
+                        <?php if ($logo): ?>
+                            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo">
+                        <?php endif; ?>
+                        <h2><?= htmlspecialchars($nomeSistema) ?></h2>
+                    </div>
+
+                    <?php if ($erro): ?>
+                        <div class="alert alert-danger py-2">
+                            <i class="fas fa-exclamation-circle me-1"></i> <?= $erro ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Usuário</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                <input type="text" name="usuario" class="form-control" placeholder="Digite seu usuário" required autofocus value="<?= htmlspecialchars($_POST['usuario'] ?? '') ?>">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label">Senha</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                <input type="password" name="senha" class="form-control" placeholder="Digite sua senha" required>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="g-recaptcha" data-sitekey="6LcVcGEtAAAAAF34K5Uf5bUHqWH2WlPUChwl8VsZ" data-size="normal"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mb-2">
+                            <i class="fas fa-sign-in-alt me-1"></i> Entrar
+                        </button>
+                        <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <a href="/cobranca/usuario/login.php" class="text-decoration-none">
+                            <small><i class="fas fa-arrow-left me-1"></i> Voltar para Login do Cliente</small>
+                        </a>
                     </div>
                 </div>
-                <div class="mb-4">
-                    <label class="form-label">Senha</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                        <input type="password" name="senha" class="form-control" placeholder="Digite sua senha" required>
-                    </div>
-                </div>
-                <div class="mb-4">
-                    <div class="g-recaptcha" data-sitekey="6LcVcGEtAAAAAF34K5Uf5bUHqWH2WlPUChwl8VsZ" data-size="normal"></div>
-                </div>
-                <button type="submit" class="btn btn-primary w-100 mb-2">
-                    <i class="fas fa-sign-in-alt me-1"></i> Entrar
-                </button>
-                <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
-            </form>
-            
-            <div class="text-center">
-                <a href="/cobranca/usuario/login.php" class="text-decoration-none">
-                    <small><i class="fas fa-arrow-left me-1"></i> Voltar para Login do Cliente</small>
-                </a>
             </div>
         </div>
     </div>
