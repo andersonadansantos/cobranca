@@ -255,21 +255,38 @@ $nomeSistema = getNomeSistema();
     </nav>
 
     <script>
-    function copiarPix() {
-        var code = document.getElementById('pixCode').textContent.trim();
-        if (navigator.clipboard) {
+    function copiarPix(code) {
+        if (!code) {
+            var el = document.getElementById('pixCode');
+            code = el ? el.textContent.trim() : '';
+        }
+        if (!code) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(code).then(function() {
-                alert('Código PIX copiado!');
+                showToastPix('Código PIX copiado!');
+            }).catch(function() {
+                fallbackCopy(code);
             });
         } else {
-            var ta = document.createElement('textarea');
-            ta.value = code;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            alert('Código PIX copiado!');
+            fallbackCopy(code);
         }
+    }
+    function fallbackCopy(code) {
+        var ta = document.createElement('textarea');
+        ta.value = code;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showToastPix('Código PIX copiado!'); } catch(e) {}
+        document.body.removeChild(ta);
+    }
+    function showToastPix(msg) {
+        var t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#27ae60;color:#fff;padding:10px 20px;border-radius:8px;font-size:0.85rem;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+        document.body.appendChild(t);
+        setTimeout(function(){ t.remove(); }, 2000);
     }
     </script>
 

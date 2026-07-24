@@ -91,7 +91,7 @@ if (!function_exists('montarMensagemHtml')) {
                     $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
                 }
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
-                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all;color:#333;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
+                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
                 $conteudo .= '</div>';
             }
             $conteudo .= '<p>Acesse sua fatura para mais detalhes e realizar o pagamento:</p>';
@@ -113,7 +113,7 @@ if (!function_exists('montarMensagemHtml')) {
                     $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
                 }
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
-                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all;color:#333;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
+                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
                 $conteudo .= '</div>';
             }
             $conteudo .= '<p>Por favor, regularize sua situação o mais rápido possível:</p>';

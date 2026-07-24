@@ -43,6 +43,7 @@ if (isset($_GET['enviar'])) {
     $frId = intval($_GET['enviar']);
     $stmt = $pdo->prepare("
         SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+               f.pix_copia_cola, f.pix_qrcode,
                c.nome_razao, c.email
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
@@ -117,6 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'valor_final' => $valor,
                     'data_vencimento' => $dataVenc,
                     'link_pagamento' => '',
+                    'pix_copia_cola' => '',
+                    'pix_qrcode' => '',
                     'nome_razao' => $cliente['nome_razao'],
                     'email' => $cliente['email'],
                 ];

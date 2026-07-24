@@ -560,10 +560,13 @@ body {
     word-break: break-all;
     text-align: left;
     margin-bottom: 10px;
-    max-height: 60px;
+    max-height: 80px;
     overflow-y: auto;
     font-family: 'Courier New', monospace;
     line-height: 1.4;
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
 }
 
 .app-divider {
