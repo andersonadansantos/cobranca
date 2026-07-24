@@ -102,8 +102,8 @@ body {
 
 .login-left {
     flex: 1;
-    background: var(--cor-primaria);
-    color: #fff;
+    background: #ffffff;
+    color: #333;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -113,9 +113,9 @@ body {
 }
 
 .login-left .logo img {
-    max-height: 70px;
+    max-height: 300px;
+    max-width: 300px;
     margin-bottom: 20px;
-    filter: brightness(0) invert(1);
 }
 
 .login-left h3 {
@@ -126,7 +126,7 @@ body {
 
 .login-left p {
     font-size: 0.9rem;
-    opacity: 0.85;
+    color: #666;
     line-height: 1.5;
     max-width: 280px;
 }

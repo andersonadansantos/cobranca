@@ -80,11 +80,8 @@ $nomeSistema = getNomeSistema();
             </div>
             <div class="login-right">
                 <div class="login-form">
-                    <div class="logo">
-                        <?php if ($logo): ?>
-                            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo">
-                        <?php endif; ?>
-                        <h2><?= htmlspecialchars($nomeSistema) ?></h2>
+                    <div class="mb-3 text-center">
+                        <h2 class="mb-0"><?= htmlspecialchars($nomeSistema) ?></h2>
                     </div>
 
                     <?php if ($erro): ?>
