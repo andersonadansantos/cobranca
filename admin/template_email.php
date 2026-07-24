@@ -97,9 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $config = getAllConfig();
 $corPrimaria = getCorPrimaria();
-$logo = getLogoEmail();
-
-$logoTag = $logo ? '<img src="' . htmlspecialchars($logo) . '" alt="Logo" width="250" style="width:250px;max-width:250px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;">' . htmlspecialchars(getNomeSistema()) . '</h2>';
+$logo = getLogo();
+$logoTag = '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars(getNomeSistema()) . '</h2>';
 $defaultTemplate = '<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>

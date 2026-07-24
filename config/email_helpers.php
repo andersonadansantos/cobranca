@@ -40,8 +40,7 @@ if (!function_exists('montarMensagemHtml')) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
         $linkPag = $fatura['link_pagamento'] ?? '';
-        $logo = getLogoEmail();
-        $logoTag = $logo ? '<img src="' . htmlspecialchars($logo) . '" alt="Logo" width="250" style="width:250px;max-width:250px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;">' . htmlspecialchars($nomeSistema) . '</h2>';
+        $logoTag = '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars($nomeSistema) . '</h2>';
 
         $chaveTemplate = ($tipo === 'antes') ? 'template_email_corpo_antes' : 'template_email_corpo_depois';
         $templateHtml = getConfig($chaveTemplate, '');
@@ -264,8 +263,7 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
     function montarMensagemPagamentoHtml($fatura) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
-        $logo = getLogoEmail();
-        $logoTag = $logo ? '<img src="' . htmlspecialchars($logo) . '" alt="Logo" width="250" style="width:250px;max-width:250px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;">' . htmlspecialchars($nomeSistema) . '</h2>';
+        $logoTag = '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars($nomeSistema) . '</h2>';
 
         $templateHtml = getConfig('template_email_corpo_pagamento', '');
 
