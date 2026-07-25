@@ -27,7 +27,7 @@ foreach ($pendentes as $fat) {
             $situacao = strtoupper($detalhe['situacao'] ?? $detalhe['cobranca']['situacao'] ?? '');
             if (in_array($situacao, ['PAGA','RECEBIDO'])) { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
             elseif ($situacao === 'VENCIDA') { $novoStatus = 'vencido'; }
-            elseif (in_array($situacao, ['EXPIRADA','CANCELADA'])) { $novoStatus = 'cancelado'; }
+            elseif (in_array($situacao, ['EXPIRADO','EXPIRADA','CANCELADO','CANCELADA'])) { $novoStatus = 'cancelado'; }
         }
     } elseif ($apiAtiva === 'bb' && !empty($fat['mp_payment_id'])) {
         $detalhe = consultarBoletoBB($fat['mp_payment_id']);
@@ -126,7 +126,7 @@ if ($regua2 > 0) {
         if (in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) continue;
         enviarEAtualizar($pdo, $fat, 'lembrete1', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', $regua2), montarMensagemTxt($fat, 'antes', $regua2), $s, $log);
         if (enviarWhatsAppFatura($fat, 'antes', $regua2)) {
-            $log[] = "[whatsapp_lembrete1] {$fat['numero']} -> {$fat['celular'] ?? $fat['telefone']}";
+            $log[] = "[whatsapp_lembrete1] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
     }
 }
