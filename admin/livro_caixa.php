@@ -221,6 +221,30 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             </div>
         </div>
 
+        <!-- GRÁFICO ENTRADAS x SAÍDAS -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="table-card" style="height:100%;">
+                    <div class="p-3 border-bottom">
+                        <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Visão Geral</h6>
+                    </div>
+                    <div class="p-3 d-flex align-items-center justify-content-center" style="height:260px;">
+                        <canvas id="chartLivroCaixa"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="table-card" style="height:100%;">
+                    <div class="p-3 border-bottom">
+                        <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Comparativo Mensal</h6>
+                    </div>
+                    <div class="p-3" style="height:260px;">
+                        <canvas id="chartComparativo"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- BOTÕES DOWNLOAD -->
         <div class="d-flex gap-2 mb-3">
             <button onclick="downloadPDF()" class="btn btn-sm btn-outline-danger"><i class="fas fa-file-pdf me-1"></i> Baixar PDF</button>
@@ -452,6 +476,60 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 </div>
 
 <script>
+var totalEntradasLC = <?= $totalEntradas ?>;
+var totalSaidasLC = <?= $totalSaidas ?>;
+var totalCustosLC = <?= $totalCustos ?>;
+var saldoLC = <?= $saldo ?>;
+
+new Chart(document.getElementById('chartLivroCaixa'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Entradas', 'Saídas', 'Custos Fixos'],
+        datasets: [{
+            data: [totalEntradasLC, totalSaidasLC, totalCustosLC],
+            backgroundColor: ['#198754', '#dc3545', '#ffc107'],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '55%',
+        plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 12 } } }
+        }
+    }
+});
+
+new Chart(document.getElementById('chartComparativo'), {
+    type: 'bar',
+    data: {
+        labels: ['Entradas', 'Saídas', 'Custos Fixos', 'Saldo'],
+        datasets: [{
+            label: 'Valor (R$)',
+            data: [totalEntradasLC, totalSaidasLC, totalCustosLC, saldoLC],
+            backgroundColor: [
+                'rgba(25,135,84,0.75)',
+                'rgba(220,53,69,0.75)',
+                'rgba(255,193,7,0.75)',
+                saldoLC >= 0 ? 'rgba(13,110,253,0.75)' : 'rgba(220,53,69,0.75)'
+            ],
+            borderColor: ['#198754', '#dc3545', '#ffc107', saldoLC >= 0 ? '#0d6efd' : '#dc3545'],
+            borderWidth: 1,
+            borderRadius: 6
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') } }
+        }
+    }
+});
+
 function aplicarFiltro() {
     var ano = document.getElementById('filtroAno').value;
     var mes = document.getElementById('filtroMes').value;

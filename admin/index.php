@@ -80,6 +80,29 @@ $faturasRecentes = $faturasRecentes->fetchAll();
 $pageTitle = 'Painel Geral';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/sidebar_admin.php';
+
+$mesAtual = intval(date('m'));
+$anoAtual = intval(date('Y'));
+$meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+$lcEntradasManuais = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_entradas WHERE YEAR(data) = ? AND MONTH(data) = ?");
+$lcEntradasManuais->execute([$anoAtual, $mesAtual]);
+$lcTotalEntradasManuais = floatval($lcEntradasManuais->fetchColumn());
+
+$lcFaturasPagas = $pdo->prepare("SELECT COALESCE(SUM(valor_final),0) AS total FROM faturas WHERE status = 'pago' AND YEAR(data_pagamento) = ? AND MONTH(data_pagamento) = ?");
+$lcFaturasPagas->execute([$anoAtual, $mesAtual]);
+$lcTotalFaturasPagas = floatval($lcFaturasPagas->fetchColumn());
+
+$lcSaidas = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_saidas WHERE YEAR(data) = ? AND MONTH(data) = ?");
+$lcSaidas->execute([$anoAtual, $mesAtual]);
+$lcTotalSaidas = floatval($lcSaidas->fetchColumn());
+
+$lcCustos = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_custos WHERE YEAR(data) = ? AND MONTH(data) = ?");
+$lcCustos->execute([$anoAtual, $mesAtual]);
+$lcTotalCustos = floatval($lcCustos->fetchColumn());
+
+$lcTotalEntradas = $lcTotalEntradasManuais + $lcTotalFaturasPagas;
+$lcSaldo = $lcTotalEntradas - $lcTotalSaidas - $lcTotalCustos;
 ?>
 
 <div class="main-content">
@@ -181,6 +204,48 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="p-3" style="height:280px;">
                         <canvas id="chartStatus"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-8">
+                <div class="table-card" style="height:100%;">
+                    <div class="p-3 border-bottom">
+                        <h6 class="mb-0"><i class="fas fa-book me-2"></i>Livro Caixa — Mês Atual (<?= $meses[$mesAtual - 1] ?>/<?= $anoAtual ?>)</h6>
+                    </div>
+                    <div class="p-3" style="height:240px;">
+                        <canvas id="chartLivroCaixaMini"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="table-card" style="height:100%;">
+                    <div class="p-3 border-bottom">
+                        <h6 class="mb-0"><i class="fas fa-coins me-2"></i>Resumo Livro Caixa</h6>
+                    </div>
+                    <div class="p-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-success"><i class="fas fa-arrow-down me-1"></i> Entradas</span>
+                            <strong class="text-success">R$ <?= number_format($lcTotalEntradas, 2, ',', '.') ?></strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-danger"><i class="fas fa-arrow-up me-1"></i> Saídas</span>
+                            <strong class="text-danger">R$ <?= number_format($lcTotalSaidas, 2, ',', '.') ?></strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-warning"><i class="fas fa-wrench me-1"></i> Custos Fixos</span>
+                            <strong class="text-warning">R$ <?= number_format($lcTotalCustos, 2, ',', '.') ?></strong>
+                        </div>
+                        <hr class="my-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>Saldo</strong>
+                            <strong class="<?= $lcSaldo >= 0 ? 'text-primary' : 'text-danger' ?>">R$ <?= number_format($lcSaldo, 2, ',', '.') ?></strong>
+                        </div>
+                        <div class="text-center mt-3">
+                            <a href="livro_caixa.php" class="btn btn-sm btn-outline-primary"><i class="fas fa-external-link-alt me-1"></i> Ver Livro Caixa Completo</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -318,6 +383,33 @@ new Chart(document.getElementById('chartStatus'), {
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } } }
+    }
+});
+new Chart(document.getElementById('chartLivroCaixaMini'), {
+    type: 'bar',
+    data: {
+        labels: ['Entradas', 'Saídas', 'Custos Fixos', 'Saldo'],
+        datasets: [{
+            label: 'Valor (R$)',
+            data: [<?= $lcTotalEntradas ?>, <?= $lcTotalSaidas ?>, <?= $lcTotalCustos ?>, <?= $lcSaldo ?>],
+            backgroundColor: [
+                'rgba(25,135,84,0.75)',
+                'rgba(220,53,69,0.75)',
+                'rgba(255,193,7,0.75)',
+                <?= $lcSaldo >= 0 ? "'rgba(13,110,253,0.75)'" : "'rgba(220,53,69,0.75)'" ?>
+            ],
+            borderColor: ['#198754', '#dc3545', '#ffc107', <?= $lcSaldo >= 0 ? "'#0d6efd'" : "'#dc3545'" ?>],
+            borderWidth: 1,
+            borderRadius: 6
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') } }
+        }
     }
 });
 </script>

@@ -219,6 +219,102 @@ function loginUserGoogle($googleId, $email, $nome) {
 }
 
 // =====================================================
+// AUTENTICAÇÃO POR CERTIFICADO DIGITAL
+// =====================================================
+
+function getClientCertificate() {
+    $certPem = $_SERVER['SSL_CLIENT_CERT'] ?? '';
+    if (empty($certPem)) return false;
+
+    $cert = openssl_x509_parse($certPem);
+    if (!$cert) return false;
+
+    $cert['pem'] = $certPem;
+
+    $cert['thumbprint'] = strtoupper(sha1($certPem));
+
+    $cert['subject_cn'] = $cert['subject']['CN'] ?? '';
+    $cert['subject_o'] = $cert['subject']['O'] ?? '';
+    $cert['subject_ou'] = $cert['subject']['OU'] ?? '';
+    $cert['subject_serialnumber'] = $cert['subject']['serialNumber'] ?? $cert['subjects'][0] ?? '';
+
+    $cert['issuer_cn'] = $cert['issuer']['CN'] ?? '';
+    $cert['issuer_o'] = $cert['issuer']['O'] ?? '';
+
+    return $cert;
+}
+
+function loginAdminCertificado() {
+    $cert = getClientCertificate();
+    if (!$cert) return false;
+
+    $pdo = getConnection();
+    if (!$pdo) return false;
+
+    $thumbprint = $cert['thumbprint'];
+
+    $stmt = $pdo->prepare("SELECT ac.*, a.id as admin_id, a.nome, a.usuario, a.avatar, a.ativo
+        FROM admin_certificados ac
+        JOIN administradores a ON ac.admin_id = a.id
+        WHERE ac.thumbprint = ? AND ac.ativo = 1 AND a.ativo = 1 LIMIT 1");
+    $stmt->execute([$thumbprint]);
+    $certRecord = $stmt->fetch();
+
+    if (!$certRecord) {
+        $stmt = $pdo->prepare("SELECT ac.*, a.id as admin_id, a.nome, a.usuario, a.avatar, a.ativo
+            FROM admin_certificados ac
+            JOIN administradores a ON ac.admin_id = a.id
+            WHERE ac.subject_dn = ? AND ac.ativo = 1 AND a.ativo = 1 LIMIT 1");
+        $stmt->execute([$cert['subject']['CN'] ?? '']);
+        $certRecord = $stmt->fetch();
+    }
+
+    if (!$certRecord) return false;
+
+    session_regenerate_id(true);
+    $_SESSION['admin_id'] = $certRecord['admin_id'];
+    $_SESSION['admin_nome'] = $certRecord['nome'];
+    $_SESSION['admin_usuario'] = $certRecord['usuario'];
+    $_SESSION['admin_avatar'] = $certRecord['avatar'] ?? null;
+    $_SESSION['admin_login_via'] = 'certificado';
+
+    $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
+    $stmt->execute([$certRecord['admin_id']]);
+
+    $stmt = $pdo->prepare("UPDATE admin_certificados SET ultimo_uso = NOW() WHERE id = ?");
+    $stmt->execute([$certRecord['id']]);
+
+    clearLoginAttempts('admin', 'certificado');
+    return true;
+}
+
+function registrarCertificado($adminId, $nome, $cert) {
+    $pdo = getConnection();
+    if (!$pdo) return false;
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM admin_certificados WHERE admin_id = ? AND thumbprint = ?");
+    $stmt->execute([$adminId, $cert['thumbprint']]);
+    if ($stmt->fetchColumn() > 0) return 'duplicado';
+
+    $validadeInicio = date('Y-m-d H:i:s', $cert['validFrom_time_t'] ?? 0);
+    $validadeFim = date('Y-m-d H:i:s', $cert['validTo_time_t'] ?? 0);
+
+    $stmt = $pdo->prepare("INSERT INTO admin_certificados (admin_id, nome, subject_dn, issuer_dn, serial, thumbprint, certificado_pem, validade_inicio, validade_fim, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+    $stmt->execute([
+        $adminId,
+        $nome,
+        $cert['subject']['CN'] ?? '',
+        $cert['issuer']['CN'] ?? '',
+        $cert['serialNumberHex'] ?? $cert['serialNumber'] ?? '',
+        $cert['thumbprint'],
+        $cert['pem'],
+        $validadeInicio,
+        $validadeFim
+    ]);
+    return true;
+}
+
+// =====================================================
 // RATE LIMITING - Login
 // =====================================================
 

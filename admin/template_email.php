@@ -99,7 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $config = getAllConfig();
 $corPrimaria = getCorPrimaria();
 $logoUrl = getLogoEmail();
-$logoTag = $logoUrl ? '<img src="' . htmlspecialchars($logoUrl) . '" alt="Logo" style="width:200px;max-width:200px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars(getNomeSistema()) . '</h2>';
+$logoBase64 = getLogoBase64();
+$logoTag = $logoBase64 ? '<img src="' . $logoBase64 . '" alt="Logo" style="width:200px;max-width:200px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars(getNomeSistema()) . '</h2>';
 $defaultTemplate = '<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>

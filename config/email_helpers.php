@@ -74,7 +74,7 @@ if (!function_exists('montarMensagemHtml')) {
         $corPrimaria = getCorPrimaria();
 
         if (!empty($templateHtml)) {
-            $mensagemHtml = $templateHtml;
+            $mensagemHtml = preg_replace('#<img[^>]*(?:alt=["\'](?:Logo|Logo do Sistema)["\']|class=["\']email-logo["\'])[^>]*>#i', $logoTag, $templateHtml);
         } else {
             $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><div style="background:' . $corPrimaria . ';padding:24px 30px;text-align:center;">' . $logoTag . '</div><div style="padding:30px;">{{CONTEUDO}}</div></div></body></html>';
         }
@@ -300,6 +300,27 @@ if (!function_exists('enviarEmailFatura')) {
             return false;
         }
 
+        if (empty($fatura['pix_copia_cola']) && !empty($fatura['id']) && ($fatura['status'] ?? '') !== 'pago') {
+            if (!function_exists('criarPagamento')) {
+                require_once __DIR__ . '/mercadopago.php';
+            }
+            $resultado = criarPagamento($fatura['descricao'], $fatura['valor_final'], $fatura['email'], $fatura['nome_razao']);
+            if (isset($resultado['sucesso']) && $resultado['sucesso']) {
+                $fatura['pix_copia_cola'] = $resultado['qr_code_copia_cola'] ?? '';
+                $fatura['pix_qrcode'] = $resultado['qr_code'] ?? '';
+                $fatura['link_pagamento'] = $resultado['link_pagamento'] ?? '';
+                $pdo = getConnection();
+                $apiAtiva = getApiAtiva();
+                if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
+                    $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?");
+                    $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], null, $resultado['payment_id'], $fatura['id']]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?");
+                    $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], $resultado['payment_id'], $fatura['id']]);
+                }
+            }
+        }
+
         $assunto = getConfig(($tipo === 'antes') ? 'template_email_assunto_antes' : 'template_email_assunto_depois', 'Fatura ' . $fatura['numero']);
         $assunto = str_replace(['{numero}', '{data_vencimento}', '{valor}'], [
             $fatura['numero'],
@@ -324,7 +345,7 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
         $corPrimaria = getCorPrimaria();
 
         if (!empty($templateHtml)) {
-            $mensagemHtml = $templateHtml;
+            $mensagemHtml = preg_replace('#<img[^>]*(?:alt=["\'](?:Logo|Logo do Sistema)["\']|class=["\']email-logo["\'])[^>]*>#i', $logoTag, $templateHtml);
         } else {
             $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><div style="background:' . $corPrimaria . ';padding:24px 30px;text-align:center;">' . $logoTag . '</div><div style="padding:30px;">{{CONTEUDO}}</div></div></body></html>';
         }

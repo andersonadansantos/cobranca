@@ -107,8 +107,20 @@ $nomeSistema = getNomeSistema();
                         <button type="submit" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-sign-in-alt me-1"></i> Entrar
                         </button>
-                        <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
                     </form>
+
+                    <div class="text-center my-3">
+                        <div class="d-flex align-items-center mb-3">
+                            <hr class="flex-grow-1">
+                            <span class="mx-2 text-muted" style="font-size:0.8rem;">ou</span>
+                            <hr class="flex-grow-1">
+                        </div>
+                        <a href="https://localhost/cobranca/admin/login_certificado.php" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-certificate me-1"></i> Entrar com Certificado Digital
+                        </a>
+                    </div>
+
+                    <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
 
                     <div class="text-center mt-3">
                         <a href="/cobranca/usuario/login.php" class="text-decoration-none">

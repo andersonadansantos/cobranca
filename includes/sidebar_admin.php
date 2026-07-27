@@ -29,9 +29,6 @@ $basePath = '/cobranca/admin';
         <a href="<?= $basePath ?>/inadimplencia.php" class="nav-link <?= $currentPage === 'inadimplencia' ? 'active' : '' ?>">
             <i class="fas fa-exclamation-triangle"></i> Inadimplência
         </a>
-        <a href="<?= $basePath ?>/fluxo_caixa.php" class="nav-link <?= $currentPage === 'fluxo_caixa' ? 'active' : '' ?>">
-            <i class="fas fa-chart-line"></i> Fluxo de Caixa
-        </a>
 
         <div class="nav-section">Configurações</div>
         <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>">
@@ -62,6 +59,9 @@ $basePath = '/cobranca/admin';
         <div class="nav-section">Conta</div>
         <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
             <i class="fas fa-users-cog"></i> Usuários Admin
+        </a>
+        <a href="<?= $basePath ?>/certificados.php" class="nav-link <?= $currentPage === 'certificados' ? 'active' : '' ?>">
+            <i class="fas fa-certificate"></i> Certificados Digitais
         </a>
         <a href="<?= $basePath ?>/perfil.php" class="nav-link <?= $currentPage === 'perfil' ? 'active' : '' ?>">
             <i class="fas fa-user-edit"></i> Meu Perfil
