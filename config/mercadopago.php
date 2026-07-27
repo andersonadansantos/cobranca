@@ -206,6 +206,9 @@ function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome) {
     if ($api === 'bb') {
         return criarPagamentoBB($descricao, $valor, $clienteEmail, $clienteNome);
     }
+    if ($api === 'pix_manual') {
+        return criarPagamentoPixManual($descricao, $valor, $clienteEmail, $clienteNome);
+    }
     if ($api === 'pagbank') {
         if (!function_exists('criarPedidoPixPagBank')) {
             require_once __DIR__ . '/pagbank.php';
@@ -957,4 +960,84 @@ function getC6BaseUrl() {
     return ($config['c6_ambiente'] ?? 'homologacao') === 'producao'
         ? 'https://api.c6bank.com.br'
         : 'https://api-hmg.c6bank.com.br';
+}
+
+// =====================================================
+// PIX MANUAL — Geração estática de QR Code PIX
+// =====================================================
+
+function getConfigPixManual() {
+    $campos = ['pix_manual_chave', 'pix_manual_banco', 'pix_manual_favorecido', 'pix_manual_cnpj', 'pix_manual_whatsapp'];
+    $config = [];
+    foreach ($campos as $chave) {
+        $config[$chave] = getConfig($chave, '');
+    }
+    return $config;
+}
+
+function emvField($id, $value) {
+    $len = strlen($value);
+    return $id . str_pad($len, 2, '0', STR_PAD_LEFT) . $value;
+}
+
+function crc16Ccitt($str) {
+    $polynomial = 0x1021;
+    $crc = 0xFFFF;
+    for ($i = 0; $i < strlen($str); $i++) {
+        $crc ^= (ord($str[$i]) << 8);
+        for ($j = 0; $j < 8; $j++) {
+            if ($crc & 0x8000) {
+                $crc = (($crc << 1) ^ $polynomial) & 0xFFFF;
+            } else {
+                $crc = ($crc << 1) & 0xFFFF;
+            }
+        }
+    }
+    return strtoupper(str_pad(dechex($crc), 4, '0', STR_PAD_LEFT));
+}
+
+function gerarPixManualString($chave, $valor, $favorecido, $cidade = 'SAO PAULO') {
+    $chave = trim($chave);
+    $favorecido = trim($favorecido);
+    $cidade = trim($cidade) ?: 'SAO PAULO';
+
+    $payload = '';
+    $payload .= emvField('00', '01');
+    $payload .= emvField('01', strlen($chave) === 11 ? '12' : '14');
+    $payload .= emvField('26', emvField('00', 'br.gov.bcb.pix') . emvField('01', $chave));
+    $payload .= emvField('52', '0000');
+    $payload .= emvField('53', '986');
+    $payload .= emvField('54', number_format((float) $valor, 2, '.', ''));
+    $payload .= emvField('58', 'BR');
+    $payload .= emvField('59', mb_strtoupper(mb_substr($favorecido, 0, 25)));
+    $payload .= emvField('60', mb_strtoupper(mb_substr($cidade, 0, 15)));
+    $payload .= emvField('62', emvField('05', '***'));
+
+    $crcPayload = $payload . '6304';
+    $crc = crc16Ccitt($crcPayload);
+
+    return $payload . '63' . $crc;
+}
+
+function criarPagamentoPixManual($descricao, $valor, $clienteEmail, $clienteNome) {
+    $config = getConfigPixManual();
+
+    if (empty($config['pix_manual_chave'])) {
+        return ['erro' => 'Chave PIX não configurada no PIX Manual.'];
+    }
+
+    $pixString = gerarPixManualString(
+        $config['pix_manual_chave'],
+        $valor,
+        $config['pix_manual_favorecido'],
+        'SAO PAULO'
+    );
+
+    return [
+        'sucesso' => true,
+        'qr_code' => '',
+        'qr_code_copia_cola' => $pixString,
+        'link_pagamento' => '',
+        'payment_id' => 'pix_manual_' . time()
+    ];
 }

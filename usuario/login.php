@@ -38,15 +38,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
 
     if (empty($erro)) {
         $cpfCnpj = trim($_POST['cpf_cnpj'] ?? '');
+        $senha = trim($_POST['senha'] ?? '');
         
-        if (empty($cpfCnpj)) {
-            $erro = 'Informe seu CPF ou CNPJ.';
-        } elseif (loginUser($cpfCnpj)) {
+        if (empty($cpfCnpj) || empty($senha)) {
+            $erro = 'Informe seu CPF/CNPJ e senha.';
+        } elseif (loginUser($cpfCnpj, $senha)) {
             header('Location: index.php');
             exit;
         } else {
             recordLoginAttempt('user', 'all');
-            $erro = 'CPF/CNPJ não encontrado.';
+            $erro = 'CPF/CNPJ ou senha inválidos.';
         }
     }
 }
@@ -91,11 +92,18 @@ $nomeSistema = getNomeSistema();
                     <?php endif; ?>
 
                     <form method="POST">
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label class="form-label">CPF ou CNPJ</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="fas fa-id-card"></i></span>
                                 <input type="text" name="cpf_cnpj" class="form-control" placeholder="Digite seu CPF ou CNPJ" required autofocus value="<?= htmlspecialchars($_POST['cpf_cnpj'] ?? '') ?>" inputmode="numeric" pattern="[0-9.\-\/]*">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Senha</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                <input type="password" name="senha" class="form-control" placeholder="Digite sua senha" required minlength="6">
                             </div>
                         </div>
                         <div class="mb-3">

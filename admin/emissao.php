@@ -44,7 +44,7 @@ if (isset($_GET['enviar'])) {
     $stmt = $pdo->prepare("
         SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
                f.pix_copia_cola, f.pix_qrcode,
-               c.nome_razao, c.email
+               c.nome_razao, c.email, c.cpf_cnpj
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
         WHERE f.fatura_recorrente_id = ? AND f.status IN ('pendente','vencido','atrasado')
@@ -102,8 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
             }
 
-            $stmt = $pdo->prepare("INSERT INTO faturas (cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?)");
-            $stmt->execute([$cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken()]);
+            $stmt = $pdo->prepare("INSERT INTO faturas (cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
+            $stmt->execute([$cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken(), getApiAtiva()]);
             $faturaId = $pdo->lastInsertId();
 
             $stmtCliente = $pdo->prepare("SELECT nome_razao, email FROM clientes WHERE id = ?");
@@ -122,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'pix_qrcode' => '',
                     'nome_razao' => $cliente['nome_razao'],
                     'email' => $cliente['email'],
+                    'cpf_cnpj' => $cliente['cpf_cnpj'],
                 ];
                 enviarEmailFatura($faturaDados, 'antes');
             }
@@ -192,7 +193,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $faturasRecorrentes = $stmt->fetchAll();
 
-$pageTitle = 'Emissão de Faturas Recorrentes';
+$pageTitle = 'Emissão de Faturas';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/sidebar_admin.php';
 ?>
@@ -201,7 +202,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     <div class="topbar">
         <div>
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
-            <h5>Emissão de Faturas Recorrentes</h5>
+            <h5>Emissão de Faturas</h5>
         </div>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
@@ -225,7 +226,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <?php endif; ?>
 
         <div class="form-card mb-4">
-            <h6 class="mb-3"><i class="fas fa-plus-circle me-2"></i>Nova Fatura Recorrente</h6>
+            <h6 class="mb-3"><i class="fas fa-plus-circle me-2"></i>Nova Fatura</h6>
             <form method="POST" id="formNovaFatura">
                 <div class="row g-3">
                     <div class="col-md-4">
@@ -265,12 +266,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Data Início</label>
+                        <label class="form-label">Data que começa a cobrar</label>
                         <input type="date" name="data_inicio" class="form-control" value="<?= date('Y-m-d') ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Data Fim (opcional)</label>
-                        <input type="date" name="data_fim" class="form-control">
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary">

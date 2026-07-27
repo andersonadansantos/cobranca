@@ -100,6 +100,23 @@ function loginUser($cpfCnpj, $senha = '') {
     $cliente = $stmt->fetch();
     
     if ($cliente) {
+        $hash = $cliente['senha'] ?? '';
+        if (!empty($hash) && !empty($senha)) {
+            $valid = false;
+            if (password_verify($senha, $hash)) {
+                $valid = true;
+            } elseif (strlen($hash) === 32 && md5($senha) === $hash) {
+                $valid = true;
+                $newHash = password_hash($senha, PASSWORD_BCRYPT);
+                $upd = $pdo->prepare("UPDATE clientes SET senha = ? WHERE id = ?");
+                $upd->execute([$newHash, $cliente['id']]);
+            }
+            if (!$valid) return false;
+        } elseif (empty($hash)) {
+            // Senha não definida — login sem senha (compatibilidade legada)
+        } elseif (empty($senha)) {
+            return false;
+        }
         session_regenerate_id(true);
         $_SESSION['user_id'] = $cliente['id'];
         $_SESSION['user_nome'] = $cliente['nome_razao'];

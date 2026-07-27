@@ -33,15 +33,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
 
     if (empty($erro)) {
         $cpfCnpj = trim($_POST['cpf_cnpj'] ?? '');
+        $senha = trim($_POST['senha'] ?? '');
         
-        if (empty($cpfCnpj)) {
-            $erro = 'Informe seu CPF ou CNPJ.';
-        } elseif (loginUser($cpfCnpj)) {
+        if (empty($cpfCnpj) || empty($senha)) {
+            $erro = 'Informe seu CPF/CNPJ e senha.';
+        } elseif (loginUser($cpfCnpj, $senha)) {
             header('Location: dashboard.php');
             exit;
         } else {
             recordLoginAttempt('user', 'all');
-            $erro = 'CPF/CNPJ não encontrado.';
+            $erro = 'CPF/CNPJ ou senha inválidos.';
         }
     }
 }
@@ -93,6 +94,13 @@ $nomeSistema = getNomeSistema();
                     <div class="app-input-icon">
                         <i class="fas fa-id-card"></i>
                         <input type="text" name="cpf_cnpj" class="app-input" placeholder="Digite seu CPF ou CNPJ" required inputmode="numeric" autofocus>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <div class="app-input-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" name="senha" class="app-input" placeholder="Digite sua senha" required minlength="6">
                     </div>
                 </div>
                 <div style="margin-bottom:16px; display:flex; justify-content:center;">

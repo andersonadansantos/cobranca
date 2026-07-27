@@ -32,6 +32,8 @@ if (!$fatura) {
     exit;
 }
 
+$apiDaFatura = $fatura['api_pagamento'] ?: getApiAtiva();
+
 // Gerar boleto
 if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
     if (!empty($fatura['boleto_url'])) {
@@ -58,8 +60,7 @@ if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
     );
 
     if (isset($result['sucesso']) && $result['sucesso']) {
-        $apiAtiva = getApiAtiva();
-        if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
+        if ($apiDaFatura === 'inter' || $apiDaFatura === 'bb') {
             $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?");
             $stmt->execute([$result['boleto_url'], null, $result['payment_id'], $faturaId]);
         } else {
@@ -85,13 +86,12 @@ if (!$jaTemCobranca && !$fatura['link_pagamento'] && !$fatura['pix_copia_cola'] 
     $result = criarPagamento($fatura['descricao'], $fatura['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '');
 
     if (isset($result['sucesso']) && $result['sucesso']) {
-        $apiAtiva = getApiAtiva();
-        if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
-            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?");
-            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], null, $result['payment_id'], $faturaId]);
+        if ($apiDaFatura === 'inter' || $apiDaFatura === 'bb') {
+            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
+            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], null, $result['payment_id'], $apiDaFatura, $faturaId]);
         } else {
-            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?");
-            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], $result['payment_id'], $faturaId]);
+            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
+            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], $result['payment_id'], $apiDaFatura, $faturaId]);
         }
 
         $fatura['pix_qrcode'] = $result['qr_code'];
@@ -204,6 +204,18 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
                     </div>
                     <h5 class="fatura-pago-texto">Pagamento Confirmado</h5>
                     <p class="fatura-pago-sub">Esta fatura já foi quitada.</p>
+                    <?php
+                    $nubankWa = getConfig('nubank_whatsapp', '');
+                    $pmWa = getConfig('pix_manual_whatsapp', '');
+                    $whatsappNum = $nubankWa ?: $pmWa;
+                    if (!empty($whatsappNum)):
+                        $msgWa = 'Oi, segue comprovante da fatura (' . $fatura['numero'] . ').';
+                        $linkWa = 'https://wa.me/' . preg_replace('/[^0-9]/', '', $whatsappNum) . '?text=' . urlencode($msgWa);
+                    ?>
+                        <a href="<?= htmlspecialchars($linkWa) ?>" target="_blank" class="btn btn-success btn-sm mt-2">
+                            <i class="fab fa-whatsapp me-1"></i> Enviar Comprovante via WhatsApp
+                        </a>
+                    <?php endif; ?>
                 </div>
             <?php else: ?>
                 <div class="fatura-card fatura-card-pagamento" id="pendenteBox">
@@ -215,7 +227,18 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
 
                             <!-- Coluna 1: QR Code -->
                             <div class="fatura-pag-col">
-                                <?php if ($fatura['pix_copia_cola']): ?>
+                                <?php if ($apiDaFatura === 'pix_manual'): ?>
+                                    <?php $pmCfgCol1 = getConfigPixManual(); ?>
+                                    <?php if (!empty($pmCfgCol1['pix_manual_chave'])): ?>
+                                        <div id="qrImageWrap">
+                                            <div id="pmQrContainer" style="display:inline-block;"></div>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="fatura-pag-empty">
+                                            <i class="fas fa-qrcode"></i>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php elseif ($fatura['pix_copia_cola']): ?>
                                     <?php if ($fatura['pix_qrcode']): ?>
                                         <div id="qrImageWrap">
                                             <img src="data:image/png;base64,<?= htmlspecialchars($fatura['pix_qrcode']) ?>" alt="QR Code PIX" style="max-width:140px; border:1px solid #dee2e6; border-radius:8px;">
@@ -234,25 +257,53 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
 
                             <!-- Coluna 2: PIX + Pagar -->
                             <div class="fatura-pag-col fatura-pag-col-pix">
-                                <?php if ($fatura['pix_copia_cola']): ?>
-                                    <div class="fatura-pix-label">Código PIX</div>
-                                    <div class="pix-copia-cola mb-2" id="pixCode">
-                                        <?= htmlspecialchars($fatura['pix_copia_cola']) ?>
-                                    </div>
-                                    <button class="btn btn-success btn-sm w-100 mb-2" onclick="copiarPix(document.getElementById('pixCode').textContent.trim())">
-                                        <i class="fas fa-copy me-1"></i> Copiar
-                                    </button>
-                                    <?php if ($fatura['link_pagamento']): ?>
-                                        <a href="<?= htmlspecialchars($fatura['link_pagamento']) ?>" target="_blank" class="btn btn-primary btn-sm w-100">
-                                            <i class="fas fa-external-link-alt me-1"></i> Pagar Agora
-                                        </a>
+                                <?php if ($apiDaFatura === 'pix_manual'): ?>
+                                    <?php $pmCfg = getConfigPixManual(); ?>
+                                    <?php if (!empty($pmCfg['pix_manual_chave']) || !empty($pmCfg['pix_manual_favorecido'])): ?>
+                                        <div class="fatura-pix-label text-start">Dados do Recebedor</div>
+                                        <div class="text-start">
+                                        <?php if (!empty($pmCfg['pix_manual_chave'])): ?>
+                                            <div class="small mb-1">
+                                                <span class="text-muted">Chave PIX:</span> <strong><?= htmlspecialchars($pmCfg['pix_manual_chave']) ?></strong>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm ms-1" style="padding:1px 6px; font-size:0.7rem;" onclick="copiarPix('<?= htmlspecialchars($pmCfg['pix_manual_chave']) ?>')"><i class="fas fa-copy"></i></button>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($pmCfg['pix_manual_banco'])): ?>
+                                            <div class="small mb-1"><span class="text-muted">Banco:</span> <strong><?= htmlspecialchars($pmCfg['pix_manual_banco']) ?></strong></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($pmCfg['pix_manual_favorecido'])): ?>
+                                            <div class="small mb-1"><span class="text-muted">Favorecido:</span> <strong><?= htmlspecialchars($pmCfg['pix_manual_favorecido']) ?></strong></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($pmCfg['pix_manual_whatsapp'])): ?>
+                                            <?php $pmWaLink = 'https://wa.me/' . preg_replace('/[^0-9]/', '', $pmCfg['pix_manual_whatsapp']) . '?text=' . urlencode('Oi, tenho uma dúvida sobre pagamento.'); ?>
+                                            <a href="<?= htmlspecialchars($pmWaLink) ?>" target="_blank" class="btn btn-success btn-sm w-100 mt-2">
+                                                <i class="fab fa-whatsapp me-1"></i> Enviar Comprovante
+                                            </a>
+                                        <?php endif; ?>
+                                        </div>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <span class="text-muted small">Sem dados PIX</span>
+                                    <?php if ($fatura['pix_copia_cola']): ?>
+                                        <div class="fatura-pix-label">Código PIX</div>
+                                        <div class="pix-copia-cola mb-2" id="pixCode">
+                                            <?= htmlspecialchars($fatura['pix_copia_cola']) ?>
+                                        </div>
+                                        <button class="btn btn-success btn-sm w-100 mb-2" onclick="copiarPix(document.getElementById('pixCode').textContent.trim())">
+                                            <i class="fas fa-copy me-1"></i> Copiar
+                                        </button>
+                                        <?php if ($fatura['link_pagamento']): ?>
+                                            <a href="<?= htmlspecialchars($fatura['link_pagamento']) ?>" target="_blank" class="btn btn-primary btn-sm w-100">
+                                                <i class="fas fa-external-link-alt me-1"></i> Pagar Agora
+                                            </a>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="text-muted small">Sem dados PIX</span>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
 
                             <!-- Coluna 3: Boleto -->
+                            <?php if ($apiDaFatura !== 'pix_manual'): ?>
                             <div class="fatura-pag-col fatura-pag-col-boleto">
                                 <div class="fatura-boleto-icon">
                                     <i class="fas fa-barcode"></i>
@@ -267,8 +318,10 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
                                     </a>
                                 <?php endif; ?>
                             </div>
+                            <?php endif; ?>
 
                         </div>
+
                     </div>
                 </div>
             <?php endif; ?>
@@ -276,7 +329,7 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
     </div>
 </div>
 
-<?php if (!$fatura['pix_qrcode'] && $fatura['pix_copia_cola']): ?>
+<?php if ($apiDaFatura !== 'pix_manual' && !$fatura['pix_qrcode'] && $fatura['pix_copia_cola']): ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -294,6 +347,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+<?php endif; ?>
+<?php if ($apiDaFatura === 'pix_manual'): ?>
+    <?php $pmQrChave = getConfig('pix_manual_chave', ''); ?>
+    <?php if (!empty($pmQrChave)): ?>
+        <?php if (!$fatura['pix_qrcode']): ?>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <?php endif; ?>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var pmContainer = document.getElementById('pmQrContainer');
+            if (pmContainer) {
+                new QRCode(pmContainer, {
+                    text: <?= json_encode($pmQrChave) ?>,
+                    width: 200,
+                    height: 200,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            }
+        });
+        </script>
+    <?php endif; ?>
 <?php endif; ?>
 <?php if ($fatura['status'] !== 'pago'): ?>
 <script>
@@ -340,7 +416,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 <?php
-$apiAtiva = getApiAtiva();
+$apiAtiva = $apiDaFatura;
 $temInterCodigo = !empty($fatura['inter_codigo_solicitacao']);
 $semPix = empty($fatura['pix_copia_cola']);
 $naoPago = $fatura['status'] !== 'pago';

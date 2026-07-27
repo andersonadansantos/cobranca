@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             } else {
                 if (empty($senha)) {
-                    $senha = bin2hex(random_bytes(6));
+                    $senha = $cpf_cnpj;
                 }
                 $stmt = $pdo->prepare("INSERT INTO clientes (tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);

@@ -93,7 +93,7 @@ $regua5 = intval(getConfig('regua_5_dias_depois', '0'));
 
 function buscarFaturas($pdo, $statuses) {
     $ph = implode(',', array_fill(0, count($statuses), '?'));
-    $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.celular, c.telefone FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ($ph) AND c.email IS NOT NULL AND c.email != ''");
+    $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ($ph) AND c.email IS NOT NULL AND c.email != ''");
     $stmt->execute($statuses);
     return $stmt->fetchAll();
 }

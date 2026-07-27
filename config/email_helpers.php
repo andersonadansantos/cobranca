@@ -96,6 +96,13 @@ if (!function_exists('montarMensagemHtml')) {
             }
             $conteudo .= '<p>Acesse sua fatura para mais detalhes e realizar o pagamento:</p>';
             $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:' . $corPrimaria . ';border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
+            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
+            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:14px 18px;margin:15px 0;text-align:center;">';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;font-weight:bold;color:#333;">Dados de Acesso ao Painel</p>';
+            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Usuário: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Senha: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:6px 0 0 0;font-size:11px;color:#999;">(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)</p>';
+            $conteudo .= '</div>';
             if ($linkPag) {
                 $conteudo .= '<p style="text-align:center;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';">Pagar agora via Mercado Pago</a></p>';
             }
@@ -118,6 +125,13 @@ if (!function_exists('montarMensagemHtml')) {
             }
             $conteudo .= '<p>Por favor, regularize sua situação o mais rápido possível:</p>';
             $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:#c0392b;border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
+            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
+            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:14px 18px;margin:15px 0;text-align:center;">';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;font-weight:bold;color:#333;">Dados de Acesso ao Painel</p>';
+            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Usuário: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Senha: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:6px 0 0 0;font-size:11px;color:#999;">(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)</p>';
+            $conteudo .= '</div>';
             if ($linkPag) {
                 $conteudo .= '<p style="text-align:center;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';">Pagar agora via Mercado Pago</a></p>';
             }
@@ -145,6 +159,11 @@ if (!function_exists('montarMensagemTxt')) {
                 $msg .= "Código: {$fatura['pix_copia_cola']}\n\n";
             }
             $msg .= "Acesse sua fatura: {$linkFatura}\n\n";
+            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
+            $msg .= "--- Dados de Acesso ao Painel ---\n";
+            $msg .= "Usuário: {$cpfCnpjFmt}\n";
+            $msg .= "Senha: {$cpfCnpjFmt}\n";
+            $msg .= "(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";
             }
@@ -161,6 +180,11 @@ if (!function_exists('montarMensagemTxt')) {
                 $msg .= "Código: {$fatura['pix_copia_cola']}\n\n";
             }
             $msg .= "Acesse sua fatura: {$linkFatura}\n\n";
+            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
+            $msg .= "--- Dados de Acesso ao Painel ---\n";
+            $msg .= "Usuário: {$cpfCnpjFmt}\n";
+            $msg .= "Senha: {$cpfCnpjFmt}\n";
+            $msg .= "(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";
             }

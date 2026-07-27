@@ -31,30 +31,35 @@ $basePath = '/cobranca/admin';
         </a>
 
         <div class="nav-section">Configurações</div>
-        <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>">
-            <i class="fas fa-key"></i> API de Pagamento
+        <a href="#" class="nav-link sidebar-toggle-config" onclick="var el=document.getElementById('configSubmenu');el.style.display=el.style.display==='none'?'block':'none';var icon=this.querySelector('.fa-chevron-down,.fa-chevron-up');if(icon){icon.classList.toggle('fa-chevron-down');icon.classList.toggle('fa-chevron-up');}return false;">
+            <i class="fas fa-cog"></i> Configurações <i class="fas fa-chevron-down ms-auto" style="font-size:0.65rem;"></i>
         </a>
-        <a href="<?= $basePath ?>/personalizacao.php" class="nav-link <?= $currentPage === 'personalizacao' ? 'active' : '' ?>">
-            <i class="fas fa-palette"></i> Personalização
-        </a>
-        <a href="<?= $basePath ?>/banners.php" class="nav-link <?= $currentPage === 'banners' ? 'active' : '' ?>">
-            <i class="fas fa-image"></i> Banners
-        </a>
-        <a href="<?= $basePath ?>/envios.php" class="nav-link <?= $currentPage === 'envios' ? 'active' : '' ?>">
-            <i class="fas fa-paper-plane"></i> Config. de Envios
-        </a>
-        <a href="<?= $basePath ?>/template_email.php" class="nav-link <?= $currentPage === 'template_email' ? 'active' : '' ?>">
-            <i class="fas fa-envelope-open-text"></i> Template E-mail
-        </a>
-        <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>">
-            <i class="fas fa-headset"></i> Contato/Financeiro
-        </a>
-        <a href="<?= $basePath ?>/backup.php" class="nav-link <?= $currentPage === 'backup' ? 'active' : '' ?>">
-            <i class="fas fa-database"></i> Backup
-        </a>
-        <a href="<?= $basePath ?>/whatsapp.php" class="nav-link <?= $currentPage === 'whatsapp' ? 'active' : '' ?>">
-            <i class="fab fa-whatsapp" style="color:#25D366;"></i> WhatsApp
-        </a>
+        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','config_financeiro','backup','whatsapp'])) ? 'block' : 'none' ?>;">
+            <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-key"></i> API de Pagamento
+            </a>
+            <a href="<?= $basePath ?>/personalizacao.php" class="nav-link <?= $currentPage === 'personalizacao' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-palette"></i> Personalização
+            </a>
+            <a href="<?= $basePath ?>/banners.php" class="nav-link <?= $currentPage === 'banners' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-image"></i> Banners
+            </a>
+            <a href="<?= $basePath ?>/envios.php" class="nav-link <?= $currentPage === 'envios' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-paper-plane"></i> Config. de Envios
+            </a>
+            <a href="<?= $basePath ?>/template_email.php" class="nav-link <?= $currentPage === 'template_email' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-envelope-open-text"></i> Template E-mail
+            </a>
+            <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-headset"></i> Contato/Financeiro
+            </a>
+            <a href="<?= $basePath ?>/backup.php" class="nav-link <?= $currentPage === 'backup' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-database"></i> Backup
+            </a>
+            <a href="<?= $basePath ?>/whatsapp.php" class="nav-link <?= $currentPage === 'whatsapp' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fab fa-whatsapp" style="color:#25D366;"></i> WhatsApp
+            </a>
+        </div>
 
         <div class="nav-section">Conta</div>
         <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">

@@ -21,6 +21,38 @@ $cliente = $stmt->fetch();
 
 // Atualizar perfil
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $acao = $_POST['acao'] ?? '';
+
+    if ($acao === 'senha') {
+        $senhaAtual = trim($_POST['senha_atual'] ?? '');
+        $novaSenha = trim($_POST['nova_senha'] ?? '');
+        $confirmaSenha = trim($_POST['confirma_senha'] ?? '');
+
+        if (empty($senhaAtual) || empty($novaSenha)) {
+            $mensagem = 'Preencha todos os campos de senha.';
+            $tipo = 'danger';
+        } elseif ($novaSenha !== $confirmaSenha) {
+            $mensagem = 'As senhas não conferem.';
+            $tipo = 'danger';
+        } elseif (strlen($novaSenha) < 6) {
+            $mensagem = 'A nova senha deve ter no mínimo 6 caracteres.';
+            $tipo = 'danger';
+        } else {
+            $stmt = $pdo->prepare("SELECT id, senha FROM clientes WHERE id = ?");
+            $stmt->execute([$userId]);
+            $cli = $stmt->fetch();
+            if ($cli && (password_verify($senhaAtual, $cli['senha']) || (strlen($cli['senha']) === 32 && md5($senhaAtual) === $cli['senha']))) {
+                $stmt = $pdo->prepare("UPDATE clientes SET senha = ? WHERE id = ?");
+                $stmt->execute([password_hash($novaSenha, PASSWORD_BCRYPT), $userId]);
+                $mensagem = 'Senha alterada com sucesso!';
+                $tipo = 'success';
+            } else {
+                $mensagem = 'Senha atual incorreta.';
+                $tipo = 'danger';
+            }
+        }
+    } else {
+
     $email = trim($_POST['email'] ?? '');
     $telefone = trim($_POST['telefone'] ?? '');
     $celular = trim($_POST['celular'] ?? '');
@@ -63,6 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensagem = 'Erro ao atualizar: ' . $e->getMessage();
         $tipo = 'danger';
     }
+
+    } // fecha else acao senha
 }
 
 $pageTitle = 'Meu Perfil';
@@ -120,6 +154,30 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
                 </div>
             </div>
             
+        </div>
+
+        <div class="form-card mt-4">
+            <h6 class="mb-3"><i class="fas fa-key me-2"></i>Alterar Senha</h6>
+            <form method="POST" id="formSenha">
+                <input type="hidden" name="acao" value="senha">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Senha Atual</label>
+                        <input type="password" name="senha_atual" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Nova Senha</label>
+                        <input type="password" name="nova_senha" class="form-control" minlength="6" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Confirmar Nova Senha</label>
+                        <input type="password" name="confirma_senha" class="form-control" minlength="6" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-warning mt-3">
+                    <i class="fas fa-lock me-1"></i> Alterar Senha
+                </button>
+            </form>
         </div>
 
         <div class="form-card mt-4">

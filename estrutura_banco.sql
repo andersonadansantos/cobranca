@@ -160,6 +160,7 @@ CREATE TABLE `faturas` (
   `criado_em` timestamp NOT NULL DEFAULT current_timestamp(),
   `atualizado_em` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `acesso_token` varchar(64) DEFAULT NULL,
+  `api_pagamento` varchar(30) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `numero` (`numero`),
   KEY `fatura_recorrente_id` (`fatura_recorrente_id`),
@@ -361,4 +362,9 @@ INSERT INTO `configuracoes` (`chave`, `valor`) VALUES
 ('pagbank_ambiente', 'sandbox'),
 ('pagbank_webhook_url', ''),
 ('nubank_chave_pix', ''),
-('nubank_whatsapp', '');
+('nubank_whatsapp', ''),
+('pix_manual_chave', ''),
+('pix_manual_banco', ''),
+('pix_manual_favorecido', ''),
+('pix_manual_cnpj', ''),
+('pix_manual_whatsapp', '');
