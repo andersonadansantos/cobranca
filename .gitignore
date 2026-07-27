@@ -3,5 +3,6 @@ config/inter_certs/
 assets/img/avatars/
 assets/img/banners/
 assets/boletos_inter/
+assets/boletos_pagbank/
 api/cron_log.txt
 *.log

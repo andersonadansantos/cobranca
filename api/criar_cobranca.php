@@ -63,6 +63,15 @@ if (isset($resultado['sucesso']) && $resultado['sucesso']) {
             $resultado['payment_id'],
             $faturaId
         ]);
+    } elseif ($apiAtiva === 'pagbank') {
+        $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?");
+        $stmt->execute([
+            $resultado['qr_code'],
+            $resultado['qr_code_copia_cola'],
+            $resultado['link_pagamento'],
+            $resultado['payment_id'],
+            $faturaId
+        ]);
     } else {
         $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?");
         $stmt->execute([

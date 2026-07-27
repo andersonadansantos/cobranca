@@ -206,6 +206,24 @@ function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome) {
     if ($api === 'bb') {
         return criarPagamentoBB($descricao, $valor, $clienteEmail, $clienteNome);
     }
+    if ($api === 'pagbank') {
+        if (!function_exists('criarPedidoPixPagBank')) {
+            require_once __DIR__ . '/pagbank.php';
+        }
+        $fatura = ['descricao' => $descricao, 'valor_final' => $valor, 'email' => $clienteEmail, 'nome_razao' => $clienteNome];
+        $cli = null;
+        $pdo = getConnection();
+        if ($pdo && !empty($clienteEmail)) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
+            $stmt->execute([$clienteEmail]);
+            $cli = $stmt->fetch();
+        }
+        if ($cli && empty($clienteNome)) {
+            $clienteNome = $cli['nome_razao'] ?? '';
+        }
+        $cpfCnpj = $cli ? ($cli['cpf_cnpj'] ?? '') : '';
+        return criarPedidoPixPagBank($descricao, $valor, $clienteEmail, $clienteNome, $cpfCnpj);
+    }
     return criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNome);
 }
 
@@ -216,6 +234,12 @@ function criarBoleto($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cliente
     }
     if ($api === 'bb') {
         return criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+    }
+    if ($api === 'pagbank') {
+        if (!function_exists('criarPedidoBoletoPagBank')) {
+            require_once __DIR__ . '/pagbank.php';
+        }
+        return criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
     }
     return criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
 }

@@ -356,4 +356,9 @@ INSERT INTO `configuracoes` (`chave`, `valor`) VALUES
 ('cora_cert_path', ''),
 ('cora_key_path', ''),
 ('cora_webhook_url', ''),
-('cora_ambiente', 'producao');
+('cora_ambiente', 'producao'),
+('pagbank_token', ''),
+('pagbank_ambiente', 'sandbox'),
+('pagbank_webhook_url', ''),
+('nubank_chave_pix', ''),
+('nubank_whatsapp', '');

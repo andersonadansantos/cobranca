@@ -35,6 +35,16 @@ foreach ($pendentes as $fat) {
             $situacao = strtoupper($detalhe['situacaoBoleto']['codigoSituacaoBoleto'] ?? '');
             if (in_array($situacao, ['BAIXADO','PAGO','RECEBIDO'])) { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
         }
+    } elseif ($apiAtiva === 'pagbank' && !empty($fat['mp_payment_id'])) {
+        $detalhe = consultarPedidoPagBank($fat['mp_payment_id']);
+        if ($detalhe) {
+            $charges = $detalhe['charges'] ?? [];
+            foreach ($charges as $charge) {
+                $situacao = strtoupper($charge['status'] ?? '');
+                if ($situacao === 'PAID') { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); break; }
+                elseif ($situacao === 'CANCELED') { $novoStatus = 'cancelado'; break; }
+            }
+        }
     } elseif ($apiAtiva === 'mercadopago' && !empty($fat['mp_payment_id'])) {
         $pagamento = consultarPagamento($fat['mp_payment_id']);
         if ($pagamento) {
@@ -110,55 +120,41 @@ function montarAssunto($antes, $fat) {
 $s = ['host'=>$smtpHost,'port'=>$smtpPort,'user'=>$smtpUser,'pass'=>$smtpPass,'from'=>$smtpFrom,'nome'=>$smtpNome,'ssl'=>$smtpSsl];
 $faturas = buscarFaturas($pdo, ['pendente', 'vencido', 'atrasado']);
 
-// REGRA 1: Envio na geracao (so se nunca enviou)
-if ($regua1) {
-    foreach ($faturas as $fat) {
-        if ($fat['ultimo_envio_tipo'] !== null) continue;
-        enviarEAtualizar($pdo, $fat, 'geracao', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', 0), montarMensagemTxt($fat, 'antes', 0), $s, $log);
-    }
-}
+$dataAlvo2 = ($regua2 > 0) ? date('Y-m-d', strtotime("+{$regua2} days")) : null;
+$dataAlvo3 = ($regua3 > 0) ? date('Y-m-d', strtotime("+{$regua3} days")) : null;
+$dataAlvo5 = ($regua5 > 0) ? date('Y-m-d', strtotime("-{$regua5} days")) : null;
 
-// REGRA 2: 1o lembrete - X dias antes do vencimento
-if ($regua2 > 0) {
-    $dataAlvo = date('Y-m-d', strtotime("+{$regua2} days"));
-    foreach ($faturas as $fat) {
-        if ($fat['data_vencimento'] !== $dataAlvo) continue;
-        if (in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) continue;
-        enviarEAtualizar($pdo, $fat, 'lembrete1', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', $regua2), montarMensagemTxt($fat, 'antes', $regua2), $s, $log);
-        if (enviarWhatsAppFatura($fat, 'antes', $regua2)) {
+foreach ($faturas as &$fat) {
+    $tipoEnviado = null;
+
+    if ($regua1 && $fat['ultimo_envio_tipo'] === null) {
+        $tipoEnviado = 'geracao';
+    } elseif ($regua2 > 0 && $fat['data_vencimento'] === $dataAlvo2 && !in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) {
+        $tipoEnviado = 'lembrete1';
+    } elseif ($regua3 > 0 && $fat['data_vencimento'] === $dataAlvo3 && !in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) {
+        $tipoEnviado = 'lembrete2';
+    } elseif ($regua4 && $fat['data_vencimento'] === $hoje && !in_array($fat['ultimo_envio_tipo'], ['vencimento','atraso'])) {
+        $tipoEnviado = 'vencimento';
+    } elseif ($regua5 > 0 && $fat['data_vencimento'] === $dataAlvo5 && $fat['ultimo_envio_tipo'] !== 'atraso') {
+        $tipoEnviado = 'atraso';
+    }
+
+    if ($tipoEnviado !== null) {
+        $antes = ($tipoEnviado !== 'atraso');
+        $diasRef = 0;
+        if ($tipoEnviado === 'lembrete1') $diasRef = $regua2;
+        elseif ($tipoEnviado === 'lembrete2') $diasRef = $regua3;
+        elseif ($tipoEnviado === 'atraso') $diasRef = $regua5;
+
+        enviarEAtualizar($pdo, $fat, $tipoEnviado, montarAssunto($antes, $fat), montarMensagemHtml($fat, $antes ? 'antes' : 'depois', $diasRef), montarMensagemTxt($fat, $antes ? 'antes' : 'depois', $diasRef), $s, $log);
+        $fat['ultimo_envio_tipo'] = $tipoEnviado;
+
+        if ($tipoEnviado === 'lembrete1' && enviarWhatsAppFatura($fat, 'antes', $regua2)) {
             $log[] = "[whatsapp_lembrete1] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
     }
 }
-
-// REGRA 3: 2o lembrete - X dias antes do vencimento
-if ($regua3 > 0) {
-    $dataAlvo = date('Y-m-d', strtotime("+{$regua3} days"));
-    foreach ($faturas as $fat) {
-        if ($fat['data_vencimento'] !== $dataAlvo) continue;
-        if (in_array($fat['ultimo_envio_tipo'], ['lembrete2','vencimento','atraso'])) continue;
-        enviarEAtualizar($pdo, $fat, 'lembrete2', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', $regua3), montarMensagemTxt($fat, 'antes', $regua3), $s, $log);
-    }
-}
-
-// REGRA 4: Lembrete final - no dia do vencimento
-if ($regua4) {
-    foreach ($faturas as $fat) {
-        if ($fat['data_vencimento'] !== $hoje) continue;
-        if (in_array($fat['ultimo_envio_tipo'], ['vencimento','atraso'])) continue;
-        enviarEAtualizar($pdo, $fat, 'vencimento', montarAssunto(true, $fat), montarMensagemHtml($fat, 'antes', 0), montarMensagemTxt($fat, 'antes', 0), $s, $log);
-    }
-}
-
-// REGRA 5: Atraso - X dias depois do vencimento
-if ($regua5 > 0) {
-    $dataAlvo = date('Y-m-d', strtotime("-{$regua5} days"));
-    foreach ($faturas as $fat) {
-        if ($fat['data_vencimento'] !== $dataAlvo) continue;
-        if ($fat['ultimo_envio_tipo'] === 'atraso') continue;
-        enviarEAtualizar($pdo, $fat, 'atraso', montarAssunto(false, $fat), montarMensagemHtml($fat, 'depois', $regua5), montarMensagemTxt($fat, 'depois', $regua5), $s, $log);
-    }
-}
+unset($fat);
 
 file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - " . implode(" | ", $log) . "\n", FILE_APPEND);
 echo "CRON executado: " . count($log) . " acoes\n";

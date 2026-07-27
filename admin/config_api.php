@@ -4,6 +4,7 @@ requireAdmin();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/mercadopago.php';
+require_once __DIR__ . '/../config/pagbank.php';
 
 $mensagem = '';
 $tipo = '';
@@ -113,13 +114,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($acao === 'salvar_pagbank') {
+        $token = trim($_POST['pagbank_token'] ?? '');
+        $ambiente = trim($_POST['pagbank_ambiente'] ?? 'sandbox');
+        $webhookUrl = trim($_POST['pagbank_webhook_url'] ?? '');
+        if (savePagBankConfig($token, $ambiente, $webhookUrl)) {
+            $mensagem = 'Configurações do PagBank salvas com sucesso!';
+            $tipo = 'success';
+        } else {
+            $mensagem = 'Erro ao salvar configurações.';
+            $tipo = 'danger';
+        }
+    }
+
+    if ($acao === 'salvar_nubank') {
+        $pdo = getConnection();
+        $campos = ['nubank_chave_pix', 'nubank_whatsapp'];
+        foreach ($campos as $campo) {
+            $valor = trim($_POST[$campo] ?? '');
+            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
+            $stmt->execute([$campo, $valor, $valor]);
+        }
+        $mensagem = 'Configurações do NU Bank salvas com sucesso!';
+        $tipo = 'success';
+    }
+
     if ($acao === 'ativar_api') {
         $pdo = getConnection();
         $api = $_POST['api'] ?? '';
-        if (in_array($api, ['mercadopago', 'inter', 'bb', 'c6'])) {
+        if (in_array($api, ['mercadopago', 'inter', 'bb', 'c6', 'pagbank'])) {
             $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
             $stmt->execute(['api_pagamento_ativa', $api, $api]);
-            $nomes = ['mercadopago' => 'Mercado Pago', 'inter' => 'Banco Inter', 'bb' => 'Banco do Brasil', 'c6' => 'C6 Bank'];
+            $nomes = ['mercadopago' => 'Mercado Pago', 'inter' => 'Banco Inter', 'bb' => 'Banco do Brasil', 'c6' => 'C6 Bank', 'pagbank' => 'PagBank'];
             $mensagem = "API ativa alterada para {$nomes[$api]}!";
             $tipo = 'success';
         }
@@ -172,6 +198,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <span class="badge bg-info fs-6"><i class="fas fa-university me-1"></i> Banco Inter</span>
                     <?php elseif ($apiAtiva === 'c6'): ?>
                         <span class="badge bg-dark fs-6"><i class="fas fa-money-check me-1"></i> C6 Bank</span>
+                    <?php elseif ($apiAtiva === 'pagbank'): ?>
+                        <span class="badge bg-warning fs-6 text-dark"><i class="fas fa-bolt me-1"></i> PagBank</span>
                     <?php else: ?>
                         <span class="badge bg-secondary fs-6">Nenhuma</span>
                     <?php endif; ?>
@@ -202,6 +230,19 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <?php if ($apiAtiva === 'c6'): ?>
                         <span class="badge bg-success ms-1">Ativa</span>
                     <?php endif; ?>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?= $apiAtiva === 'pagbank' ? 'active' : '' ?>" id="pagbank-tab" data-bs-toggle="tab" data-bs-target="#pagbank" type="button" role="tab">
+                    <i class="fas fa-bolt me-1"></i> PagBank
+                    <?php if ($apiAtiva === 'pagbank'): ?>
+                        <span class="badge bg-success ms-1">Ativa</span>
+                    <?php endif; ?>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="nubank-tab" data-bs-toggle="tab" data-bs-target="#nubank" type="button" role="tab">
+                    <i class="fas fa-piggy-bank me-1"></i> NU Bank
                 </button>
             </li>
         </ul>
@@ -572,6 +613,168 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <li>Senha do certificado</li>
                             </ul>
                             <small class="text-muted d-block mt-2">Código do banco: <strong>336</strong></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== PAGBANK ==================== -->
+            <div class="tab-pane fade show <?= $apiAtiva === 'pagbank' ? 'active' : '' ?>" id="pagbank" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <h6 class="mb-3"><i class="fas fa-bolt me-2"></i>Credenciais do PagBank</h6>
+                        <div class="alert alert-info py-2 mb-3">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Acesse <a href="https://developer.pagbank.com.br/" target="_blank">PagBank Developers</a> para obter seu token de autenticação.
+                        </div>
+                        <form method="POST">
+                            <input type="hidden" name="acao" value="salvar_pagbank">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Token de Autenticação</label>
+                                    <input type="text" name="pagbank_token" class="form-control font-monospace"
+                                        placeholder="Token de autenticação PagBank"
+                                        value="<?= htmlspecialchars($config['pagbank_token'] ?? '') ?>">
+                                    <small class="text-muted">Obtido no Portal do Desenvolvedor (sandbox) ou no painel PagBank (produção)</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Ambiente</label>
+                                    <select name="pagbank_ambiente" class="form-select">
+                                        <option value="sandbox" <?= ($config['pagbank_ambiente'] ?? 'sandbox') === 'sandbox' ? 'selected' : '' ?>>Sandbox (Testes)</option>
+                                        <option value="producao" <?= ($config['pagbank_ambiente'] ?? '') === 'producao' ? 'selected' : '' ?>>Produção</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">URL do Webhook</label>
+                                    <input type="url" name="pagbank_webhook_url" class="form-control"
+                                        placeholder="https://seudominio.com/cobranca/api/webhook_pagbank.php"
+                                        value="<?= htmlspecialchars($config['pagbank_webhook_url'] ?? '') ?>">
+                                    <small class="text-muted">URL para receber notificações de pagamento</small>
+                                </div>
+                            </div>
+                            <div class="mt-4 d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> Salvar Configurações
+                                </button>
+                            </div>
+                        </form>
+                        <?php if ($apiAtiva !== 'pagbank'): ?>
+                        <form method="POST" class="mt-2">
+                            <input type="hidden" name="acao" value="ativar_api">
+                            <input type="hidden" name="api" value="pagbank">
+                            <button type="submit" class="btn btn-outline-success">
+                                <i class="fas fa-power-off me-1"></i> Ativar PagBank
+                            </button>
+                        </form>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="form-card">
+                            <h6 class="mb-3"><i class="fas fa-question-circle me-2"></i>Como Configurar</h6>
+                            <ol class="small text-muted mb-0" style="padding-left: 20px;">
+                                <li class="mb-2">Acesse <a href="https://developer.pagbank.com.br/" target="_blank">developer.pagbank.com.br</a></li>
+                                <li class="mb-2">No ambiente <strong>Sandbox</strong>: acesse o <a href="https://portaldev.pagbank.com.br/" target="_blank">Portal do Desenvolvedor</a></li>
+                                <li class="mb-2">Clique na aba <strong>Tokens</strong></li>
+                                <li class="mb-2">Copie seu token de autenticação</li>
+                                <li class="mb-2">Em <strong>Produção</strong>: gere o token no painel PagBank em <em>Venda Online > Integrações > Gerar Token</em></li>
+                                <li class="mb-2">Configure o <strong>Webhook</strong> na URL acima</li>
+                                <li class="mb-2">Salve e clique em <strong>Ativar</strong></li>
+                            </ol>
+                        </div>
+                        <div class="form-card mt-3">
+                            <h6 class="mb-3"><i class="fas fa-server me-2"></i>Status</h6>
+                            <?php if (!empty($config['pagbank_token'])): ?>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-success me-2"><i class="fas fa-check"></i></span>
+                                    <span>Credenciais configuradas</span>
+                                </div>
+                                <small class="text-muted d-block mt-2">Token: <?= substr($config['pagbank_token'], 0, 15) ?>...</small>
+                            <?php else: ?>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-secondary me-2"><i class="fas fa-times"></i></span>
+                                    <span>Não configurado</span>
+                                </div>
+                            <?php endif; ?>
+                            <small class="text-muted d-block mt-2">Ambiente: <?= ($config['pagbank_ambiente'] ?? 'sandbox') === 'producao' ? 'Produção' : 'Sandbox' ?></small>
+                        </div>
+                        <div class="form-card mt-3">
+                            <h6 class="mb-3"><i class="fas fa-info-circle me-2"></i>Sobre o PagBank</h6>
+                            <p class="small text-muted mb-2">API REST simples com <strong>Bearer Token</strong>:</p>
+                            <ul class="small text-muted mb-0" style="padding-left: 20px;">
+                                <li>Sem necessidade de certificado digital</li>
+                                <li>Suporta PIX (QR Code) e Boleto</li>
+                                <li>Webhooks via notification_urls</li>
+                                <li>Sandbox para testes</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== NU BANK ==================== -->
+            <div class="tab-pane fade" id="nubank" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <h6 class="mb-3"><i class="fas fa-piggy-bank me-2"></i>Configuração do NU Bank</h6>
+                        <div class="alert alert-warning py-2 mb-3">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <strong>Observação:</strong> O NU Bank não possui ainda uma integração com sistemas. As informações abaixo são apenas para referência e uso manual.
+                        </div>
+                        <form method="POST">
+                            <input type="hidden" name="acao" value="salvar_nubank">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Chave PIX</label>
+                                    <input type="text" name="nubank_chave_pix" class="form-control"
+                                        placeholder="Chave PIX do NU Bank (CPF, e-mail, telefone ou chave aleatória)"
+                                        value="<?= htmlspecialchars($config['nubank_chave_pix'] ?? '') ?>">
+                                    <small class="text-muted">Chave PIX da conta NU Bank para recebimento de pagamentos</small>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Enviar comprovante para:</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fab fa-whatsapp text-success"></i></span>
+                                        <input type="text" name="nubank_whatsapp" class="form-control"
+                                            placeholder="Ex: 5511999998888"
+                                            value="<?= htmlspecialchars($config['nubank_whatsapp'] ?? '') ?>">
+                                    </div>
+                                    <small class="text-muted">Número do WhatsApp para envio de comprovantes de pagamento. Formato: código do país + DDD + número</small>
+                                </div>
+                            </div>
+                            <div class="mt-4 d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> Salvar Configurações
+                                </button>
+                                <?php if (!empty($config['nubank_whatsapp'])): ?>
+                                    <?php
+                                    $msgWa = 'Oi, segue comprovante da fatura.';
+                                    $linkWa = 'https://wa.me/' . preg_replace('/[^0-9]/', '', $config['nubank_whatsapp']) . '?text=' . urlencode($msgWa);
+                                    ?>
+                                    <a href="<?= htmlspecialchars($linkWa) ?>" target="_blank" class="btn btn-success">
+                                        <i class="fab fa-whatsapp me-1"></i> Enviar Comprovante
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="form-card">
+                            <h6 class="mb-3"><i class="fas fa-info-circle me-2"></i>Sobre o NU Bank</h6>
+                            <p class="small text-muted mb-3">O NU Bank (Nubank) é um banco digital que ainda não dispõe de API pública para integração com sistemas de cobrança.</p>
+                            <p class="small text-muted mb-2"><strong>Como utilizar:</strong></p>
+                            <ol class="small text-muted mb-0" style="padding-left: 20px;">
+                                <li class="mb-2">Cadastre a <strong>Chave PIX</strong> da conta NU Bank</li>
+                                <li class="mb-2">Informe o número do <strong>WhatsApp</strong> para envio de comprovantes</li>
+                                <li class="mb-2">Ao receber um comprovante, clique em <strong>Enviar Comprovante</strong> para repassar via WhatsApp</li>
+                            </ol>
+                        </div>
+                        <div class="form-card mt-3">
+                            <h6 class="mb-3"><i class="fas fa-server me-2"></i>Status</h6>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-secondary me-2"><i class="fas fa-info-circle"></i></span>
+                                <span>Sem integração API</span>
+                            </div>
+                            <p class="small text-muted mt-2 mb-0">Aba informativa — sem automação disponível.</p>
                         </div>
                     </div>
                 </div>
