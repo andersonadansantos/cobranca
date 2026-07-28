@@ -19,20 +19,20 @@ if ($rateLimit['blocked']) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
-    $recaptcha = trim($_POST['g-recaptcha-response'] ?? '');
-    if (empty($recaptcha)) {
+    $turnstile = trim($_POST['cf-turnstile-response'] ?? '');
+    if (empty($turnstile)) {
         $erro = 'Confirme que você não é um robô.';
     } else {
-        $verify = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, stream_context_create([
+        $verify = @file_get_contents('https://challenges.cloudflare.com/turnstile/v0/siteverify', false, stream_context_create([
             'http' => [
                 'method' => 'POST',
                 'header' => 'Content-Type: application/x-www-form-urlencoded',
-                'content' => http_build_query(['secret' => '6LcVcGEtAAAAAJlbXJXzzbXXnTUw-2y4HFP1AjBT', 'response' => $recaptcha, 'remoteip' => $_SERVER['REMOTE_ADDR'] ?? ''])
+                'content' => http_build_query(['secret' => '0x4AAAAAAEACAhXWvc8TyCBkN3agKRr5vkc', 'response' => $turnstile])
             ]
         ]));
         $result = json_decode($verify ?? '', true);
         if (!$result || empty($result['success'])) {
-            $erro = 'Falha na verificação reCAPTCHA. Tente novamente.';
+            $erro = 'Falha na verificação. Tente novamente.';
         }
     }
 
@@ -65,7 +65,7 @@ $nomeSistema = getNomeSistema();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="/cobranca/assets/css/style.css" rel="stylesheet">
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
     <div class="login-page">
@@ -107,7 +107,7 @@ $nomeSistema = getNomeSistema();
                             </div>
                         </div>
                         <div class="mb-3">
-                            <div class="g-recaptcha" data-sitekey="6LcVcGEtAAAAAF34K5Uf5bUHqWH2WlPUChwl8VsZ" data-size="normal"></div>
+                            <div class="cf-turnstile" data-sitekey="0x4AAAAAAEACAqDXrIelvjeK" data-theme="light"></div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-sign-in-alt me-1"></i> Entrar
