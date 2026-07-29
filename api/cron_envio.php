@@ -11,7 +11,7 @@ if (!$pdo) { die("Erro de conexao"); }
 $log = [];
 $hoje = date('Y-m-d');
 
-$faturasPendentes = $pdo->prepare("SELECT * FROM faturas WHERE status IN ('pendente','vencido','atrasado') AND (mp_payment_id IS NOT NULL AND mp_payment_id != '' OR inter_codigo_solicitacao IS NOT NULL AND inter_codigo_solicitacao != '')");
+$faturasPendentes = $pdo->prepare("SELECT f.*, c.email, c.celular, c.telefone, c.nome_razao, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ('pendente','vencido','atrasado') AND (f.mp_payment_id IS NOT NULL AND f.mp_payment_id != '' OR f.inter_codigo_solicitacao IS NOT NULL AND f.inter_codigo_solicitacao != '')");
 $faturasPendentes->execute();
 $pendentes = $faturasPendentes->fetchAll();
 
@@ -151,6 +151,9 @@ foreach ($faturas as &$fat) {
 
         if ($tipoEnviado === 'lembrete1' && enviarWhatsAppFatura($fat, 'antes', $regua2)) {
             $log[] = "[whatsapp_lembrete1] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
+        }
+        if ($tipoEnviado === 'vencimento' && enviarWhatsAppFatura($fat, 'depois')) {
+            $log[] = "[whatsapp_vencimento] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
     }
 }

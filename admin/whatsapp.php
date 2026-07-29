@@ -75,22 +75,69 @@ if (!empty($apiUrl) && !empty($apiKey) && !empty($instance)) {
     $resp = curl_exec($ch);
     curl_close($ch);
     $state = json_decode($resp, true);
-    if ($state && ($state['state'] ?? '') === 'open') {
+    $instanceState = $state['instance']['state'] ?? $state['state'] ?? 'close';
+    if ($instanceState === 'open') {
         $statusConexao = 'conectado';
     } else {
-        $ch = curl_init("{$apiUrl}/instance/connect/{$instance}");
+        $ch = curl_init("{$apiUrl}/instance/create");
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey],
-            CURLOPT_TIMEOUT => 15,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode([
+                'instanceName' => $instance,
+                'qrcode' => true,
+                'integration' => 'WHATSAPP-BAILEYS',
+            ]),
+            CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey, 'Content-Type: application/json'],
+            CURLOPT_TIMEOUT => 10,
             CURLOPT_SSL_VERIFYPEER => false,
         ]);
-        $resp = curl_exec($ch);
+        curl_exec($ch);
         curl_close($ch);
-        $qrData = json_decode($resp, true);
-        if ($qrData && isset($qrData['base64'])) {
-            $qrCode = $qrData['base64'];
+
+        sleep(1);
+
+        $qrBase64 = null;
+        $tentativas = 0;
+        while ($tentativas < 5 && empty($qrBase64)) {
+            $ch = curl_init("{$apiUrl}/instance/connect/{$instance}");
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey],
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $resp = curl_exec($ch);
+            curl_close($ch);
+            $qrData = json_decode($resp, true);
+            if ($qrData) {
+                $b64 = $qrData['base64'] ?? $qrData['qrcode'] ?? '';
+                if (is_array($b64)) $b64 = $b64['code'] ?? '';
+                $b64 = preg_replace('/^data:image\/[a-z]+;base64,/i', '', $b64);
+                if (!empty($b64)) $qrBase64 = $b64;
+            }
+            if (empty($qrBase64)) {
+                $ch = curl_init("{$apiUrl}/instance/qrcode/{$instance}");
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey],
+                    CURLOPT_TIMEOUT => 10,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                ]);
+                $resp = curl_exec($ch);
+                curl_close($ch);
+                $qrData2 = json_decode($resp, true);
+                if ($qrData2) {
+                    $b64 = $qrData2['base64'] ?? $qrData2['qrcode'] ?? '';
+                    if (is_array($b64)) $b64 = $b64['code'] ?? '';
+                    $b64 = preg_replace('/^data:image\/[a-z]+;base64,/i', '', $b64);
+                    if (!empty($b64)) $qrBase64 = $b64;
+                }
+            }
+            if (empty($qrBase64)) sleep(1);
+            $tentativas++;
         }
+        if ($qrBase64) $qrCode = $qrBase64;
     }
 }
 
@@ -216,3 +263,28 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 </div>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
+
+<?php if ($statusConexao !== 'conectado' && !empty($apiUrl) && !empty($apiKey) && !empty($instance)): ?>
+<script>
+(function() {
+    var url = <?= json_encode($apiUrl) ?>;
+    var key = <?= json_encode($apiKey) ?>;
+    var name = <?= json_encode($instance) ?>;
+    function check() {
+        fetch(url + '/instance/connectionState/' + name, {headers: {'apikey': key}})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var s = (d.instance && d.instance.state) || d.state || '';
+                if (s === 'open') {
+                    var card = document.querySelector('.form-card .text-center.py-4');
+                    if (card) {
+                        card.innerHTML = '<div style="padding:20px 0;"><div style="width:80px;height:80px;border-radius:50%;background:#d1fae5;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;"><i class="fas fa-check" style="font-size:2rem;color:#10b981;"></i></div><h5 style="color:#10b981;">Conexão atualizada!</h5><p class="text-muted">Redirecionando...</p></div>';
+                    }
+                    setTimeout(function() { location.reload(); }, 2000);
+                }
+            }).catch(function() {});
+    }
+    setInterval(check, 3000);
+})();
+</script>
+<?php endif; ?>

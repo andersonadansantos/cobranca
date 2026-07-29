@@ -7,7 +7,9 @@ require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
+require_once __DIR__ . '/../config/mercadopago.php';
 require_once __DIR__ . '/../config/email_helpers.php';
+require_once __DIR__ . '/../api/whatsapp_send.php';
 
 $pdo = getConnection();
 $mensagem = '';
@@ -60,6 +62,27 @@ if (isset($_GET['enviar'])) {
     }
     exit;
 }
+if (isset($_GET['whatsapp'])) {
+    $frId = intval($_GET['whatsapp']);
+    $stmt = $pdo->prepare("
+        SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+               f.pix_copia_cola, f.pix_qrcode,
+               c.nome_razao, c.email, c.cpf_cnpj, c.celular, c.telefone
+        FROM faturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.fatura_recorrente_id = ? AND f.status IN ('pendente','vencido','atrasado')
+        ORDER BY f.data_vencimento DESC LIMIT 1
+    ");
+    $stmt->execute([$frId]);
+    $fatura = $stmt->fetch();
+    if ($fatura) {
+        $ok = enviarWhatsAppFatura($fatura, 'antes');
+        header('Location: emissao.php?msg=' . ($ok ? 'whatsapp_enviado' : 'whatsapp_erro'));
+    } else {
+        header('Location: emissao.php?msg=sem_fatura');
+    }
+    exit;
+}
 if (isset($_GET['msg'])) {
     $msgs = [
         'salvo' => ['Fatura criada com sucesso!', 'success'],
@@ -69,6 +92,9 @@ if (isset($_GET['msg'])) {
         'enviado' => ['E-mail de cobrança enviado com sucesso!', 'success'],
         'erro_envio' => ['Erro ao enviar e-mail. Verifique as configurações SMTP.', 'danger'],
         'sem_email' => ['Cliente não possui e-mail cadastrado.', 'warning'],
+        'whatsapp_enviado' => ['Fatura enviada via WhatsApp com sucesso!', 'success'],
+        'whatsapp_erro' => ['Erro ao enviar WhatsApp. Verifique as configurações.', 'danger'],
+        'sem_fatura' => ['Nenhuma fatura pendente encontrada para esta recorrência.', 'warning'],
         'erro' => ['Erro ao salvar.', 'danger'],
     ];
     if (isset($msgs[$_GET['msg']])) {
@@ -106,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken(), getApiAtiva()]);
             $faturaId = $pdo->lastInsertId();
 
-            $stmtCliente = $pdo->prepare("SELECT nome_razao, email FROM clientes WHERE id = ?");
+            $stmtCliente = $pdo->prepare("SELECT nome_razao, email, celular, telefone FROM clientes WHERE id = ?");
             $stmtCliente->execute([$cliente_id]);
             $cliente = $stmtCliente->fetch();
 
@@ -123,9 +149,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'nome_razao' => $cliente['nome_razao'],
                     'email' => $cliente['email'],
                     'cpf_cnpj' => $cliente['cpf_cnpj'],
+                    'celular' => $cliente['celular'] ?? '',
+                    'telefone' => $cliente['telefone'] ?? '',
                 ];
                 enviarEmailFatura($faturaDados, 'antes');
             }
+
+            $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
+            $stmtFat->execute([$faturaId]);
+            $faturaCompleta = $stmtFat->fetch();
+            if (!empty($cliente['celular']) || !empty($cliente['telefone'])) {
+                enviarWhatsAppFatura($faturaCompleta, 'antes');
+            }
+
+            $stmtUp = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = 'geracao' WHERE id = ?");
+            $stmtUp->execute([$faturaId]);
 
             header('Location: emissao.php?msg=salvo');
             exit;
@@ -351,7 +389,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <span class="badge <?= $statusClass ?> fr-badge"><?= ucfirst($statusAtual) ?></span>
                             <div class="fr-acoes">
                                 <?php if ($telWhatsApp): ?>
-                                    <a href="<?= $urlWhatsApp ?>" target="_blank" class="btn btn-sm btn-outline-success" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+                                    <a href="#" class="btn btn-sm btn-outline-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-id="<?= $fr['id'] ?>">enviar fatura via whatsapp</a>
                                 <?php endif; ?>
                                 <?php if ($statusAtual !== 'pago' && ($fr['status'] ?? 'ativa') !== 'cancelado'): ?>
                                     <a href="#" class="btn btn-sm btn-outline-primary" title="Enviar e-mail de cobrança" data-bs-toggle="modal" data-bs-target="#modalEnviarEmail" data-id="<?= $fr['id'] ?>"><i class="fas fa-envelope"></i></a>
@@ -427,6 +465,24 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     </div>
 </div>
 
+<div class="modal fade" id="modalEnviarWhatsApp" tabindex="-1" aria-labelledby="modalEnviarWhatsAppLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="modalEnviarWhatsAppLabel"><i class="fab fa-whatsapp me-2"></i>Enviar Fatura via WhatsApp</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                Deseja enviar a cobrança via WhatsApp?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <a href="#" id="btnConfirmarEnviarWhatsApp" class="btn btn-success btn-sm">Sim, enviar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalMarcarPago" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -486,6 +542,11 @@ document.getElementById('modalEnviarEmail').addEventListener('show.bs.modal', fu
     var button = event.relatedTarget;
     var id = button.getAttribute('data-id');
     document.getElementById('btnConfirmarEnviar').href = '?enviar=' + id;
+});
+document.getElementById('modalEnviarWhatsApp').addEventListener('show.bs.modal', function(event) {
+    var button = event.relatedTarget;
+    var id = button.getAttribute('data-id');
+    document.getElementById('btnConfirmarEnviarWhatsApp').href = '?whatsapp=' + id;
 });
 document.getElementById('modalMarcarPago').addEventListener('show.bs.modal', function(event) {
     var button = event.relatedTarget;

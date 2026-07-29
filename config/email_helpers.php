@@ -91,7 +91,8 @@ if (!function_exists('montarMensagemHtml')) {
                     $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
                 }
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
-                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
+                $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
+                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($pixLimpo) . '</div>';
                 $conteudo .= '</div>';
             }
             $conteudo .= '<p>Acesse sua fatura para mais detalhes e realizar o pagamento:</p>';
@@ -120,7 +121,8 @@ if (!function_exists('montarMensagemHtml')) {
                     $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
                 }
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
-                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($fatura['pix_copia_cola']) . '</div>';
+                $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
+                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($pixLimpo) . '</div>';
                 $conteudo .= '</div>';
             }
             $conteudo .= '<p>Por favor, regularize sua situação o mais rápido possível:</p>';
@@ -156,7 +158,8 @@ if (!function_exists('montarMensagemTxt')) {
             $msg .= "Valor: R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "\n\n";
             if (!empty($fatura['pix_copia_cola'])) {
                 $msg .= "Pague via PIX:\n";
-                $msg .= "Código: {$fatura['pix_copia_cola']}\n\n";
+                $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
+                $msg .= "Código: {$pixLimpo}\n\n";
             }
             $msg .= "Acesse sua fatura: {$linkFatura}\n\n";
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
@@ -177,7 +180,8 @@ if (!function_exists('montarMensagemTxt')) {
             $msg .= "Vencimento: " . date('d/m/Y', strtotime($fatura['data_vencimento'])) . "\n\n";
             if (!empty($fatura['pix_copia_cola'])) {
                 $msg .= "Pague via PIX:\n";
-                $msg .= "Código: {$fatura['pix_copia_cola']}\n\n";
+                $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
+                $msg .= "Código: {$pixLimpo}\n\n";
             }
             $msg .= "Acesse sua fatura: {$linkFatura}\n\n";
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
