@@ -83,6 +83,16 @@ if (isset($_GET['whatsapp'])) {
     }
     exit;
 }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_delete']) && !empty($_POST['ids'])) {
+    $ids = array_map('intval', $_POST['ids']);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id IN ($ph)");
+    $stmt->execute($ids);
+    $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id IN ($ph)");
+    $stmt->execute($ids);
+    header('Location: emissao.php?msg=excluido');
+    exit;
+}
 if (isset($_GET['msg'])) {
     $msgs = [
         'salvo' => ['Fatura criada com sucesso!', 'success'],
@@ -347,6 +357,14 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             <?php if (empty($faturasRecorrentes)): ?>
                 <div class="text-center text-muted py-4">Nenhuma fatura recorrente criada</div>
             <?php else: ?>
+                <form method="POST" id="bulkForm">
+                <div class="p-3 border-bottom d-flex align-items-center gap-2 flex-wrap">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="selectAll">
+                        <label class="form-check-label small" for="selectAll">Selecionar todos</label>
+                    </div>
+                    <button type="submit" name="bulk_delete" class="btn btn-sm btn-outline-danger" onclick="return confirm('Excluir permanentemente os selecionados?')"><i class="fas fa-trash me-1"></i>Excluir Selecionados</button>
+                </div>
                 <div class="p-3">
                     <?php foreach ($faturasRecorrentes as $fr): ?>
                         <?php
@@ -366,6 +384,10 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         $urlWhatsApp = 'https://wa.me/55' . $telWhatsApp . '?text=' . urlencode($msgWhatsApp);
                         ?>
                         <div class="fr-row mb-2 <?= ($fr['status'] ?? 'ativa') === 'cancelado' ? 'opacity-50' : '' ?>">
+                            <div class="form-check mb-0" style="min-width:60px;">
+                                <input class="form-check-input bulk-check" type="checkbox" name="ids[]" value="<?= $fr['id'] ?>" id="ck<?= $fr['id'] ?>">
+                                <label class="small text-muted" for="ck<?= $fr['id'] ?>" style="cursor:pointer;">#<?= $fr['id'] ?></label>
+                            </div>
                             <div class="fr-cliente">
                                 <strong><?= htmlspecialchars($fr['nome_razao']) ?></strong>
                                 <small class="d-block text-muted"><?= htmlspecialchars($fr['descricao']) ?></small>
@@ -403,6 +425,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         </div>
                     <?php endforeach; ?>
                 </div>
+                </form>
             <?php endif; ?>
             <?php if ($totalFaturasRecorrentes > 0): ?>
             <div class="p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -562,6 +585,10 @@ document.getElementById('modalExcluir').addEventListener('show.bs.modal', functi
     var button = event.relatedTarget;
     var id = button.getAttribute('data-id');
     document.getElementById('btnConfirmarExcluir').href = '?excluir=' + id;
+});
+document.getElementById('selectAll').addEventListener('change', function() {
+    var checks = document.querySelectorAll('.bulk-check');
+    for (var i = 0; i < checks.length; i++) { checks[i].checked = this.checked; }
 });
 document.getElementById('formNovaFatura').addEventListener('submit', function() {
     var modal = new bootstrap.Modal(document.getElementById('modalCriando'));
