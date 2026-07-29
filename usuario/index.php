@@ -249,7 +249,7 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small"><i class="fas fa-square me-1" style="color:#6f42c1;font-size:.6rem"></i>Nº Fatura <i class="fas fa-square ms-2 me-1" style="color:#b19cd9;font-size:.6rem"></i>Descrição</label>
-                        <input type="text" name="filtro_busca" class="form-control form-control-sm" placeholder="Buscar por número ou descrição..." value="<?= htmlspecialchars($filtro_busca) ?>">
+                        <input type="text" name="filtro_busca" class="form-control form-control-sm" placeholder="Buscar por Nº Fatura ou descrição..." value="<?= htmlspecialchars($filtro_busca) ?>">
                     </div>
                     <div class="col-md-1">
                         <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button>

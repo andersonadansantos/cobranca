@@ -183,7 +183,7 @@ $nomeSistema = getNomeSistema();
                         <input type="hidden" name="filtro_status" value="<?= htmlspecialchars($filtro_status) ?>">
                     <?php endif; ?>
                     <i class="fas fa-search"></i>
-                    <input type="text" name="filtro_busca" placeholder="Buscar fatura..." value="<?= htmlspecialchars($filtro_busca) ?>">
+                    <input type="text" name="filtro_busca" placeholder="Buscar por Nº Fatura ou descrição..." value="<?= htmlspecialchars($filtro_busca) ?>">
                 </form>
             </div>
 

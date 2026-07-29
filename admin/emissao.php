@@ -128,11 +128,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipo = 'danger';
     } else {
         try {
-            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim]);
+            $numero = generateInvoiceNumber();
+            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, numero) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $numero]);
             $faturaRecorrenteId = $pdo->lastInsertId();
 
-            $numero = generateInvoiceNumber();
             $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT));
             if ($dataVenc < date('Y-m-d')) {
                 $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
@@ -193,7 +193,7 @@ $sql = "
     SELECT base.* FROM (
         SELECT fr.*, c.nome_razao, c.cpf_cnpj, c.celular, c.telefone,
         (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_link,
-        (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_numero,
+        fr.numero AS ultimo_numero,
         (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_status
         FROM faturas_recorrentes fr 
         JOIN clientes c ON fr.cliente_id = c.id 
@@ -208,7 +208,9 @@ if ($filtro_status !== '') {
     $params[] = $filtro_status;
 }
 if ($filtro_busca !== '') {
-    $sql .= " AND (base.nome_razao LIKE ? OR base.cpf_cnpj LIKE ?)";
+    $sql .= " AND (base.nome_razao LIKE ? OR base.cpf_cnpj LIKE ? OR base.ultimo_numero LIKE ? OR base.descricao LIKE ?)";
+    $params[] = '%' . $filtro_busca . '%';
+    $params[] = '%' . $filtro_busca . '%';
     $params[] = '%' . $filtro_busca . '%';
     $params[] = '%' . $filtro_busca . '%';
 }
@@ -343,8 +345,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label small"><i class="fas fa-square me-1" style="color:#6f42c1;font-size:.6rem"></i>Nome <i class="fas fa-square ms-2 me-1" style="color:#b19cd9;font-size:.6rem"></i>CPF/CNPJ</label>
-                        <input type="text" name="filtro_busca" class="form-control form-control-sm" placeholder="Buscar por nome ou CPF/CNPJ..." value="<?= htmlspecialchars($filtro_busca) ?>">
+                        <label class="form-label small"><i class="fas fa-square me-1" style="color:#6f42c1;font-size:.6rem"></i>Nome <i class="fas fa-square ms-2 me-1" style="color:#b19cd9;font-size:.6rem"></i>CPF/CNPJ <i class="fas fa-square ms-2 me-1" style="color:#d4a0e8;font-size:.6rem"></i>Nº Fatura</label>
+                        <input type="text" name="filtro_busca" class="form-control form-control-sm" placeholder="Buscar por nome, CPF/CNPJ ou Nº Fatura..." value="<?= htmlspecialchars($filtro_busca) ?>">
                     </div>
                     <div class="col-md-1">
                         <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button>
@@ -386,7 +388,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <div class="fr-row mb-2 <?= ($fr['status'] ?? 'ativa') === 'cancelado' ? 'opacity-50' : '' ?>">
                             <div class="form-check mb-0" style="min-width:60px;">
                                 <input class="form-check-input bulk-check" type="checkbox" name="ids[]" value="<?= $fr['id'] ?>" id="ck<?= $fr['id'] ?>">
-                                <label class="small text-muted" for="ck<?= $fr['id'] ?>" style="cursor:pointer;">#<?= $fr['id'] ?></label>
+                                <label class="small text-muted" for="ck<?= $fr['id'] ?>" style="cursor:pointer;"><strong><?= htmlspecialchars($fr['ultimo_numero'] ?? '#'.$fr['id']) ?></strong></label>
                             </div>
                             <div class="fr-cliente">
                                 <strong><?= htmlspecialchars($fr['nome_razao']) ?></strong>
