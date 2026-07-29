@@ -413,7 +413,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <span class="badge <?= $statusClass ?> fr-badge"><?= ucfirst($statusAtual) ?></span>
                             <div class="fr-acoes">
                                 <?php if ($telWhatsApp): ?>
-                                    <a href="#" class="btn btn-sm btn-outline-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-id="<?= $fr['id'] ?>">enviar fatura via whatsapp</a>
+                                    <a href="#" class="btn btn-sm btn-outline-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-id="<?= $fr['id'] ?>"><i class="fab fa-whatsapp"></i></a>
                                 <?php endif; ?>
                                 <?php if ($statusAtual !== 'pago' && ($fr['status'] ?? 'ativa') !== 'cancelado'): ?>
                                     <a href="#" class="btn btn-sm btn-outline-primary" title="Enviar e-mail de cobrança" data-bs-toggle="modal" data-bs-target="#modalEnviarEmail" data-id="<?= $fr['id'] ?>"><i class="fas fa-envelope"></i></a>
