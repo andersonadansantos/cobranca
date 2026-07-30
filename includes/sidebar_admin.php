@@ -34,7 +34,7 @@ $basePath = '/cobranca/admin';
         <a href="#" class="nav-link sidebar-toggle-config" onclick="var el=document.getElementById('configSubmenu');el.style.display=el.style.display==='none'?'block':'none';var icon=this.querySelector('.fa-chevron-down,.fa-chevron-up');if(icon){icon.classList.toggle('fa-chevron-down');icon.classList.toggle('fa-chevron-up');}return false;">
             <i class="fas fa-cog"></i> Configurações <i class="fas fa-chevron-down ms-auto" style="font-size:0.65rem;"></i>
         </a>
-        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','config_financeiro','backup','whatsapp'])) ? 'block' : 'none' ?>;">
+        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','template_whats','config_financeiro','backup','whatsapp'])) ? 'block' : 'none' ?>;">
             <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-key"></i> API de Pagamento
             </a>
@@ -50,6 +50,9 @@ $basePath = '/cobranca/admin';
             <a href="<?= $basePath ?>/template_email.php" class="nav-link <?= $currentPage === 'template_email' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-envelope-open-text"></i> Template E-mail
             </a>
+            <a href="<?= $basePath ?>/template_whats.php" class="nav-link <?= $currentPage === 'template_whats' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fab fa-whatsapp" style="color:#25D366;"></i> Template Whats
+            </a>
             <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-headset"></i> Contato/Financeiro
             </a>
@@ -64,9 +67,6 @@ $basePath = '/cobranca/admin';
         <div class="nav-section">Conta</div>
         <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
             <i class="fas fa-users-cog"></i> Usuários Admin
-        </a>
-        <a href="<?= $basePath ?>/certificados.php" class="nav-link <?= $currentPage === 'certificados' ? 'active' : '' ?>">
-            <i class="fas fa-certificate"></i> Certificados Digitais
         </a>
         <a href="<?= $basePath ?>/perfil.php" class="nav-link <?= $currentPage === 'perfil' ? 'active' : '' ?>">
             <i class="fas fa-user-edit"></i> Meu Perfil

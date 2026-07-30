@@ -132,7 +132,7 @@
 
     <?php if(isset($extraScripts)) echo $extraScripts; ?>
     <div style="text-align:center; padding:16px 16px 8px; font-size:0.65rem; color:#94a3b8;">
-        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none; display:block; text-align:center;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</a>
+        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none; display:block; text-align:center;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</a><span style="float:right;font-size:0.7rem;color:#475569;">Versão: 1.0</span>
     </div>
 </body>
 </html>

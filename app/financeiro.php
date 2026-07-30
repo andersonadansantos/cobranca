@@ -112,7 +112,7 @@ $nomeSistema = getNomeSistema();
     </div>
 
     <div style="text-align:center; padding:16px; font-size:0.65rem; color:#94a3b8;">
-        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</a>
+        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</a><span style="float:right;">Versão: 1.0</span>
     </div>
 
     <nav class="app-bottom-nav">

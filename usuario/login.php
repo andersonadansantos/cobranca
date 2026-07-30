@@ -112,7 +112,7 @@ $nomeSistema = getNomeSistema();
                         <button type="submit" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-sign-in-alt me-1"></i> Entrar
                         </button>
-                        <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
+                        <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
                     </form>
                 </div>
             </div>

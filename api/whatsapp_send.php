@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 
-function enviarWhatsApp($telefone, $mensagem, $media = null) {
+function enviarWhatsApp($telefone, $mensagem) {
     $apiUrl = rtrim(getConfig('whatsapp_api_url', ''), '/');
     $apiKey = getConfig('whatsapp_api_key', '');
     $instance = getConfig('whatsapp_instance', '');
@@ -18,22 +18,11 @@ function enviarWhatsApp($telefone, $mensagem, $media = null) {
     if (strlen($telefone) === 11) $telefone = '55' . $telefone;
     if (strlen($telefone) === 12 && substr($telefone, 0, 2) !== '55') $telefone = '55' . $telefone;
 
-    if ($media) {
-        $endpoint = "{$apiUrl}/message/sendMedia/{$instance}";
-        $payload = [
-            'number' => $telefone,
-            'mediatype' => 'image',
-            'media' => $media,
-            'caption' => $mensagem,
-            'delay' => 1,
-        ];
-    } else {
-        $endpoint = "{$apiUrl}/message/sendText/{$instance}";
-        $payload = [
-            'number' => $telefone,
-            'text' => $mensagem,
-        ];
-    }
+    $endpoint = "{$apiUrl}/message/sendText/{$instance}";
+    $payload = [
+        'number' => $telefone,
+        'text' => $mensagem,
+    ];
 
     $ch = curl_init($endpoint);
     curl_setopt_array($ch, [
@@ -82,7 +71,15 @@ function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
         $acessoTexto .= "_Sua senha padrão é seu CPF/CNPJ_\n\n";
     }
 
-    if ($tipo === 'antes') {
+    if ($tipo === 'pagamento') {
+        $msg = "*{$nomeEmpresa}*\n\n";
+        $msg .= "Olá, {$fatura['nome_razao']}!\n\n";
+        $msg .= "Recebemos o pagamento da sua fatura *{$fatura['numero']}*.\n\n";
+        $msg .= "📋 Descrição: {$fatura['descricao']}\n";
+        $msg .= "💰 Valor: *R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "*\n\n";
+        $msg .= "✅ Pagamento confirmado com sucesso!\n\n";
+        $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
+    } elseif ($tipo === 'antes') {
         $diasTexto = $dias > 0 ? " em {$dias} dia(s)" : "";
         $msg = "*{$nomeEmpresa}*\n\n";
         $msg .= "Olá, {$fatura['nome_razao']}!\n\n";

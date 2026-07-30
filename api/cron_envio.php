@@ -64,6 +64,9 @@ foreach ($pendentes as $fat) {
                     $fat['data_pagamento'] = $dataPagamento;
                     enviarEmailPagamento($fat);
                 }
+                if (enviarWhatsAppFatura($fat, 'pagamento')) {
+                    $log[] = "[whatsapp_pagamento] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
+                }
             }
         $log[] = "[baixa] {$fat['numero']} -> {$novoStatus}";
     }
@@ -149,11 +152,14 @@ foreach ($faturas as &$fat) {
         enviarEAtualizar($pdo, $fat, $tipoEnviado, montarAssunto($antes, $fat), montarMensagemHtml($fat, $antes ? 'antes' : 'depois', $diasRef), montarMensagemTxt($fat, $antes ? 'antes' : 'depois', $diasRef), $s, $log);
         $fat['ultimo_envio_tipo'] = $tipoEnviado;
 
-        if ($tipoEnviado === 'lembrete1' && enviarWhatsAppFatura($fat, 'antes', $regua2)) {
-            $log[] = "[whatsapp_lembrete1] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
+        if ($tipoEnviado === 'geracao' && enviarWhatsAppFatura($fat, 'antes', $diasRef)) {
+            $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
-        if ($tipoEnviado === 'vencimento' && enviarWhatsAppFatura($fat, 'depois')) {
-            $log[] = "[whatsapp_vencimento] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
+        if (in_array($tipoEnviado, ['lembrete1','lembrete2']) && enviarWhatsAppFatura($fat, 'antes', $diasRef)) {
+            $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
+        }
+        if (in_array($tipoEnviado, ['vencimento','atraso']) && enviarWhatsAppFatura($fat, 'depois', $diasRef)) {
+            $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
     }
 }

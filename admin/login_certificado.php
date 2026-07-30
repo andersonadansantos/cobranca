@@ -25,7 +25,7 @@ if ($hasSSL) {
         $erro = 'Nenhum certificado digital detectado. Caso o navegador não tenha pedido, tente novamente ou verifique se o certificado está instalado.';
     }
 } else {
-    $erro = 'HTTPS não está configurado. Para autenticação por certificado digital, acesse via <code>https://localhost/cobranca/admin/login_certificado.php</code>';
+    $erro = 'HTTPS não está configurado. Para autenticação por certificado digital, acesse via <code>https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/cobranca/admin/login_certificado.php</code>';
 }
 
 require_once __DIR__ . '/../config/settings.php';
@@ -87,7 +87,7 @@ $nomeSistema = getNomeSistema();
                                 <i class="fas fa-redo me-1"></i> Tentar Novamente
                             </a>
                         <?php else: ?>
-                            <a href="https://localhost/cobranca/admin/login_certificado.php" class="btn btn-primary">
+                            <a href="<?= 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/cobranca/admin/login_certificado.php' ?>" class="btn btn-primary">
                                 <i class="fas fa-lock me-1"></i> Acessar via HTTPS
                             </a>
                         <?php endif; ?>
@@ -97,7 +97,7 @@ $nomeSistema = getNomeSistema();
                     </div>
 
                     <div class="text-center mt-3">
-                        <small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small>
+                        <small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
@@ -111,6 +111,7 @@ $lcSaldo = $lcTotalEntradas - $lcTotalSaidas - $lcTotalCustos;
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
             <h5>Painel Geral</h5>
         </div>
+        <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> Suporte</a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
                 <img src="<?= htmlspecialchars($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;">

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../config/database.php';
@@ -18,18 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
         $stmt->execute(['template_email_assunto_antes', $assunto, $assunto]);
         $stmt->execute(['template_email_corpo_antes', $corpo, $corpo]);
-        if (!empty($_FILES['email_logo_antes']['tmp_name'])) {
-            $uploadDir = __DIR__ . '/../assets/img/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
-            $ext = strtolower(pathinfo($_FILES['email_logo_antes']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) {
-                $nomeArquivo = 'logo_empresa_' . time() . '.' . $ext;
-                $destino = $uploadDir . $nomeArquivo;
-                if (move_uploaded_file($_FILES['email_logo_antes']['tmp_name'], $destino)) {
-                    $stmt->execute(['logo_empresa', '/cobranca/assets/img/' . $nomeArquivo, '/cobranca/assets/img/' . $nomeArquivo]);
-                }
-            }
-        }
         $mensagem = 'Template Lembrete salvo com sucesso!';
         $tipo = 'success';
     }
@@ -41,18 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
         $stmt->execute(['template_email_assunto_depois', $assunto, $assunto]);
         $stmt->execute(['template_email_corpo_depois', $corpo, $corpo]);
-        if (!empty($_FILES['email_logo_depois']['tmp_name'])) {
-            $uploadDir = __DIR__ . '/../assets/img/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
-            $ext = strtolower(pathinfo($_FILES['email_logo_depois']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) {
-                $nomeArquivo = 'logo_empresa_' . time() . '.' . $ext;
-                $destino = $uploadDir . $nomeArquivo;
-                if (move_uploaded_file($_FILES['email_logo_depois']['tmp_name'], $destino)) {
-                    $stmt->execute(['logo_empresa', '/cobranca/assets/img/' . $nomeArquivo, '/cobranca/assets/img/' . $nomeArquivo]);
-                }
-            }
-        }
         $mensagem = 'Template Cobrança salvo com sucesso!';
         $tipo = 'success';
     }
@@ -98,18 +74,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $config = getAllConfig();
 $corPrimaria = getCorPrimaria();
-$logoUrl = getLogoEmail();
-$logoBase64 = getLogoBase64();
-$logoTag = $logoBase64 ? '<img src="' . $logoBase64 . '" alt="Logo" style="width:200px;max-width:200px;height:auto;display:block;margin:0 auto 20px auto;">' : '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars(getNomeSistema()) . '</h2>';
+
 $defaultTemplate = '<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
-  <div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-    <div style="background:' . $corPrimaria . ';padding:24px 30px;text-align:center;">
-      ' . $logoTag . '
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;">
+  <div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+    <div style="background:' . $corPrimaria . ';height:50px;"></div>
+    <div style="padding:30px 30px 0 30px;text-align:center;">
+      ' . getLogoTagEmail() . '
     </div>
-    <div style="padding:30px;">
+    <div style="padding:20px 30px 30px 30px;">
       {{CONTEUDO}}
     </div>
   </div>
@@ -123,44 +100,76 @@ if (empty($templateAntes)) $templateAntes = $defaultTemplate;
 if (empty($templateDepois)) $templateDepois = $defaultTemplate;
 if (empty($templatePagamento)) $templatePagamento = $defaultTemplate;
 
-$previewAntes = '<h3 style="color:#333;margin-top:0;">Lembrete de Fatura</h3>';
-$previewAntes .= '<p>Olá, <strong>Nome do Cliente</strong>,</p>';
-$previewAntes .= '<p>Identificamos que sua fatura <strong>FAT-202607-0001</strong> vence em <strong>' . date('d/m/Y', strtotime('+3 days')) . '</strong>.</p>';
-$previewAntes .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">Serviço de exemplo</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ 1.500,00</td></tr></table>';
-$previewAntes .= '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">';
-$previewAntes .= '<p style="margin:0 0 10px 0;font-weight:bold;color:#166534;">Pague via PIX</p>';
-$previewAntes .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:8px;display:inline-block;padding:12px;margin-bottom:12px;"><div style="width:120px;height:120px;background:repeating-conic-gradient(#ccc 0% 25%,#fff 0% 50%) 50%/10px 10px;border-radius:4px;"></div></div>';
-$previewAntes .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
-$previewAntes .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all;color:#333;">00020126580014BR.GOV.BCB.PIX0136a1b2c3d4-e5f6-7890-abcd-ef123456789052040000530398654041.505802BR5925EMPRESA EXEMPLO LTDA6009SAO PAULO62070503***6304ABCD</div>';
+$previewAntes = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+$previewAntes .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#1a1a2e;">Lembrete de Fatura</h2>';
+$previewAntes .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>Nome do Cliente</strong>,</p>';
+$previewAntes .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Identificamos que sua fatura <strong>FAT-202607-0001</strong> vence em <strong>' . date('d/m/Y', strtotime('+3 days')) . '</strong>.</p>';
 $previewAntes .= '</div>';
-$previewAntes .= '<p>Acesse sua fatura para mais detalhes e realizar o pagamento:</p>';
-$previewAntes .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:' . $corPrimaria . ';border-radius:6px;padding:12px 30px;"><a href="#" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
-$previewAntes .= '<p style="color:#999;font-size:12px;margin-top:30px;">Atenciosamente,<br>' . htmlspecialchars(getNomeSistema()) . '</p>';
+$previewAntes .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+$previewAntes .= '<table style="width:100%;border-collapse:collapse;">';
+$previewAntes .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;">Descrição</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;">Serviço de exemplo</td></tr>';
+$previewAntes .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Valor</td><td style="padding:10px 0;font-size:18px;font-weight:700;color:' . $corPrimaria . ';text-align:right;border-top:1px solid #e8edf5;">R$ 1.500,00</td></tr>';
+$previewAntes .= '</table>';
+$previewAntes .= '</div>';
+$previewAntes .= '<div style="background:#ffffff;border:2px dashed ' . $corPrimaria . ';border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
+$previewAntes .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#1a1a2e;">Pague com PIX</h3>';
+$previewAntes .= '<div style="background:#f8f9fa;border:1px dashed ' . $corPrimaria . ';border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
+$previewAntes .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
+$previewAntes .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">00020126580014BR.GOV.BCB.PIX0136a1b2c3d4-e5f6-7890-abcd-ef123456789052040000530398654041.505802BR5925EMPRESA EXEMPLO LTDA6009SAO PAULO62070503***6304ABCD</div>';
+$previewAntes .= '</div>';
+$previewAntes .= '<div style="margin-top:16px;padding:12px;background:#fff8e1;border-radius:8px;display:flex;align-items:center;gap:8px;justify-content:center;">';
+$previewAntes .= '<span style="font-size:16px;">🛡️</span>';
+$previewAntes .= '<span style="font-size:12px;color:#666;">Pagamento 100% seguro via PIX</span>';
+$previewAntes .= '</div>';
+$previewAntes .= '</div>';
+$previewAntes .= '<a href="#" style="display:block;text-align:center;color:' . $corPrimaria . ';text-decoration:none;padding:14px;border:2px solid ' . $corPrimaria . ';border-radius:8px;font-weight:600;font-size:15px;margin-bottom:24px;">Ver Fatura Completa →</a>';
+$previewAntes .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars(getNomeSistema()) . '</strong></p>';
 
-$previewDepois = '<h3 style="color:#c0392b;margin-top:0;">Fatura Vencida</h3>';
-$previewDepois .= '<p>Olá, <strong>Nome do Cliente</strong>,</p>';
-$previewDepois .= '<p>Sua fatura <strong>FAT-202607-0001</strong> encontra-se vencida há <strong>2 dia(s)</strong>.</p>';
-$previewDepois .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">Serviço de exemplo</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ 1.500,00</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Vencimento</td><td style="padding:8px 0;border-top:1px solid #eee;">' . date('d/m/Y', strtotime('-2 days')) . '</td></tr></table>';
-$previewDepois .= '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">';
-$previewDepois .= '<p style="margin:0 0 10px 0;font-weight:bold;color:#991b1b;">Pague via PIX</p>';
-$previewDepois .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:8px;display:inline-block;padding:12px;margin-bottom:12px;"><div style="width:120px;height:120px;background:repeating-conic-gradient(#ccc 0% 25%,#fff 0% 50%) 50%/10px 10px;border-radius:4px;"></div></div>';
-$previewDepois .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
-$previewDepois .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;word-break:break-all;color:#333;">00020126580014BR.GOV.BCB.PIX0136a1b2c3d4-e5f6-7890-abcd-ef123456789052040000530398654041.505802BR5925EMPRESA EXEMPLO LTDA6009SAO PAULO62070503***6304ABCD</div>';
+$previewDepois = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+$previewDepois .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#991b1b;">Fatura Vencida</h2>';
+$previewDepois .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>Nome do Cliente</strong>,</p>';
+$previewDepois .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Sua fatura <strong>FAT-202607-0001</strong> encontra-se vencida há <strong>2 dia(s)</strong>.</p>';
 $previewDepois .= '</div>';
-$previewDepois .= '<p>Por favor, regularize sua situação o mais rápido possível:</p>';
-$previewDepois .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:#c0392b;border-radius:6px;padding:12px 30px;"><a href="#" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
-$previewDepois .= '<p style="color:#999;font-size:12px;margin-top:30px;">Atenciosamente,<br>' . htmlspecialchars(getNomeSistema()) . '</p>';
+$previewDepois .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+$previewDepois .= '<table style="width:100%;border-collapse:collapse;">';
+$previewDepois .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;">Descrição</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;">Serviço de exemplo</td></tr>';
+$previewDepois .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Valor</td><td style="padding:10px 0;font-size:18px;font-weight:700;color:#dc2626;text-align:right;border-top:1px solid #e8edf5;">R$ 1.500,00</td></tr>';
+$previewDepois .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Vencimento</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;border-top:1px solid #e8edf5;">' . date('d/m/Y', strtotime('-2 days')) . '</td></tr>';
+$previewDepois .= '</table>';
+$previewDepois .= '</div>';
+$previewDepois .= '<div style="background:#ffffff;border:2px dashed #dc2626;border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
+$previewDepois .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#991b1b;">Pague com PIX</h3>';
+$previewDepois .= '<div style="background:#f8f9fa;border:1px dashed #dc2626;border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
+$previewDepois .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
+$previewDepois .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">00020126580014BR.GOV.BCB.PIX0136a1b2c3d4-e5f6-7890-abcd-ef123456789052040000530398654041.505802BR5925EMPRESA EXEMPLO LTDA6009SAO PAULO62070503***6304ABCD</div>';
+$previewDepois .= '</div>';
+$previewDepois .= '<div style="margin-top:16px;padding:12px;background:#fff8e1;border-radius:8px;display:flex;align-items:center;gap:8px;justify-content:center;">';
+$previewDepois .= '<span style="font-size:16px;">🛡️</span>';
+$previewDepois .= '<span style="font-size:12px;color:#666;">Pagamento 100% seguro via PIX</span>';
+$previewDepois .= '</div>';
+$previewDepois .= '</div>';
+$previewDepois .= '<a href="#" style="display:block;text-align:center;color:#dc2626;text-decoration:none;padding:14px;border:2px solid #dc2626;border-radius:8px;font-weight:600;font-size:15px;margin-bottom:24px;">Regularizar Fatura →</a>';
+$previewDepois .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars(getNomeSistema()) . '</strong></p>';
 
 $previewHtmlAntes = str_replace('{{CONTEUDO}}', $previewAntes, $templateAntes);
 $previewHtmlDepois = str_replace('{{CONTEUDO}}', $previewDepois, $templateDepois);
 
-$previewPagamento = '<h3 style="color:#27ae60;margin-top:0;">Pagamento Confirmado!</h3>';
-$previewPagamento .= '<p>Olá, <strong>Nome do Cliente</strong>,</p>';
-$previewPagamento .= '<p>Confirmamos o recebimento do pagamento da sua fatura <strong>FAT-202607-0001</strong>.</p>';
-$previewPagamento .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">Serviço de exemplo</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor Pago</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;color:#27ae60;">R$ 1.500,00</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Data do Pagamento</td><td style="padding:8px 0;border-top:1px solid #eee;">' . date('d/m/Y') . '</td></tr></table>';
-$previewPagamento .= '<p>Sua fatura está quitada. Acesse sua conta para acompanhar suas faturas:</p>';
-$previewPagamento .= '<div style="text-align:center;margin:25px 0;"><a href="#" style="display:inline-block;background:#27ae60;color:#fff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:bold;">Acessar Painel</a></div>';
-$previewPagamento .= '<p style="color:#999;font-size:12px;margin-top:30px;">Atenciosamente,<br>' . htmlspecialchars(getNomeSistema()) . '</p>';
+$previewPagamento = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+$previewPagamento .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#166534;">Pagamento Confirmado</h2>';
+$previewPagamento .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>Nome do Cliente</strong>,</p>';
+$previewPagamento .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Confirmamos o recebimento do pagamento da sua fatura <strong>FAT-202607-0001</strong>.</p>';
+$previewPagamento .= '</div>';
+$previewPagamento .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+$previewPagamento .= '<table style="width:100%;border-collapse:collapse;">';
+$previewPagamento .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;">Descrição</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;">Serviço de exemplo</td></tr>';
+$previewPagamento .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Valor Pago</td><td style="padding:10px 0;font-size:18px;font-weight:700;color:#16a34a;text-align:right;border-top:1px solid #e8edf5;">R$ 1.500,00</td></tr>';
+$previewPagamento .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Data do Pagamento</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;border-top:1px solid #e8edf5;">' . date('d/m/Y') . '</td></tr>';
+$previewPagamento .= '</table>';
+$previewPagamento .= '</div>';
+$previewPagamento .= '<div style="text-align:center;margin-bottom:24px;">';
+$previewPagamento .= '<a href="#" style="display:inline-block;background:#16a34a;color:#fff;padding:14px 40px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Acessar Painel →</a>';
+$previewPagamento .= '</div>';
+$previewPagamento .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars(getNomeSistema()) . '</strong></p>';
 
 $previewHtmlPagamento = str_replace('{{CONTEUDO}}', $previewPagamento, $templatePagamento);
 
@@ -175,6 +184,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
             <h5>Template E-mail</h5>
         </div>
+        <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> Suporte</a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
                 <img src="<?= htmlspecialchars($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;">
@@ -208,16 +218,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <label class="form-label">Assunto do E-mail</label>
                                 <input type="text" name="template_email_assunto_antes" class="form-control" value="<?= htmlspecialchars($config['template_email_assunto_antes'] ?? 'Lembrete: Fatura {numero} vence em {data_vencimento}') ?>">
                                 <small class="text-muted">Variáveis: {numero}, {data_vencimento}, {valor}</small>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Logo no topo</label>
-                                <input type="file" name="email_logo_antes" class="form-control" accept="image/*">
-                                <?php if ($logoUrl): ?>
-                                    <div class="mt-2">
-                                        <small class="text-muted d-block mb-1">Logo atual:</small>
-                                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo" style="max-height:50px;">
-                                    </div>
-                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -262,16 +262,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <label class="form-label">Assunto do E-mail</label>
                                 <input type="text" name="template_email_assunto_depois" class="form-control" value="<?= htmlspecialchars($config['template_email_assunto_depois'] ?? 'Cobrança: Fatura {numero} vencida') ?>">
                                 <small class="text-muted">Variáveis: {numero}, {data_vencimento}, {valor}, {dias_atraso}</small>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Logo no topo</label>
-                                <input type="file" name="email_logo_depois" class="form-control" accept="image/*">
-                                <?php if ($logoUrl): ?>
-                                    <div class="mt-2">
-                                        <small class="text-muted d-block mb-1">Logo atual:</small>
-                                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo" style="max-height:50px;">
-                                    </div>
-                                <?php endif; ?>
                             </div>
                         </div>
                     </div>

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../config/database.php';
@@ -28,37 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipo = 'success';
     }
     
-    if ($acao === 'senha') {
-        $senhaAtual = trim($_POST['senha_atual'] ?? '');
-        $novaSenha = trim($_POST['nova_senha'] ?? '');
-        $confirmaSenha = trim($_POST['confirma_senha'] ?? '');
-        
-        if (empty($senhaAtual) || empty($novaSenha)) {
-            $mensagem = 'Preencha todos os campos de senha.';
-            $tipo = 'danger';
-        } elseif ($novaSenha !== $confirmaSenha) {
-            $mensagem = 'As senhas não conferem.';
-            $tipo = 'danger';
-        } elseif (strlen($novaSenha) < 6) {
-            $mensagem = 'A nova senha deve ter no mínimo 6 caracteres.';
-            $tipo = 'danger';
-        } else {
-            $pdo = getConnection();
-            $stmt = $pdo->prepare("SELECT id, senha FROM administradores WHERE id = ?");
-            $stmt->execute([$_SESSION['admin_id']]);
-            $admin = $stmt->fetch();
-            
-            if ($admin && (password_verify($senhaAtual, $admin['senha']) || md5($senhaAtual) === $admin['senha'])) {
-                $stmt = $pdo->prepare("UPDATE administradores SET senha = ? WHERE id = ?");
-                $stmt->execute([password_hash($novaSenha, PASSWORD_BCRYPT), $_SESSION['admin_id']]);
-                $mensagem = 'Senha alterada com sucesso!';
-                $tipo = 'success';
-            } else {
-                $mensagem = 'Senha atual incorreta.';
-                $tipo = 'danger';
-            }
-        }
-    }
     
     if ($acao === 'logo') {
         if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
@@ -174,6 +143,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
             <h5>Personalização</h5>
         </div>
+        <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> Suporte</a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
                 <img src="<?= htmlspecialchars($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;">
@@ -299,32 +269,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 </div>
             </div>
 
-            <!-- Senha -->
-            <div class="col-lg-6">
-                <div class="form-card">
-                    <h6 class="mb-3"><i class="fas fa-lock me-2"></i>Alterar Senha</h6>
-                    <form method="POST">
-                        <input type="hidden" name="acao" value="senha">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">Senha Atual</label>
-                                <input type="password" name="senha_atual" class="form-control" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Nova Senha</label>
-                                <input type="password" name="nova_senha" class="form-control" minlength="6" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Confirmar Nova Senha</label>
-                                <input type="password" name="confirma_senha" class="form-control" minlength="6" required>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-warning mt-3">
-                            <i class="fas fa-key me-1"></i> Alterar Senha
-                        </button>
-                    </form>
-                </div>
-            </div>
         </div>
     </div>
 </div>

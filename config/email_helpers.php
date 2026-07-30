@@ -18,9 +18,20 @@ if (!function_exists('getLogoBase64')) {
     function getLogoBase64() {
         $logo = getLogo();
         if (!$logo) return '';
-        $arquivo = $_SERVER['DOCUMENT_ROOT'] ?? dirname($_SERVER['SCRIPT_FILENAME']);
-        $path = rtrim($arquivo, '/\\') . DIRECTORY_SEPARATOR . ltrim($logo, '/');
-        if (!file_exists($path)) return '';
+        $candidatos = [
+            $_SERVER['DOCUMENT_ROOT'] ?? '',
+            dirname(__DIR__),
+            dirname(dirname(__DIR__)),
+        ];
+        $path = '';
+        foreach ($candidatos as $base) {
+            if (empty($base)) continue;
+            $teste = rtrim($base, '/\\') . str_replace('/', DIRECTORY_SEPARATOR, $logo);
+            if (file_exists($teste)) { $path = $teste; break; }
+            $teste2 = rtrim($base, '/\\') . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'img' . DIRECTORY_SEPARATOR . basename($logo);
+            if (file_exists($teste2)) { $path = $teste2; break; }
+        }
+        if (empty($path) || !file_exists($path)) return '';
         $mime = 'image/png';
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         if (in_array($ext, ['jpg','jpeg'])) $mime = 'image/jpeg';
@@ -30,14 +41,53 @@ if (!function_exists('getLogoBase64')) {
     }
 }
 
+if (!function_exists('getLogoLoginImg')) {
+    function getLogoLoginImg() {
+        $logo = getLogoLogin();
+        if (!$logo) return '';
+        $candidatos = [
+            $_SERVER['DOCUMENT_ROOT'] ?? '',
+            dirname(__DIR__),
+            dirname(dirname(__DIR__)),
+        ];
+        $path = '';
+        foreach ($candidatos as $base) {
+            if (empty($base)) continue;
+            $teste = rtrim($base, '/\\') . str_replace('/', DIRECTORY_SEPARATOR, $logo);
+            if (file_exists($teste)) { $path = $teste; break; }
+            $teste2 = rtrim($base, '/\\') . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'img' . DIRECTORY_SEPARATOR . basename($logo);
+            if (file_exists($teste2)) { $path = $teste2; break; }
+        }
+        if (empty($path) || !file_exists($path)) return '';
+        $mime = 'image/png';
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (in_array($ext, ['jpg','jpeg'])) $mime = 'image/jpeg';
+        elseif ($ext === 'gif') $mime = 'image/gif';
+        $data = base64_encode(file_get_contents($path));
+        $src = "data:{$mime};base64,{$data}";
+        return '<img src="' . $src . '" alt="Logo" style="max-width:160px;height:auto;margin-bottom:10px;">';
+    }
+}
+
 if (!function_exists('getLogoTagEmail')) {
     function getLogoTagEmail() {
-        $b64 = getLogoBase64();
-        if ($b64) {
-            return '<img src="' . $b64 . '" alt="Logo" style="width:200px;max-width:200px;height:auto;display:block;margin:0 auto 20px auto;">';
+        $pdo = getConnection();
+        $nome = getNomeSistema();
+        $cnpj = '';
+        if ($pdo) {
+            $stmt = $pdo->prepare("SELECT nome_fantasia, cnpj FROM administradores WHERE id = 1");
+            $stmt->execute();
+            $admin = $stmt->fetch();
+            if ($admin) {
+                $nome = $admin['nome_fantasia'] ?: $nome;
+                $cnpj = $admin['cnpj'] ?? '';
+            }
         }
-        $nomeSistema = getNomeSistema();
-        return '<h2 style="margin:0 0 20px 0;color:#fff;">' . htmlspecialchars($nomeSistema) . '</h2>';
+        $html = '<h2 style="margin:0 0 5px 0;color:#333;font-weight:bold;font-size:22px;">' . htmlspecialchars($nome) . '</h2>';
+        if ($cnpj) {
+            $html .= '<p style="margin:0;color:#666;font-size:13px;">CNPJ: ' . htmlspecialchars($cnpj) . '</p>';
+        }
+        return $html;
     }
 }
 
@@ -63,6 +113,18 @@ if (!function_exists('getLinkFatura')) {
 }
 
 if (!function_exists('montarMensagemHtml')) {
+    function gerarQrCodeEmail($pixCopiaCola) {
+        require_once __DIR__ . '/phpqrcode.php';
+        try {
+            ob_start();
+            QRcode::png($pixCopiaCola, false, QR_ECLEVEL_L, 5, 2);
+            $img = ob_get_clean();
+            return ($img !== false && !empty($img)) ? base64_encode($img) : '';
+        } catch (Exception $e) {
+            return '';
+        }
+    }
+
     function montarMensagemHtml($fatura, $tipo, $dias = 0) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
@@ -76,68 +138,93 @@ if (!function_exists('montarMensagemHtml')) {
         if (!empty($templateHtml)) {
             $mensagemHtml = preg_replace('#<img[^>]*(?:alt=["\'](?:Logo|Logo do Sistema)["\']|class=["\']email-logo["\'])[^>]*>#i', $logoTag, $templateHtml);
         } else {
-            $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><div style="background:' . $corPrimaria . ';padding:24px 30px;text-align:center;">' . $logoTag . '</div><div style="padding:30px;">{{CONTEUDO}}</div></div></body></html>';
+            $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);"><div style="background:' . $corPrimaria . ';height:50px;"></div><div style="padding:30px 30px 0 30px;text-align:center;">' . $logoTag . '</div><div style="padding:20px 30px 30px 30px;">{{CONTEUDO}}</div></div></body></html>';
         }
 
         if ($tipo === 'antes') {
-            $conteudo = '<h3 style="color:#333;margin-top:0;">Lembrete de Fatura</h3>';
-            $conteudo .= '<p>Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
-            $conteudo .= '<p>Identificamos que sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> vence em <strong>' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</strong>.</p>';
-            $conteudo .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">' . htmlspecialchars($fatura['descricao']) . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr></table>';
+            $conteudo = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+            $conteudo .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#1a1a2e;">Lembrete de Fatura</h2>';
+            $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
+            $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Identificamos que sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> vence em <strong>' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</strong>.</p>';
+            $conteudo .= '</div>';
+            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+            $conteudo .= '<table style="width:100%;border-collapse:collapse;">';
+            $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;">Descrição</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;">' . htmlspecialchars($fatura['descricao']) . '</td></tr>';
+            $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Valor</td><td style="padding:10px 0;font-size:18px;font-weight:700;color:' . $corPrimaria . ';text-align:right;border-top:1px solid #e8edf5;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr>';
+            $conteudo .= '</table>';
+            $conteudo .= '</div>';
             if (!empty($fatura['pix_copia_cola'])) {
-                $conteudo .= '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">';
-                $conteudo .= '<p style="margin:0 0 10px 0;font-weight:bold;color:#166534;">Pague via PIX</p>';
-                if (!empty($fatura['pix_qrcode'])) {
-                    $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
-                }
-                $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
                 $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
-                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($pixLimpo) . '</div>';
+                $conteudo .= '<div style="background:#ffffff;border:2px dashed ' . $corPrimaria . ';border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
+                $conteudo .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#1a1a2e;">Pague com PIX</h3>';
+                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Copie o código PIX abaixo</p>';
+                $conteudo .= '<div style="background:#f8f9fa;border:1px dashed ' . $corPrimaria . ';border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
+                $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
+                $conteudo .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">' . htmlspecialchars($pixLimpo) . '</div>';
+                $conteudo .= '</div>';
+                $conteudo .= '<div style="margin-top:16px;padding:12px;background:#fff8e1;border-radius:8px;display:flex;align-items:center;gap:8px;justify-content:center;">';
+                $conteudo .= '<span style="font-size:16px;">🛡️</span>';
+                $conteudo .= '<span style="font-size:12px;color:#666;">Pagamento 100% seguro via PIX</span>';
+                $conteudo .= '</div>';
                 $conteudo .= '</div>';
             }
-            $conteudo .= '<p>Acesse sua fatura para mais detalhes e realizar o pagamento:</p>';
-            $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:' . $corPrimaria . ';border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
+            $conteudo .= '<a href="' . htmlspecialchars($linkFatura) . '" style="display:block;text-align:center;color:' . $corPrimaria . ';text-decoration:none;padding:14px;border:2px solid ' . $corPrimaria . ';border-radius:8px;font-weight:600;font-size:15px;margin-bottom:24px;">Ver Fatura Completa →</a>';
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
-            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:14px 18px;margin:15px 0;text-align:center;">';
-            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;font-weight:bold;color:#333;">Dados de Acesso ao Painel</p>';
-            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Usuário: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Senha: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:6px 0 0 0;font-size:11px;color:#999;">(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)</p>';
+            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+            $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso ao Painel</h4>';
+            $conteudo .= '<table style="width:100%;">';
+            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Usuário:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
+            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Senha:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
+            $conteudo .= '</table>';
+            $conteudo .= '<p style="margin:8px 0 0 0;font-size:11px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
-                $conteudo .= '<p style="text-align:center;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';">Pagar agora via Mercado Pago</a></p>';
+                $conteudo .= '<div style="text-align:center;margin-bottom:24px;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';font-weight:600;text-decoration:none;">Pagar agora via Mercado Pago →</a></div>';
             }
-            $conteudo .= '<p style="color:#999;font-size:12px;margin-top:30px;">Atenciosamente,<br>' . htmlspecialchars($nomeSistema) . '</p>';
+            $conteudo .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars($nomeSistema) . '</strong></p>';
         } else {
             $diasAtraso = $dias > 0 ? $dias : ((strtotime(date('Y-m-d')) - strtotime($fatura['data_vencimento'])) / 86400);
-            $conteudo = '<h3 style="color:#c0392b;margin-top:0;">Fatura Vencida</h3>';
-            $conteudo .= '<p>Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
-            $conteudo .= '<p>Sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> encontra-se vencida há <strong>' . intval($diasAtraso) . ' dia(s)</strong>.</p>';
-            $conteudo .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;"><tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">' . htmlspecialchars($fatura['descricao']) . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr><tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Vencimento</td><td style="padding:8px 0;border-top:1px solid #eee;">' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</td></tr></table>';
+            $conteudo = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+            $conteudo .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#991b1b;">Fatura Vencida</h2>';
+            $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
+            $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong> encontra-se vencida há <strong>' . intval($diasAtraso) . ' dia(s)</strong>.</p>';
+            $conteudo .= '</div>';
+            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+            $conteudo .= '<table style="width:100%;border-collapse:collapse;">';
+            $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;">Descrição</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;">' . htmlspecialchars($fatura['descricao']) . '</td></tr>';
+            $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Valor</td><td style="padding:10px 0;font-size:18px;font-weight:700;color:#dc2626;text-align:right;border-top:1px solid #e8edf5;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr>';
+            $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Vencimento</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;border-top:1px solid #e8edf5;">' . date('d/m/Y', strtotime($fatura['data_vencimento'])) . '</td></tr>';
+            $conteudo .= '</table>';
+            $conteudo .= '</div>';
             if (!empty($fatura['pix_copia_cola'])) {
-                $conteudo .= '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">';
-                $conteudo .= '<p style="margin:0 0 10px 0;font-weight:bold;color:#991b1b;">Pague via PIX</p>';
-                if (!empty($fatura['pix_qrcode'])) {
-                    $conteudo .= '<img src="data:image/png;base64,' . $fatura['pix_qrcode'] . '" alt="QR Code PIX" style="max-width:160px;border:1px solid #dee2e6;border-radius:8px;margin-bottom:12px;">';
-                }
-                $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
                 $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
-                $conteudo .= '<div style="background:#fff;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;font-family:\'Courier New\',monospace;font-size:11px;word-break:break-all;color:#333;text-align:left;user-select:all;-webkit-user-select:all;-moz-user-select:all;cursor:text;">' . htmlspecialchars($pixLimpo) . '</div>';
+                $conteudo .= '<div style="background:#ffffff;border:2px dashed #dc2626;border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
+                $conteudo .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#991b1b;">Pague com PIX</h3>';
+                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Copie o código PIX abaixo</p>';
+                $conteudo .= '<div style="background:#f8f9fa;border:1px dashed #dc2626;border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
+                $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
+                $conteudo .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">' . htmlspecialchars($pixLimpo) . '</div>';
+                $conteudo .= '</div>';
+                $conteudo .= '<div style="margin-top:16px;padding:12px;background:#fff8e1;border-radius:8px;display:flex;align-items:center;gap:8px;justify-content:center;">';
+                $conteudo .= '<span style="font-size:16px;">🛡️</span>';
+                $conteudo .= '<span style="font-size:12px;color:#666;">Pagamento 100% seguro via PIX</span>';
+                $conteudo .= '</div>';
                 $conteudo .= '</div>';
             }
-            $conteudo .= '<p>Por favor, regularize sua situação o mais rápido possível:</p>';
-            $conteudo .= '<table cellpadding="0" cellspacing="0" border="0" style="margin:25px auto;"><tr><td style="background:#c0392b;border-radius:6px;padding:12px 30px;"><a href="' . htmlspecialchars($linkFatura) . '" style="color:#fff;text-decoration:none;font-weight:bold;font-size:15px;">Ver Fatura</a></td></tr></table>';
+            $conteudo .= '<a href="' . htmlspecialchars($linkFatura) . '" style="display:block;text-align:center;color:#dc2626;text-decoration:none;padding:14px;border:2px solid #dc2626;border-radius:8px;font-weight:600;font-size:15px;margin-bottom:24px;">Regularizar Fatura →</a>';
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
-            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:14px 18px;margin:15px 0;text-align:center;">';
-            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;font-weight:bold;color:#333;">Dados de Acesso ao Painel</p>';
-            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Usuário: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:0 0 4px 0;font-size:12px;color:#666;">Senha: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:6px 0 0 0;font-size:11px;color:#999;">(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)</p>';
+            $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+            $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso ao Painel</h4>';
+            $conteudo .= '<table style="width:100%;">';
+            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Usuário:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
+            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Senha:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
+            $conteudo .= '</table>';
+            $conteudo .= '<p style="margin:8px 0 0 0;font-size:11px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
-                $conteudo .= '<p style="text-align:center;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';">Pagar agora via Mercado Pago</a></p>';
+                $conteudo .= '<div style="text-align:center;margin-bottom:24px;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';font-weight:600;text-decoration:none;">Pagar agora via Mercado Pago →</a></div>';
             }
-            $conteudo .= '<p style="color:#999;font-size:12px;margin-top:30px;">Atenciosamente,<br>' . htmlspecialchars($nomeSistema) . '</p>';
+            $conteudo .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars($nomeSistema) . '</strong></p>';
         }
 
         $mensagemHtml = str_replace('{{CONTEUDO}}', $conteudo, $mensagemHtml);
@@ -375,22 +462,27 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
         if (!empty($templateHtml)) {
             $mensagemHtml = preg_replace('#<img[^>]*(?:alt=["\'](?:Logo|Logo do Sistema)["\']|class=["\']email-logo["\'])[^>]*>#i', $logoTag, $templateHtml);
         } else {
-            $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><div style="background:' . $corPrimaria . ';padding:24px 30px;text-align:center;">' . $logoTag . '</div><div style="padding:30px;">{{CONTEUDO}}</div></div></body></html>';
+            $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);"><div style="background:' . $corPrimaria . ';height:50px;"></div><div style="padding:30px 30px 0 30px;text-align:center;">' . $logoTag . '</div><div style="padding:20px 30px 30px 30px;">{{CONTEUDO}}</div></div></body></html>';
         }
 
         $dataPagamento = !empty($fatura['data_pagamento']) ? date('d/m/Y', strtotime($fatura['data_pagamento'])) : date('d/m/Y');
 
-        $conteudo = '<h3 style="color:#27ae60;margin-top:0;">Pagamento Confirmado!</h3>';
-        $conteudo .= '<p>Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
-        $conteudo .= '<p>Confirmamos o recebimento do pagamento da sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong>.</p>';
-        $conteudo .= '<table style="width:100%;border-collapse:collapse;margin:15px 0;">';
-        $conteudo .= '<tr><td style="padding:8px 0;color:#666;">Descrição</td><td style="padding:8px 0;">' . htmlspecialchars($fatura['descricao']) . '</td></tr>';
-        $conteudo .= '<tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Valor Pago</td><td style="padding:8px 0;border-top:1px solid #eee;font-weight:bold;color:#27ae60;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr>';
-        $conteudo .= '<tr><td style="padding:8px 0;color:#666;border-top:1px solid #eee;">Data do Pagamento</td><td style="padding:8px 0;border-top:1px solid #eee;">' . $dataPagamento . '</td></tr>';
+        $conteudo = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+        $conteudo .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#166534;">Pagamento Confirmado</h2>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Confirmamos o recebimento do pagamento da sua fatura <strong>' . htmlspecialchars($fatura['numero']) . '</strong>.</p>';
+        $conteudo .= '</div>';
+        $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+        $conteudo .= '<table style="width:100%;border-collapse:collapse;">';
+        $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;">Descrição</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;">' . htmlspecialchars($fatura['descricao']) . '</td></tr>';
+        $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Valor Pago</td><td style="padding:10px 0;font-size:18px;font-weight:700;color:#16a34a;text-align:right;border-top:1px solid #e8edf5;">R$ ' . number_format($fatura['valor_final'], 2, ',', '.') . '</td></tr>';
+        $conteudo .= '<tr><td style="padding:10px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">Data do Pagamento</td><td style="padding:10px 0;font-size:14px;font-weight:500;color:#333;text-align:right;border-top:1px solid #e8edf5;">' . $dataPagamento . '</td></tr>';
         $conteudo .= '</table>';
-        $conteudo .= '<p>Sua fatura está quitada. Acesse sua conta para acompanhar suas faturas:</p>';
-        $conteudo .= '<div style="text-align:center;margin:25px 0;"><a href="' . htmlspecialchars($linkFatura) . '" style="display:inline-block;background:#27ae60;color:#fff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:bold;">Acessar Painel</a></div>';
-        $conteudo .= '<p style="color:#999;font-size:12px;margin-top:30px;">Atenciosamente,<br>' . htmlspecialchars($nomeSistema) . '</p>';
+        $conteudo .= '</div>';
+        $conteudo .= '<div style="text-align:center;margin-bottom:24px;">';
+        $conteudo .= '<a href="' . htmlspecialchars($linkFatura) . '" style="display:inline-block;background:#16a34a;color:#fff;padding:14px 40px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Acessar Painel →</a>';
+        $conteudo .= '</div>';
+        $conteudo .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars($nomeSistema) . '</strong></p>';
 
         $mensagemHtml = str_replace('{{CONTEUDO}}', $conteudo, $mensagemHtml);
         return $mensagemHtml;

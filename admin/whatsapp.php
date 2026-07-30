@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../config/database.php';
@@ -152,6 +152,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
             <h5>WhatsApp - Evolution API</h5>
         </div>
+        <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> Suporte</a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
                 <img src="<?= htmlspecialchars($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;">
@@ -243,22 +244,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             </div>
         </div>
 
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="form-card">
-                    <h6 class="mb-3"><i class="fas fa-info-circle me-2"></i>Como configurar</h6>
-                    <ol class="mb-0" style="font-size:0.9rem;">
-                        <li>Crie uma conta no <a href="https://www.render.com" target="_blank">Render.com</a> (grátis)</li>
-                        <li>Crie um "Web Service" e conecte o repositório da <a href="https://github.com/EvolutionAPI/evolution-api" target="_blank">Evolution API</a></li>
-                        <li>Aguarde o deploy (pode levar alguns minutos)</li>
-                        <li>Copie a URL gerada (ex: https://sua-api.onrender.com) e cole acima</li>
-                        <li>Crie uma instância no painel da Evolution API e copie a API Key</li>
-                        <li>Preencha os dados acima, salve e escaneie o QR Code</li>
-                        <li>Ative o envio via WhatsApp e configure os dias na Config. de Envios</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
+
     </div>
 </div>
 
