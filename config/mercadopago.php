@@ -500,15 +500,21 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome) {
         if ($codigo) {
             $pixCopiaECola = '';
             $qrCode = '';
-            $detalhe = consultarCobrancaInter($codigo);
-            if ($detalhe && !isset($detalhe['erro'])) {
-                $pix = $detalhe['pix'] ?? ($detalhe['cobranca']['pix'] ?? []);
-                if (!empty($pix)) {
-                    $pixCopiaECola = $pix['pixCopiaECola'] ?? '';
-                    $qrCode = $pix['qrcode'] ?? '';
+            $tentativas = 0;
+            $detalhe = null;
+            while (empty($pixCopiaECola) && $tentativas < 6) {
+                $tentativas++;
+                if ($tentativas > 1) sleep(2);
+                $detalhe = consultarCobrancaInter($codigo);
+                if ($detalhe && !isset($detalhe['erro'])) {
+                    $pix = $detalhe['pix'] ?? ($detalhe['cobranca']['pix'] ?? []);
+                    if (!empty($pix)) {
+                        $pixCopiaECola = $pix['pixCopiaECola'] ?? '';
+                        $qrCode = $pix['qrcode'] ?? '';
+                    }
                 }
             }
-            file_put_contents(__DIR__ . '/../inter_debug.log', date('Y-m-d H:i:s') . " | CODIGO={$codigo} | PIX=" . ($pixCopiaECola ?: 'VAZIO') . " | DETALHE=" . json_encode($detalhe) . "\n", FILE_APPEND);
+            file_put_contents(__DIR__ . '/../inter_debug.log', date('Y-m-d H:i:s') . " | CODIGO={$codigo} | PIX=" . ($pixCopiaECola ?: 'VAZIO') . " | TENTATIVAS={$tentativas} | DETALHE=" . json_encode($detalhe) . "\n", FILE_APPEND);
             return [
                 'sucesso' => true,
                 'payment_id' => $codigo,
@@ -746,6 +752,199 @@ function obterPdfBB($seuNumero) {
         return $result['mensagem'] ?? $result['pdf'] ?? null;
     }
     return null;
+}
+
+function cancelarCobrancaInter($codigoSolicitacao) {
+    $config = getConfigInter();
+    $token = obterTokenInter();
+    if (isset($token['erro'])) {
+        return ['erro' => $token['erro']];
+    }
+    $certCrt = $config['inter_cert_crt'] ?? '';
+    $certKey = $config['inter_cert_key'] ?? '';
+    $contaDigitos = preg_replace('/[^0-9]/', '', $config['inter_conta'] ?? '');
+    $conta = ltrim(substr($contaDigitos, 4), '0');
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => getInterBaseUrl() . '/cobranca/v3/cobrancas/' . $codigoSolicitacao . '/cancelar',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode(['motivoCancelamento' => 'Cancelado pelo sistema de cobranca']),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token['access_token'],
+            'x-conta-corrente: ' . $conta,
+        ],
+        CURLOPT_SSLCERT => $certCrt,
+        CURLOPT_SSLKEY => $certKey,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+    if ($curlError) {
+        error_log("[INTER] Erro cancelar {$codigoSolicitacao}: " . $curlError);
+        return ['erro' => 'Erro de conexão com Banco Inter: ' . $curlError];
+    }
+    $result = json_decode($response, true);
+    error_log("[INTER] Cancelar {$codigoSolicitacao} HTTP {$httpCode} | Response: " . substr($response, 0, 500));
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return ['sucesso' => true, 'dados' => $result];
+    }
+    $erroMsg = $result['title'] ?? $result['detail'] ?? 'Erro ao cancelar cobrança no Banco Inter';
+    return ['erro' => trim($erroMsg . ' ' . ($result['detail'] ?? ''))];
+}
+
+function cancelarPagamentoMercadoPago($paymentId) {
+    $config = getMPConfig();
+    if (empty($config['mp_access_token'])) {
+        return ['erro' => 'Token do Mercado Pago não configurado.'];
+    }
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => 'https://api.mercadopago.com/v1/payments/' . $paymentId,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => json_encode(['status' => 'cancelled']),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $config['mp_access_token'],
+        ],
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+    if ($curlError) {
+        error_log("[MP] Cancelar {$paymentId}: " . $curlError);
+        return ['erro' => 'Erro de conexão Mercado Pago: ' . $curlError];
+    }
+    $result = json_decode($response, true);
+    error_log("[MP] Cancelar {$paymentId} HTTP {$httpCode} | Response: " . substr($response, 0, 500));
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return ['sucesso' => true, 'dados' => $result];
+    }
+    return ['erro' => $result['message'] ?? ($result['status_detail'] ?? 'Erro ao cancelar no Mercado Pago')];
+}
+
+function cancelarCobrancaFatura($fatura) {
+    if (!$fatura) {
+        return ['sucesso' => true];
+    }
+    $api = $fatura['api_pagamento'] ?? '';
+    if (empty($api)) {
+        if (!empty($fatura['inter_codigo_solicitacao'])) {
+            $api = 'inter';
+        } elseif (!empty($fatura['mp_payment_id'])) {
+            $api = getApiAtiva();
+        }
+    }
+
+    if ($api === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
+        return cancelarCobrancaInter($fatura['inter_codigo_solicitacao']);
+    }
+
+    if ($api === 'mercadopago' && !empty($fatura['mp_payment_id'])) {
+        return cancelarPagamentoMercadoPago($fatura['mp_payment_id']);
+    }
+
+    if ($api === 'bb' && !empty($fatura['inter_codigo_solicitacao'])) {
+        if (!empty($fatura['boleto_url'])) {
+            return cancelarBoletoBB($fatura['inter_codigo_solicitacao']);
+        }
+        return cancelarCobrancaPixBB($fatura['inter_codigo_solicitacao']);
+    }
+
+    if ($api === 'pagbank' && !empty($fatura['mp_payment_id'])) {
+        if (!function_exists('cancelarPedidoPagBank')) {
+            require_once __DIR__ . '/pagbank.php';
+        }
+        return cancelarPedidoPagBank($fatura['mp_payment_id']);
+    }
+
+    return ['sucesso' => true, 'sem_cobranca' => true];
+}
+
+function cancelarBoletoBB($nossoNumero) {
+    $config = getConfigBB();
+    $token = obterTokenBB();
+    if (isset($token['erro'])) {
+        return $token;
+    }
+    $convenio = $config['bb_convenio'] ?? '';
+    if (empty($convenio)) {
+        return ['erro' => 'Convênio do Banco do Brasil não configurado.'];
+    }
+    $baseUrl = getBBBaseUrl();
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $baseUrl . '/cobrancas/v2/boletos/' . $nossoNumero . '/baixar',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode(['numeroConvenio' => $convenio]),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token['access_token'],
+        ],
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+    if ($curlError) {
+        error_log("[BB] Erro baixa boleto {$nossoNumero}: " . $curlError);
+        return ['erro' => 'Erro de conexão com Banco do Brasil: ' . $curlError];
+    }
+    $result = json_decode($response, true);
+    error_log("[BB] Baixa boleto {$nossoNumero} HTTP {$httpCode} | Response: " . substr($response, 0, 500));
+    if ($httpCode >= 200 && $httpCode < 300) {
+        $codErro = $result['codigoErroRegistro'] ?? 0;
+        if ((int) $codErro === 0) {
+            return ['sucesso' => true, 'dados' => $result];
+        }
+        return ['erro' => $result['mensagem'] ?? 'Erro ao dar baixa no boleto (código ' . $codErro . ')'];
+    }
+    return ['erro' => $result['message'] ?? ($result['title'] ?? 'Erro ao dar baixa no boleto BB (HTTP ' . $httpCode . ')')];
+}
+
+function cancelarCobrancaPixBB($txid) {
+    $token = obterTokenBB();
+    if (isset($token['erro'])) {
+        return $token;
+    }
+    $baseUrl = getBBBaseUrl();
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $baseUrl . '/pix/v2/cobr/' . $txid,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_POSTFIELDS => json_encode(['status' => 'REMOVIDA_PELO_USUARIO_RECEBEDOR']),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token['access_token'],
+        ],
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+    if ($curlError) {
+        error_log("[BB] Erro revogar PIX {$txid}: " . $curlError);
+        return ['erro' => 'Erro de conexão com Banco do Brasil: ' . $curlError];
+    }
+    $result = json_decode($response, true);
+    error_log("[BB] Revogar PIX {$txid} HTTP {$httpCode} | Response: " . substr($response, 0, 500));
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return ['sucesso' => true, 'dados' => $result];
+    }
+    return ['erro' => $result['title'] ?? ($result['message'] ?? 'Erro ao revogar cobrança PIX BB (HTTP ' . $httpCode . ')')];
 }
 
 function criarCobrancaPixBB($txid, $dados) {

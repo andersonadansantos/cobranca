@@ -101,8 +101,13 @@ if (!function_exists('getLinkFatura')) {
             $stmt = $pdo->prepare("SELECT acesso_token FROM faturas WHERE id = ?");
             $stmt->execute([$faturaId]);
             $row = $stmt->fetch();
-            if ($row && !empty($row['acesso_token'])) {
+            if ($row !== false) {
                 $token = $row['acesso_token'];
+                if (empty($token)) {
+                    $token = bin2hex(random_bytes(32));
+                    $upd = $pdo->prepare("UPDATE faturas SET acesso_token = ? WHERE id = ?");
+                    $upd->execute([$token, $faturaId]);
+                }
             }
         }
         if ($token) {
@@ -155,9 +160,13 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '</div>';
             if (!empty($fatura['pix_copia_cola'])) {
                 $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
+                $qrBase64 = gerarQrCodeEmail($pixLimpo);
                 $conteudo .= '<div style="background:#ffffff;border:2px dashed ' . $corPrimaria . ';border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
                 $conteudo .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#1a1a2e;">Pague com PIX</h3>';
-                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Copie o código PIX abaixo</p>';
+                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Escaneie o QR Code abaixo ou copie o código PIX</p>';
+                if (!empty($qrBase64)) {
+                    $conteudo .= '<div style="margin-bottom:16px;"><img src="data:image/png;base64,' . $qrBase64 . '" alt="QR Code PIX" style="width:180px;height:180px;max-width:100%;"></div>';
+                }
                 $conteudo .= '<div style="background:#f8f9fa;border:1px dashed ' . $corPrimaria . ';border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
                 $conteudo .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">' . htmlspecialchars($pixLimpo) . '</div>';
@@ -169,14 +178,12 @@ if (!function_exists('montarMensagemHtml')) {
                 $conteudo .= '</div>';
             }
             $conteudo .= '<a href="' . htmlspecialchars($linkFatura) . '" style="display:block;text-align:center;color:' . $corPrimaria . ';text-decoration:none;padding:14px;border:2px solid ' . $corPrimaria . ';border-radius:8px;font-weight:600;font-size:15px;margin-bottom:24px;">Ver Fatura Completa →</a>';
-            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
-            $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso ao Painel</h4>';
-            $conteudo .= '<table style="width:100%;">';
-            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Usuário:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
-            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Senha:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
-            $conteudo .= '</table>';
-            $conteudo .= '<p style="margin:8px 0 0 0;font-size:11px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
+            $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso</h4>';
+            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">CPF/CNPJ: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">SENHA: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
                 $conteudo .= '<div style="text-align:center;margin-bottom:24px;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';font-weight:600;text-decoration:none;">Pagar agora via Mercado Pago →</a></div>';
@@ -198,9 +205,13 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '</div>';
             if (!empty($fatura['pix_copia_cola'])) {
                 $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
+                $qrBase64 = gerarQrCodeEmail($pixLimpo);
                 $conteudo .= '<div style="background:#ffffff;border:2px dashed #dc2626;border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
                 $conteudo .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#991b1b;">Pague com PIX</h3>';
-                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Copie o código PIX abaixo</p>';
+                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Escaneie o QR Code abaixo ou copie o código PIX</p>';
+                if (!empty($qrBase64)) {
+                    $conteudo .= '<div style="margin-bottom:16px;"><img src="data:image/png;base64,' . $qrBase64 . '" alt="QR Code PIX" style="width:180px;height:180px;max-width:100%;"></div>';
+                }
                 $conteudo .= '<div style="background:#f8f9fa;border:1px dashed #dc2626;border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
                 $conteudo .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">' . htmlspecialchars($pixLimpo) . '</div>';
@@ -212,14 +223,12 @@ if (!function_exists('montarMensagemHtml')) {
                 $conteudo .= '</div>';
             }
             $conteudo .= '<a href="' . htmlspecialchars($linkFatura) . '" style="display:block;text-align:center;color:#dc2626;text-decoration:none;padding:14px;border:2px solid #dc2626;border-radius:8px;font-weight:600;font-size:15px;margin-bottom:24px;">Regularizar Fatura →</a>';
-            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
-            $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso ao Painel</h4>';
-            $conteudo .= '<table style="width:100%;">';
-            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Usuário:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
-            $conteudo .= '<tr><td style="padding:6px 0;font-size:13px;color:#666;">Senha:</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#333;text-align:right;">' . htmlspecialchars($cpfCnpjFmt) . '</td></tr>';
-            $conteudo .= '</table>';
-            $conteudo .= '<p style="margin:8px 0 0 0;font-size:11px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
+            $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso</h4>';
+            $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">CPF/CNPJ: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">SENHA: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
+            $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
                 $conteudo .= '<div style="text-align:center;margin-bottom:24px;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';font-weight:600;text-decoration:none;">Pagar agora via Mercado Pago →</a></div>';
@@ -401,6 +410,137 @@ if (!function_exists('enviarEmail')) {
     }
 }
 
+if (!function_exists('enviarEmailComAnexo')) {
+    function enviarEmailComAnexo($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt, $anexoCaminho = '', $anexoNome = '') {
+        $anexoCaminho = trim((string) $anexoCaminho);
+        if ($anexoCaminho === '' || !is_file($anexoCaminho)) {
+            return enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt);
+        }
+        $proto = ($ssl === 'ssl') ? 'ssl://' : '';
+        $errno = 0;
+        $errstr = '';
+        $connexion = @fsockopen($proto . $host, intval($port), $errno, $errstr, 15);
+        if (!$connexion) return false;
+
+        @fgets($connexion, 512);
+        @fputs($connexion, "EHLO " . gethostname() . "\r\n");
+        stream_set_timeout($connexion, 5);
+        $ehloResponse = '';
+        for ($i = 0; $i < 10; $i++) {
+            $r = @fgets($connexion, 512);
+            $ehloResponse .= $r;
+            if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
+        }
+
+        if ($ssl === 'tls') {
+            @fputs($connexion, "STARTTLS\r\n");
+            $r = @fgets($connexion, 512);
+            if (substr($r, 0, 3) === '220') {
+                $smtpContext = stream_context_create(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
+                @stream_socket_enable_crypto($connexion, true, STREAM_CRYPTO_METHOD_TLS_CLIENT, $smtpContext);
+                @fputs($connexion, "EHLO " . gethostname() . "\r\n");
+                $ehloResponse = '';
+                for ($i = 0; $i < 10; $i++) {
+                    $r = @fgets($connexion, 512);
+                    $ehloResponse .= $r;
+                    if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
+                }
+            }
+        }
+
+        $authPlain = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'PLAIN') !== false;
+        $authLogin = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'LOGIN') !== false;
+        $authOk = false;
+
+        if ($authPlain) {
+            @fputs($connexion, "AUTH PLAIN\r\n");
+            $r = @fgets($connexion, 512);
+            if (substr($r, 0, 3) === '334') {
+                @fputs($connexion, base64_encode("\0" . $user . "\0" . $pass) . "\r\n");
+                $r = @fgets($connexion, 512);
+                if (substr($r, 0, 3) === '235') $authOk = true;
+            }
+        }
+
+        if (!$authOk && $authLogin) {
+            @fputs($connexion, "AUTH LOGIN\r\n");
+            $r = @fgets($connexion, 512);
+            if (substr($r, 0, 3) === '334') {
+                @fputs($connexion, base64_encode($user) . "\r\n");
+                $r = @fgets($connexion, 512);
+                if (substr($r, 0, 3) === '334') {
+                    @fputs($connexion, base64_encode($pass) . "\r\n");
+                    $r = @fgets($connexion, 512);
+                    if (substr($r, 0, 3) === '235') $authOk = true;
+                }
+            }
+        }
+
+        if (!$authOk) {
+            @fclose($connexion);
+            return false;
+        }
+
+        @fputs($connexion, "MAIL FROM:<{$fromEmail}>\r\n");
+        @fgets($connexion, 512);
+        @fputs($connexion, "RCPT TO:<{$paraEmail}>\r\n");
+        $r = @fgets($connexion, 512);
+        if (substr($r, 0, 3) !== '250') {
+            @fclose($connexion);
+            return false;
+        }
+
+        @fputs($connexion, "DATA\r\n");
+        @fgets($connexion, 512);
+
+        $boundary = "=?utf-8?B?" . base64_encode("b" . uniqid()) . "?=";
+        $boundary = str_replace('=', '', $boundary);
+        $boundaryMix = "mixed_" . $boundary;
+        $anexoNome = $anexoNome !== '' ? $anexoNome : basename($anexoCaminho);
+        $anexoNome = preg_replace('/["\r\n]/', '', $anexoNome);
+
+        $body = "From: =?UTF-8?B?" . base64_encode($fromNome) . "?= <{$fromEmail}>\r\n";
+        $body .= "Reply-To: {$fromEmail}\r\n";
+        $body .= "Date: " . date('r') . "\r\n";
+        $body .= "To: =?UTF-8?B?" . base64_encode($paraNome) . "?= <{$paraEmail}>\r\n";
+        $body .= "Subject: =?UTF-8?B?" . base64_encode($assunto) . "?=\r\n";
+        $body .= "MIME-Version: 1.0\r\n";
+        $body .= "Content-Type: multipart/mixed; boundary=\"{$boundaryMix}\"\r\n";
+        $body .= "\r\n";
+        $body .= "--{$boundaryMix}\r\n";
+        $body .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
+        $body .= "\r\n";
+        $body .= "--{$boundary}\r\n";
+        $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+        $body .= $mensagemTxt . "\r\n\r\n";
+        $body .= "--{$boundary}\r\n";
+        $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+        $body .= $mensagemHtml . "\r\n\r\n";
+        $body .= "--{$boundary}--\r\n";
+        $body .= "\r\n";
+
+        $pdfData = @file_get_contents($anexoCaminho);
+        if ($pdfData !== false) {
+            $body .= "--{$boundaryMix}\r\n";
+            $body .= "Content-Type: application/pdf; name=\"{$anexoNome}\"\r\n";
+            $body .= "Content-Disposition: attachment; filename=\"{$anexoNome}\"\r\n";
+            $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $body .= chunk_split(base64_encode($pdfData));
+            $body .= "\r\n";
+        }
+        $body .= "--{$boundaryMix}--\r\n.\r\n";
+
+        @fputs($connexion, $body);
+        $r = @fgets($connexion, 512);
+        @fputs($connexion, "QUIT\r\n");
+        @fclose($connexion);
+
+        return true;
+    }
+}
+
 if (!function_exists('enviarEmailFatura')) {
     function enviarEmailFatura($fatura, $tipo = 'antes') {
         $smtpHost = getConfig('smtp_host', '');
@@ -446,6 +586,22 @@ if (!function_exists('enviarEmailFatura')) {
         $msgHtml = montarMensagemHtml($fatura, $tipo);
         $msgTxt  = montarMensagemTxt($fatura, $tipo);
 
+        $anexoPdf = '';
+        if (!empty($fatura['pix_copia_cola']) && ($fatura['status'] ?? '') !== 'pago' && ($fatura['status'] ?? '') !== 'cancelado') {
+            if (!function_exists('gerarPixPdfFatura')) {
+                require_once __DIR__ . '/pix_pdf.php';
+            }
+            try {
+                $anexoPdf = gerarPixPdfFatura($fatura);
+            } catch (Throwable $e) {
+                $anexoPdf = '';
+            }
+        }
+        if ($anexoPdf && is_file($anexoPdf)) {
+            $ret = enviarEmailComAnexo($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexoPdf, 'Fatura_' . $fatura['numero'] . '.pdf');
+            @unlink($anexoPdf);
+            return $ret;
+        }
         return enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
     }
 }
@@ -534,5 +690,50 @@ if (!function_exists('enviarEmailPagamento')) {
         $msgTxt  = montarMensagemPagamentoTxt($fatura);
 
         return enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+    }
+}
+
+if (!function_exists('enviarEmailRecuperacaoSenha')) {
+    function enviarEmailRecuperacaoSenha($paraEmail, $paraNome, $link, $contexto = 'usuario') {
+        $smtpHost = getConfig('smtp_host', '');
+        $smtpPort = getConfig('smtp_port', '587');
+        $smtpUser = getConfig('smtp_usuario', '');
+        $smtpPass = getConfig('smtp_senha', '');
+        $smtpFrom = getConfig('smtp_from_email', '');
+        $smtpNome = getConfig('smtp_from_nome', getNomeSistema());
+        $smtpSsl  = getConfig('smtp_ssl', 'tls');
+
+        if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom) || empty($paraEmail)) {
+            return false;
+        }
+
+        $nomeSistema = getNomeSistema();
+        $logoTag = getLogoTagEmail();
+        $corPrimaria = getCorPrimaria();
+        $assunto = "Recuperação de senha - " . $nomeSistema;
+
+        $conteudo = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+        $conteudo .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#333;">Recuperação de Senha</h2>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>' . htmlspecialchars($paraNome) . '</strong>,</p>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Recebemos uma solicitação para redefinir a senha do seu acesso ao <strong>' . htmlspecialchars($nomeSistema) . '</strong>.</p>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Para continuar, clique no botão abaixo. O link é válido por <strong>1 hora</strong>.</p>';
+        $conteudo .= '</div>';
+        $conteudo .= '<div style="text-align:center;margin-bottom:24px;">';
+        $conteudo .= '<a href="' . htmlspecialchars($link) . '" style="display:inline-block;background:' . $corPrimaria . ';color:#fff;padding:14px 40px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Redefinir Senha →</a>';
+        $conteudo .= '</div>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:13px;color:#999;line-height:1.6;text-align:center;">Se o botão não funcionar, copie e cole o link abaixo no seu navegador:</p>';
+        $conteudo .= '<p style="margin:0 0 24px 0;font-size:12px;color:#6b7280;line-height:1.6;word-break:break-all;text-align:center;">' . htmlspecialchars($link) . '</p>';
+        $conteudo .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Se você não solicitou essa redefinição, ignore este e-mail.<br><strong>' . htmlspecialchars($nomeSistema) . '</strong></p>';
+
+        $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);"><div style="background:' . $corPrimaria . ';height:50px;"></div><div style="padding:30px 30px 0 30px;text-align:center;">' . $logoTag . '</div><div style="padding:20px 30px 30px 30px;">' . $conteudo . '</div></div></body></html>';
+
+        $mensagemTxt = "Olá, {$paraNome}!\n\n";
+        $mensagemTxt .= "Recebemos uma solicitação para redefinir a senha do seu acesso ao {$nomeSistema}.\n\n";
+        $mensagemTxt .= "Para continuar, acesse o link abaixo (válido por 1 hora):\n";
+        $mensagemTxt .= "{$link}\n\n";
+        $mensagemTxt .= "Se você não solicitou essa redefinição, ignore este e-mail.\n\n";
+        $mensagemTxt .= "Atenciosamente,\n{$nomeSistema}";
+
+        return enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt);
     }
 }

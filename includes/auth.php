@@ -404,6 +404,7 @@ function autoLoginByToken($token) {
     $row = $stmt->fetch();
 
     if ($row) {
+        session_regenerate_id(true);
         $_SESSION['user_id'] = $row['cliente_id'];
         $_SESSION['user_nome'] = $row['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $row['cpf_cnpj'];

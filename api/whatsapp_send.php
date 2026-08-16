@@ -45,9 +45,39 @@ function enviarWhatsApp($telefone, $mensagem) {
     return ($data && isset($data['key']['id'])) ? true : false;
 }
 
+function renderizarTemplateWhats($template, $fatura, $dias = 0) {
+    $pdo = getConnection();
+    $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = 1");
+    $stmt->execute();
+    $admin = $stmt->fetch();
+    $nomeEmpresa = $admin['nome_fantasia'] ?: getNomeSistema();
+    $linkFatura = getLinkFatura($fatura['id']);
+
+    $substituicoes = [
+        '{nomeEmpresa}' => $nomeEmpresa,
+        '{cliente}' => $fatura['nome_razao'] ?? '',
+        '{numero}' => $fatura['numero'] ?? '',
+        '{data_vencimento}' => date('d/m/Y', strtotime($fatura['data_vencimento'])),
+        '{descricao}' => $fatura['descricao'] ?? '',
+        '{valor}' => number_format($fatura['valor_final'], 2, ',', '.'),
+        '{link_fatura}' => $linkFatura,
+        '{pix}' => $fatura['pix_copia_cola'] ?? '',
+        '{cpf_cnpj}' => $fatura['cpf_cnpj'] ?? '',
+        '{dias}' => $dias,
+    ];
+
+    return str_replace(array_keys($substituicoes), array_values($substituicoes), $template);
+}
+
 function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
     $telefone = $fatura['celular'] ?? $fatura['telefone'] ?? '';
     if (empty($telefone)) return false;
+
+    $template = getConfig(($tipo === 'pagamento') ? 'template_whats_pagamento' : 'template_whats_antes', '');
+    if (!empty(trim($template))) {
+        $msg = renderizarTemplateWhats($template, $fatura, $dias);
+        return enviarWhatsApp($telefone, $msg);
+    }
 
     $pdo = getConnection();
     $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = 1");

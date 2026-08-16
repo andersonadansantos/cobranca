@@ -63,11 +63,12 @@ function generateInvoiceNumber() {
     $ano = date('Y');
     $mes = date('m');
     $pdo = getConnection();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM faturas WHERE YEAR(criado_em) = ?");
-    $stmt->execute([$ano]);
+
+    $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING_INDEX(numero, '-', -1) AS UNSIGNED)) as maior FROM faturas WHERE numero LIKE ? AND numero REGEXP ?");
+    $prefixo = "FAT-{$ano}%";
+    $stmt->execute([$prefixo, '^FAT-[0-9]{6}-[0-9]+$']);
     $row = $stmt->fetch();
-    $sequencia = str_pad($row['total'] + 1, 4, '0', STR_PAD_LEFT);
-    
-    return "FAT-{$ano}{$mes}-{$sequencia}";
+    $sequencia = intval($row['maior'] ?? 0) + 1;
+
+    return "FAT-{$ano}{$mes}-" . str_pad($sequencia, 4, '0', STR_PAD_LEFT);
 }

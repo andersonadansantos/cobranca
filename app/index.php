@@ -109,6 +109,11 @@ $nomeSistema = getNomeSistema();
                 <button type="submit" class="app-btn app-btn-primary" style="margin-bottom:6px;">
                     <i class="fas fa-arrow-right-to-bracket"></i> Entrar
                 </button>
+                <div class="text-center" style="margin-bottom:6px;">
+                    <a href="recuperar_senha.php" style="color:#94a3b8;text-decoration:none;font-size:0.85rem;">
+                        <i class="fas fa-key"></i> Esqueceu sua senha?
+                    </a>
+                </div>
                 <div class="text-center"><small style="color:#94a3b8; font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
             </form>
         </div>

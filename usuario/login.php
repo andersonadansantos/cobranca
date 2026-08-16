@@ -103,7 +103,8 @@ $nomeSistema = getNomeSistema();
                             <label class="form-label">Senha</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                <input type="password" name="senha" class="form-control" placeholder="Digite sua senha" required minlength="6">
+                                <input type="password" name="senha" id="senhaUser" class="form-control" placeholder="Digite sua senha" required minlength="6">
+                                <button type="button" class="btn btn-outline-secondary" onclick="alternarSenha('senhaUser', this)" tabindex="-1" title="Mostrar ou ocultar senha" aria-label="Mostrar ou ocultar senha"><i class="fas fa-eye"></i></button>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -112,11 +113,25 @@ $nomeSistema = getNomeSistema();
                         <button type="submit" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-sign-in-alt me-1"></i> Entrar
                         </button>
+                        <div class="text-center mb-2">
+                            <a href="/cobranca/usuario/recuperar_senha.php" class="text-decoration-none">
+                                <small><i class="fas fa-key me-1"></i> Esqueceu sua senha?</small>
+                            </a>
+                        </div>
                         <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
                     </form>
                 </div>
             </div>
         </div>
     </div>
+<script>
+function alternarSenha(id, btn) {
+    var campo = document.getElementById(id);
+    if (!campo) return;
+    var mostrar = campo.type === 'password';
+    campo.type = mostrar ? 'text' : 'password';
+    btn.innerHTML = mostrar ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
+}
+</script>
 </body>
 </html>

@@ -25,6 +25,13 @@ if (isset($_GET['pago'])) {
 }
 if (isset($_GET['cancelar'])) {
     $id = intval($_GET['cancelar']);
+
+    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND status IN ('pendente','vencido','atrasado')");
+    $stFats->execute([$id]);
+    while ($fat = $stFats->fetch()) {
+        cancelarCobrancaFatura($fat);
+    }
+
     $stmt = $pdo->prepare("UPDATE faturas_recorrentes SET status = 'cancelado' WHERE id = ?");
     $stmt->execute([$id]);
     $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE fatura_recorrente_id = ? AND status IN ('pendente','vencido','atrasado')");
@@ -119,8 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $descricao = trim($_POST['descricao'] ?? '');
     $valor = floatval($_POST['valor'] ?? 0);
     $frequencia = $_POST['frequencia'] ?? 'mensal';
-    $dia_vencimento = intval($_POST['dia_vencimento'] ?? 1);
-    $data_inicio = $_POST['data_inicio'] ?? date('Y-m-d');
+    $dia_vencimento = max(1, min(31, intval($_POST['dia_vencimento'] ?? 1)));
+    $data_inicio = date('Y-m-d');
     $data_fim = !empty($_POST['data_fim']) ? $_POST['data_fim'] : null;
 
     if ($cliente_id <= 0 || empty($descricao) || $valor <= 0) {
@@ -192,9 +199,9 @@ $filtro_busca = trim($_GET['filtro_busca'] ?? '');
 $sql = "
     SELECT base.* FROM (
         SELECT fr.*, c.nome_razao, c.cpf_cnpj, c.celular, c.telefone,
-        (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_link,
-        fr.numero AS ultimo_numero,
-        (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) AS ultimo_status
+        (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_link,
+        (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_numero,
+        (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_status
         FROM faturas_recorrentes fr 
         JOIN clientes c ON fr.cliente_id = c.id 
         WHERE (fr.ativo = 1 OR fr.status = 'cancelado')
@@ -299,8 +306,11 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Frequência</label>
-                        <select name="frequencia" class="form-select">
+<select name="frequencia" class="form-select">
                             <option value="unica">Fatura Única</option>
+                            <option value="diaria">Diária</option>
+                            <option value="semanal">Semanal</option>
+                            <option value="quinzenal">Quinzenal</option>
                             <option value="mensal">Mensal</option>
                             <option value="bimestral">Bimestral</option>
                             <option value="trimestral">Trimestral</option>
@@ -315,10 +325,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <option value="<?= $d ?>" <?= $d === 1 ? 'selected' : '' ?>><?= $d ?></option>
                             <?php endfor; ?>
                         </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Data que começa a cobrar</label>
-                        <input type="date" name="data_inicio" class="form-control" value="<?= date('Y-m-d') ?>">
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary">

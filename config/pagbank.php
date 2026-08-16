@@ -319,6 +319,73 @@ function consultarPedidoPagBank($orderId) {
     return null;
 }
 
+function cancelarPedidoPagBank($orderId) {
+    $config = getConfigPagBank();
+    if (empty($config['pagbank_token'])) {
+        return ['erro' => 'Token do PagBank não configurado.'];
+    }
+
+    $pedido = consultarPedidoPagBank($orderId);
+    if (!$pedido) {
+        return ['erro' => 'Não foi possível consultar o pedido no PagBank para cancelamento.'];
+    }
+
+    $charges = $pedido['charges'] ?? [];
+    if (empty($charges)) {
+        return ['sucesso' => true, 'sem_cobranca' => true];
+    }
+
+    $baseUrl = getPagBankBaseUrl();
+    $erros = [];
+
+    foreach ($charges as $charge) {
+        $chargeId = $charge['id'] ?? '';
+        $status = strtoupper($charge['status'] ?? '');
+        if (empty($chargeId) || in_array($status, ['PAID', 'CANCELED', 'DECLINED', 'REFUNDED'])) {
+            continue;
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $baseUrl . '/orders/' . $orderId . '/charges/' . $chargeId . '/cancel',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode(['amount' => ['value' => $charge['amount']['value'] ?? 0]]),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $config['pagbank_token'],
+                'Accept: application/json',
+            ],
+            CURLOPT_TIMEOUT => 30,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            $erros[] = 'Erro de conexão PagBank: ' . $curlError;
+            continue;
+        }
+
+        $result = json_decode($response, true);
+        error_log("[PAGBANK] Cancelar {$orderId}/{$chargeId} HTTP {$httpCode} | Response: " . substr($response, 0, 300));
+
+        if ($httpCode >= 200 && $httpCode < 300) {
+            return ['sucesso' => true, 'dados' => $result];
+        }
+
+        $erros[] = $result['error_messages'][0]['description'] ?? ($result['message'] ?? 'HTTP ' . $httpCode);
+    }
+
+    if ($erros) {
+        return ['erro' => implode('; ', array_unique($erros))];
+    }
+
+    return ['sucesso' => true, 'sem_cobranca' => true];
+}
+
 function downloadPagBankQrCode($url) {
     $ch = curl_init();
     curl_setopt_array($ch, [

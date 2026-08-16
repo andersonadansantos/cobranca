@@ -3,12 +3,22 @@ require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
+require_once __DIR__ . '/../config/mercadopago.php';
 
 $pdo = getConnection();
 
 // Cancelar fatura
 if (isset($_GET['cancelar'])) {
     $id = intval($_GET['cancelar']);
+
+    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND status != 'pago'");
+    $stFat->execute([$id]);
+    $faturaCancel = $stFat->fetch();
+
+    if ($faturaCancel) {
+        cancelarCobrancaFatura($faturaCancel);
+    }
+
     $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ? AND status != 'pago'");
     $stmt->execute([$id]);
     header('Location: faturas.php?msg=cancelado');

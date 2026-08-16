@@ -5,6 +5,19 @@ require_once __DIR__ . '/../config/email_helpers.php';
 require_once __DIR__ . '/../config/mercadopago.php';
 require_once __DIR__ . '/../api/whatsapp_send.php';
 
+$isHttp = (php_sapi_name() !== 'cli');
+if ($isHttp) {
+    header('Content-Type: text/plain; charset=utf-8');
+    ignore_user_abort(true);
+    set_time_limit(120);
+    $tokenEsperado = getConfig('cron_token', '');
+    $tokenRecebido = $_GET['token'] ?? '';
+    if ($tokenEsperado === '' || !hash_equals($tokenEsperado, $tokenRecebido)) {
+        http_response_code(403);
+        die("Acesso negado - token inválido.");
+    }
+}
+
 $pdo = getConnection();
 if (!$pdo) { die("Erro de conexao"); }
 
@@ -78,6 +91,115 @@ if ($cronAtivo !== '1') {
     die("CRON executado (baixa): " . count($log) . " acoes\n");
 }
 
+// Janela de envio: como o cron-job.org executa a URL a cada poucos minutos,
+// os e-mails/WhatsApp da régua só são enviados dentro da janela configurada
+// em envio_hora (60 minutos a partir do horário definido).
+$envioHora = getConfig('envio_hora', '08:00');
+$tsAlvo = strtotime(date('Y-m-d') . ' ' . $envioHora . ':00');
+$naJanela = false;
+if ($tsAlvo !== false && time() >= $tsAlvo && time() < $tsAlvo + 3600) {
+    $naJanela = true;
+}
+
+// =====================================================
+// GERAÇÃO AUTOMÁTICA DE FATURAS RECORRENTES
+// Gera a próxima fatura quando o prazo da frequência vence.
+// As novas faturas são criadas com ultimo_envio_tipo = NULL
+// e passam pela régua de cobrança abaixo (1º envio, lembretes, etc).
+// =====================================================
+function proximoVencimentoRecorrencia($frequencia, $dataBase, $diaVenc) {
+    if ($frequencia === 'diaria') return date('Y-m-d', strtotime($dataBase . ' +1 day'));
+    if ($frequencia === 'semanal') return date('Y-m-d', strtotime($dataBase . ' +7 days'));
+    if ($frequencia === 'quinzenal') return date('Y-m-d', strtotime($dataBase . ' +15 days'));
+    $meses = [
+        'mensal' => 1, 'bimestral' => 2, 'trimestral' => 3,
+        'semestral' => 6, 'anual' => 12,
+    ][$frequencia] ?? 0;
+    if ($meses <= 0) return null;
+    $dia = max(1, min(31, intval($diaVenc ?: 1)));
+    $ano = intval(date('Y', strtotime($dataBase)));
+    $mesBase = intval(date('m', strtotime($dataBase)));
+    $novoMes = $mesBase + $meses;
+    while ($novoMes > 12) { $novoMes -= 12; $ano++; }
+    $ultimoDia = intval(date('t', strtotime("{$ano}-{$novoMes}-01")));
+    $dia = min($dia, $ultimoDia);
+    return date('Y-m-d', strtotime("{$ano}-{$novoMes}-{$dia}"));
+}
+
+$stmtRec = $pdo->prepare("SELECT fr.*, c.email, c.celular, c.telefone, c.nome_razao, c.cpf_cnpj
+    FROM faturas_recorrentes fr
+    JOIN clientes c ON fr.cliente_id = c.id
+    WHERE fr.ativo = 1 AND (fr.status = 'ativa' OR fr.status IS NULL OR fr.status = '')
+    AND fr.frequencia IS NOT NULL AND fr.frequencia != '' AND fr.frequencia != 'unica'");
+$stmtRec->execute();
+$recorrentes = $stmtRec->fetchAll();
+
+foreach ($recorrentes as $rec) {
+    $stmtUlt = $pdo->prepare("SELECT data_vencimento FROM faturas WHERE fatura_recorrente_id = ? ORDER BY data_vencimento DESC, id DESC LIMIT 1");
+    $stmtUlt->execute([$rec['id']]);
+    $ultima = $stmtUlt->fetch();
+
+    if (!$ultima) {
+        $diaVenc = max(1, min(31, intval($rec['dia_vencimento'] ?? 1)));
+        $primeiraVenc = date('Y-m-' . str_pad($diaVenc, 2, '0', STR_PAD_LEFT));
+        if ($primeiraVenc < $hoje) {
+            $primeiraVenc = date('Y-m-' . str_pad($diaVenc, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
+        }
+        if ($primeiraVenc > $hoje) continue;
+        $proximaVenc = $primeiraVenc;
+    } else {
+        if ($ultima['data_vencimento'] > $hoje) continue;
+        $proximaVenc = proximoVencimentoRecorrencia($rec['frequencia'], $ultima['data_vencimento'], $rec['dia_vencimento'] ?? 1);
+        $guard = 0;
+        while ($proximaVenc !== null && $proximaVenc < $hoje && $guard < 500) {
+            $proximaVenc = proximoVencimentoRecorrencia($rec['frequencia'], $proximaVenc, $rec['dia_vencimento'] ?? 1);
+            $guard++;
+        }
+        if ($proximaVenc === null) continue;
+    }
+
+    if (!empty($rec['data_fim']) && $proximaVenc > $rec['data_fim']) {
+        $pdo->prepare("UPDATE faturas_recorrentes SET ativo = 0, status = 'cancelado' WHERE id = ?")->execute([$rec['id']]);
+        continue;
+    }
+
+    $stmtEx = $pdo->prepare("SELECT COUNT(*) FROM faturas WHERE fatura_recorrente_id = ? AND data_vencimento = ?");
+    $stmtEx->execute([$rec['id'], $proximaVenc]);
+    if ($stmtEx->fetchColumn() > 0) continue;
+
+    $numero = generateInvoiceNumber();
+    $acessoToken = function_exists('generateAcessoToken') ? generateAcessoToken() : bin2hex(random_bytes(32));
+
+    $stmt = $pdo->prepare("INSERT INTO faturas (cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
+    $stmt->execute([$rec['cliente_id'], $rec['id'], $numero, $rec['descricao'], $rec['valor'], $rec['valor'], $proximaVenc, $acessoToken, getApiAtiva()]);
+    $faturaId = $pdo->lastInsertId();
+
+    $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
+    $stmtFat->execute([$faturaId]);
+    $faturaCompleta = $stmtFat->fetch();
+
+    if ($faturaCompleta && !empty($faturaCompleta['email'])) {
+        $faturaCompleta['pix_copia_cola'] = $faturaCompleta['pix_copia_cola'] ?? '';
+        $faturaCompleta['pix_qrcode'] = $faturaCompleta['pix_qrcode'] ?? '';
+        $faturaCompleta['link_pagamento'] = $faturaCompleta['link_pagamento'] ?? '';
+        $resultado = criarPagamento($faturaCompleta['descricao'], $faturaCompleta['valor_final'], $faturaCompleta['email'], $faturaCompleta['nome_razao']);
+        if (isset($resultado['sucesso']) && $resultado['sucesso']) {
+            $qr = $resultado['qr_code_copia_cola'] ?? '';
+            $pixQr = $resultado['qr_code'] ?? '';
+            $link = $resultado['link_pagamento'] ?? '';
+            $apiAtiva = getApiAtiva();
+            if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
+                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?")->execute([$pixQr, $qr, $link, null, $resultado['payment_id'], $faturaId]);
+            } else {
+                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?")->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $faturaId]);
+            }
+            $log[] = "[gerada_pagamento] {$numero} -> {$link}";
+        }
+    }
+
+    $log[] = "[gerada_auto] {$numero} -> {$proximaVenc} (freq {$rec['frequencia']})";
+}
+
 $smtpHost = getConfig('smtp_host', '');
 $smtpPort = getConfig('smtp_port', '587');
 $smtpUser = getConfig('smtp_usuario', '');
@@ -85,6 +207,11 @@ $smtpPass = getConfig('smtp_senha', '');
 $smtpFrom = getConfig('smtp_from_email', '');
 $smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobranca');
 $smtpSsl  = getConfig('smtp_ssl', 'tls');
+
+if (!$naJanela) {
+    file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - Envio de emails fora da janela ({$envioHora}). " . implode(" | ", $log) . "\n", FILE_APPEND);
+    die("CRON executado (fora da janela de envio): " . count($log) . " acoes\n");
+}
 
 if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) { die("SMTP nao configurado"); }
 
@@ -102,7 +229,23 @@ function buscarFaturas($pdo, $statuses) {
 }
 
 function enviarEAtualizar($pdo, $fat, $tipo, $assunto, $html, $txt, $s, &$log) {
-    $enviado = enviarEmail($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt);
+    $anexoPdf = '';
+    if (!empty($fat['pix_copia_cola']) && !in_array($fat['status'] ?? '', ['pago', 'cancelado'])) {
+        if (!function_exists('gerarPixPdfFatura')) {
+            require_once __DIR__ . '/../config/pix_pdf.php';
+        }
+        try {
+            $anexoPdf = gerarPixPdfFatura($fat);
+        } catch (Throwable $e) {
+            $anexoPdf = '';
+        }
+    }
+    if ($anexoPdf && is_file($anexoPdf)) {
+        $enviado = enviarEmailComAnexo($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt, $anexoPdf, 'Fatura_' . $fat['numero'] . '.pdf');
+        @unlink($anexoPdf);
+    } else {
+        $enviado = enviarEmail($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt);
+    }
     if ($enviado) {
         $stmt = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = ? WHERE id = ?");
         $stmt->execute([$tipo, $fat['id']]);
@@ -143,6 +286,22 @@ foreach ($faturas as &$fat) {
     }
 
     if ($tipoEnviado !== null) {
+        if (empty($fat['pix_copia_cola']) && ($fat['status'] ?? '') !== 'pago' && !empty($fat['email'])) {
+            $resultadoPix = criarPagamento($fat['descricao'], $fat['valor_final'], $fat['email'], $fat['nome_razao']);
+            if (isset($resultadoPix['sucesso']) && $resultadoPix['sucesso']) {
+                $fat['pix_qrcode'] = $resultadoPix['qr_code'] ?? '';
+                $fat['pix_copia_cola'] = $resultadoPix['qr_code_copia_cola'] ?? '';
+                $fat['link_pagamento'] = $resultadoPix['link_pagamento'] ?? '';
+                $apiPag = getApiAtiva();
+                if ($apiPag === 'inter' || $apiPag === 'bb') {
+                    $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?")
+                        ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], null, $resultadoPix['payment_id'], $fat['id']]);
+                } else {
+                    $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?")
+                        ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], $resultadoPix['payment_id'] ?? '', $fat['id']]);
+                }
+            }
+        }
         $antes = ($tipoEnviado !== 'atraso');
         $diasRef = 0;
         if ($tipoEnviado === 'lembrete1') $diasRef = $regua2;
