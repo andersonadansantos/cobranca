@@ -4,7 +4,7 @@
 // Criação automática do banco e tabelas
 // =====================================================
 
-define('DB_HOST', '127.0.0.1');
+define('DB_HOST', 'localhost');
 define('DB_PORT', '3306');
 define('DB_NAME', 'cobranca');
 define('DB_USER', 'root');
