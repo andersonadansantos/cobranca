@@ -516,7 +516,7 @@ new Chart(document.getElementById('chartComparativo'), {
                 'rgba(255,193,7,0.75)',
                 saldoLC >= 0 ? 'rgba(13,110,253,0.75)' : 'rgba(220,53,69,0.75)'
             ],
-            borderColor: ['#198754', '#dc3545', '#ffc107', saldoLC >= 0 ? '#0d6efd' : '#dc3545'],
+            borderColor: ['#198754', '#dc3545', '#ffc107', saldoLC >= 0 ? '#0f7b5c' : '#dc3545'],
             borderWidth: 1,
             borderRadius: 6
         }]
@@ -563,7 +563,7 @@ function downloadPDF() {
     html += 'th{background:#f5f5f5;font-weight:bold;}';
     html += '.text-right{text-align:right;}';
     html += '.text-success{color:#198754;}.text-danger{color:#dc3545;}.text-warning{color:#ffc107;}';
-    html += '.text-primary{color:#0d6efd;}.fw-bold{font-weight:bold;}';
+    html += '.text-primary{color:#0f7b5c;}.fw-bold{font-weight:bold;}';
     html += '.totals{margin-top:20px;border-top:2px solid #333;padding-top:10px;}';
     html += '.totals div{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;}';
     html += '@media print{body{padding:10px;}}</style></head><body>';

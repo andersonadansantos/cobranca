@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
     
     if ($acao === 'cores') {
-        $corPrimaria = trim($_POST['cor_primaria'] ?? '#0d6efd');
+        $corPrimaria = trim($_POST['cor_primaria'] ?? '#0f7b5c');
         $corSecundaria = trim($_POST['cor_secundaria'] ?? '#6c757d');
         $corFundo = trim($_POST['cor_fundo'] ?? '#f8f9fa');
         $nomeSistema = trim($_POST['nome_sistema'] ?? 'Sistema de Cobrança');
@@ -179,7 +179,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Cor Primária</label>
-                                <input type="color" name="cor_primaria" class="form-control form-control-color w-100" value="<?= htmlspecialchars($config['cor_primaria'] ?? '#0d6efd') ?>">
+                                <input type="color" name="cor_primaria" class="form-control form-control-color w-100" value="<?= htmlspecialchars($config['cor_primaria'] ?? '#0f7b5c') ?>">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Cor Secundária</label>

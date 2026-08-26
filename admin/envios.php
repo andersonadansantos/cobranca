@@ -347,7 +347,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <button type="submit" name="acao" value="cron" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i> Salvar CRON
                             </button>
-                            <button type="submit" name="acao" value="gerar_token" class="btn btn-outline-danger" onclick="return confirm('Gerar novo token? A URL no cron-job.org precisará ser atualizada.');">
+                            <button type="submit" name="acao" value="gerar_token" class="btn btn-outline-danger" onclick="event.preventDefault(); showConfirmForm('Gerar novo token','Gerar novo token? A URL no cron-job.org precisará ser atualizada.', this.closest('form'))">
                                 <i class="fas fa-key me-1"></i> Gerar novo token
                             </button>
                         </div>
@@ -357,7 +357,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <small class="text-muted d-block mb-1"><strong>Como funciona:</strong></small>
                         <small class="text-muted d-block">• O cron-job.org acessa a URL a cada poucos minutos (conforme você configurar)</small>
                         <small class="text-muted d-block">• A cada acesso: consulta pagamentos e dá baixa automática nas faturas pagas</small>
-                        <small class="text-muted d-block">• Gera faturas recorrentes vencidas e envia conforme a régua de cobrança</small>
+                        <small class="text-muted d-block">• Gera a próxima fatura recorrente ao término do vencimento da anterior (mesmo que não paga) e envia conforme a régua de cobrança</small>
                         <small class="text-muted d-block">• E-mails/WhatsApp da régua só são enviados dentro da janela de 1h a partir do horário configurado acima (<?= htmlspecialchars($config['envio_hora'] ?? '08:00') ?>)</small>
                         <small class="text-muted d-block">• Não envia o mesmo tipo de e-mail duas vezes para a mesma fatura no mesmo dia</small>
                     </div>

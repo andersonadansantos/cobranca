@@ -29,7 +29,40 @@
     <?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/cobranca/assets/js/main.js"></script>
+    <script src="/cobranca/assets/js/main.js?v=<?= filemtime($_SERVER['DOCUMENT_ROOT'] . '/cobranca/assets/js/main.js') ?>"></script>
+    <script>
+    (function(){
+        var topbar = document.querySelector('.topbar');
+        if (!topbar) return;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-outline-secondary';
+        btn.style.cssText = 'border-radius:8px;padding:5px 10px;font-size:0.8rem;margin-left:4px;';
+        btn.title = 'Alternar tema';
+        var current = localStorage.getItem('theme') || 'light';
+        function updateIcon(theme) {
+            var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            btn.innerHTML = isDark ? '<i class="bi bi-sun-fill"></i>' : '<i class="bi bi-moon-fill"></i>';
+        }
+        updateIcon(current);
+        btn.addEventListener('click', function(){
+            var t = localStorage.getItem('theme') || 'light';
+            var next = t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light';
+            localStorage.setItem('theme', next);
+            var isDark = next === 'dark' || (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.setAttribute('data-bs-theme', isDark ? 'dark' : 'light');
+            updateIcon(next);
+        });
+        var suporte = topbar.querySelector('a[href*="wa.me"]');
+        if (suporte) {
+            suporte.parentNode.insertBefore(btn, suporte.nextSibling);
+        } else {
+            var msauto = topbar.querySelector('.ms-auto');
+            if (msauto) msauto.parentNode.insertBefore(btn, msauto.nextSibling);
+            else topbar.appendChild(btn);
+        }
+    })();
+    </script>
     <script>
     function copiarPix(code) {
         if (!code) {
@@ -125,6 +158,21 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" id="confirmModalFormBtn" class="btn btn-danger btn-sm">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title" id="alertModalTitle"></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="alertModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">OK</button>
                 </div>
             </div>
         </div>

@@ -24,7 +24,7 @@ if (!$pdo) { die("Erro de conexao"); }
 $log = [];
 $hoje = date('Y-m-d');
 
-$faturasPendentes = $pdo->prepare("SELECT f.*, c.email, c.celular, c.telefone, c.nome_razao, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ('pendente','vencido','atrasado') AND (f.mp_payment_id IS NOT NULL AND f.mp_payment_id != '' OR f.inter_codigo_solicitacao IS NOT NULL AND f.inter_codigo_solicitacao != '')");
+$faturasPendentes = $pdo->prepare("SELECT f.*, c.email, c.email2, c.celular, c.telefone, c.nome_razao, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ('pendente','vencido','atrasado') AND (f.mp_payment_id IS NOT NULL AND f.mp_payment_id != '' OR f.inter_codigo_solicitacao IS NOT NULL AND f.inter_codigo_solicitacao != '')");
 $faturasPendentes->execute();
 $pendentes = $faturasPendentes->fetchAll();
 
@@ -103,7 +103,11 @@ if ($tsAlvo !== false && time() >= $tsAlvo && time() < $tsAlvo + 3600) {
 
 // =====================================================
 // GERAÇÃO AUTOMÁTICA DE FATURAS RECORRENTES
-// Gera a próxima fatura quando o prazo da frequência vence.
+// Regra: a próxima fatura é gerada SEMPRE no término da data
+// de vencimento da última fatura da recorrência, INDEPENDENTE
+// do status dela (paga, pendente ou vencida). Ou seja, a cada
+// ciclo da frequência uma nova fatura é emitida, mesmo que a
+// anterior continue em aberto.
 // As novas faturas são criadas com ultimo_envio_tipo = NULL
 // e passam pela régua de cobrança abaixo (1º envio, lembretes, etc).
 // =====================================================
@@ -135,6 +139,8 @@ $stmtRec->execute();
 $recorrentes = $stmtRec->fetchAll();
 
 foreach ($recorrentes as $rec) {
+    // Última fatura da recorrência por data de vencimento, SEM filtrar
+    // por status: o pagamento (ou não) da anterior não bloqueia a geração.
     $stmtUlt = $pdo->prepare("SELECT data_vencimento FROM faturas WHERE fatura_recorrente_id = ? ORDER BY data_vencimento DESC, id DESC LIMIT 1");
     $stmtUlt->execute([$rec['id']]);
     $ultima = $stmtUlt->fetch();
@@ -148,6 +154,8 @@ foreach ($recorrentes as $rec) {
         if ($primeiraVenc > $hoje) continue;
         $proximaVenc = $primeiraVenc;
     } else {
+        // Só avança quando a última fatura CHEGOU ao vencimento
+        // (data_vencimento <= hoje), pago ou não.
         if ($ultima['data_vencimento'] > $hoje) continue;
         $proximaVenc = proximoVencimentoRecorrencia($rec['frequencia'], $ultima['data_vencimento'], $rec['dia_vencimento'] ?? 1);
         $guard = 0;
@@ -174,7 +182,7 @@ foreach ($recorrentes as $rec) {
     $stmt->execute([$rec['cliente_id'], $rec['id'], $numero, $rec['descricao'], $rec['valor'], $rec['valor'], $proximaVenc, $acessoToken, getApiAtiva()]);
     $faturaId = $pdo->lastInsertId();
 
-    $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
+    $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
     $stmtFat->execute([$faturaId]);
     $faturaCompleta = $stmtFat->fetch();
 
@@ -223,7 +231,7 @@ $regua5 = intval(getConfig('regua_5_dias_depois', '0'));
 
 function buscarFaturas($pdo, $statuses) {
     $ph = implode(',', array_fill(0, count($statuses), '?'));
-    $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ($ph) AND c.email IS NOT NULL AND c.email != ''");
+    $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ($ph) AND (c.email IS NOT NULL AND c.email != '' OR c.email2 IS NOT NULL AND c.email2 != '')");
     $stmt->execute($statuses);
     return $stmt->fetchAll();
 }

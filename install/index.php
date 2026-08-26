@@ -135,10 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .install-header h4 { font-weight: 700; margin: 0; }
         .install-header small { opacity: .7; }
         .step-num { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
-        .step-active { background: #0d6efd; color: #fff; }
+        .step-active { background: #0f7b5c; color: #fff; }
         .step-done { background: #198754; color: #fff; }
         .step-pending { background: #dee2e6; color: #6c757d; }
-        .form-control:focus { border-color: #0d6efd; box-shadow: 0 0 0 .2rem rgba(13,110,253,.15); }
+        .form-control:focus { border-color: #0f7b5c; box-shadow: 0 0 0 .2rem rgba(15,123,92,.15); }
     </style>
 </head>
 <body>

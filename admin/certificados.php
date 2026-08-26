@@ -190,12 +190,10 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                                         <i class="fas fa-<?= $c['ativo'] ? 'ban' : 'check' ?>"></i>
                                                     </button>
                                                 </form>
-                                                <form method="POST" class="d-inline" onsubmit="return confirm('Excluir este certificado?')">
+                                                <form method="POST" class="d-inline">
                                                     <input type="hidden" name="acao" value="excluir">
                                                     <input type="hidden" name="cert_id" value="<?= $c['id'] ?>">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Excluir">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" title="Excluir" onclick="confirmarExclusao('certificado <?= htmlspecialchars(addslashes($c['nome'])) ?>', null, this.closest('form'))"><i class="fas fa-trash"></i></button>
                                                 </form>
                                             </div>
                                         </td>

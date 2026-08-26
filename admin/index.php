@@ -265,14 +265,13 @@ $lcSaldo = $lcTotalEntradas - $lcTotalSaidas - $lcTotalCustos;
                             <th>Valor</th>
                             <th>Vencimento</th>
                             <th>Status</th>
-                            <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($faturasRecentes)): ?>
-                            <tr><td colspan="6" class="text-center text-muted py-4">Nenhuma fatura encontrada</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma fatura encontrada</td></tr>
                         <?php else: foreach ($faturasRecentes as $f): ?>
-                            <tr style="<?= $f['status'] === 'cancelado' ? 'opacity:0.55; pointer-events:none;' : '' ?>">
+                            <tr style="<?= $f['status'] === 'cancelado' ? 'opacity:0.55;' : '' ?>">
                                 <td><strong><?= htmlspecialchars($f['numero']) ?></strong></td>
                                 <td><?= htmlspecialchars($f['nome_razao']) ?></td>
                                 <td>R$ <?= number_format($f['valor_final'], 2, ',', '.') ?></td>
@@ -289,15 +288,6 @@ $lcSaldo = $lcTotalEntradas - $lcTotalSaidas - $lcTotalCustos;
                                     $classe = $classes[$f['status']] ?? 'badge-pendente';
                                     ?>
                                     <span class="badge-status <?= $classe ?>"><?= ucfirst($f['status']) ?></span>
-                                </td>
-                                <td>
-                                    <?php if ($f['status'] !== 'cancelado'): ?>
-                                    <a href="faturas.php?cliente_id=<?= $f['cliente_id'] ?>" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    <?php else: ?>
-                                        <small class="text-muted">--</small>
-                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>
@@ -399,7 +389,7 @@ new Chart(document.getElementById('chartLivroCaixaMini'), {
                 'rgba(255,193,7,0.75)',
                 <?= $lcSaldo >= 0 ? "'rgba(13,110,253,0.75)'" : "'rgba(220,53,69,0.75)'" ?>
             ],
-            borderColor: ['#198754', '#dc3545', '#ffc107', <?= $lcSaldo >= 0 ? "'#0d6efd'" : "'#dc3545'" ?>],
+            borderColor: ['#198754', '#dc3545', '#ffc107', <?= $lcSaldo >= 0 ? "'#0f7b5c'" : "'#dc3545'" ?>],
             borderWidth: 1,
             borderRadius: 6
         }]

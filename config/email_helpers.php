@@ -597,12 +597,24 @@ if (!function_exists('enviarEmailFatura')) {
                 $anexoPdf = '';
             }
         }
+
+        $ret = false;
         if ($anexoPdf && is_file($anexoPdf)) {
             $ret = enviarEmailComAnexo($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexoPdf, 'Fatura_' . $fatura['numero'] . '.pdf');
             @unlink($anexoPdf);
-            return $ret;
+        } else {
+            $ret = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
         }
-        return enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+
+        if (!empty($fatura['email2'])) {
+            if ($anexoPdf && is_file($anexoPdf)) {
+                enviarEmailComAnexo($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexoPdf, 'Fatura_' . $fatura['numero'] . '.pdf');
+            } else {
+                enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+            }
+        }
+
+        return $ret;
     }
 }
 
@@ -689,7 +701,13 @@ if (!function_exists('enviarEmailPagamento')) {
         $msgHtml = montarMensagemPagamentoHtml($fatura);
         $msgTxt  = montarMensagemPagamentoTxt($fatura);
 
-        return enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+        $ret = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+
+        if (!empty($fatura['email2'])) {
+            enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+        }
+
+        return $ret;
     }
 }
 

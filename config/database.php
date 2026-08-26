@@ -46,8 +46,16 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `token_recuperacao_expira` DATETIME DEFAULT NULL AFTER `token_recuperacao`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `clientes` ADD COLUMN `token_recuperacao_expira` DATETIME DEFAULT NULL AFTER `token_recuperacao`"); } catch (PDOException $e) {}
 
+        try { $pdo->exec("ALTER TABLE `clientes` ADD COLUMN `email2` VARCHAR(150) DEFAULT NULL AFTER `email`"); } catch (PDOException $e) {}
+
+        try { $pdo->exec("ALTER TABLE `clientes` MODIFY COLUMN `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `clientes` MODIFY COLUMN `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"); } catch (PDOException $e) {}
+
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `status` VARCHAR(20) DEFAULT 'ativa' AFTER `ativo`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `ativo` TINYINT(1) NOT NULL DEFAULT 1"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'ativa'"); } catch (PDOException $e) {}
+        try { $pdo->exec("UPDATE `faturas_recorrentes` SET `ativo` = 1, `status` = 'ativa' WHERE `ativo` IS NULL OR `status` IS NULL"); } catch (PDOException $e) {}
 
         try {
             $pdo->exec("CREATE TABLE IF NOT EXISTS `usuarios_admin` (
@@ -184,6 +192,7 @@ function criarTabelas($pdo) {
         `cpf_cnpj` VARCHAR(20) NOT NULL UNIQUE,
         `rg_ie` VARCHAR(20),
         `email` VARCHAR(150),
+        `email2` VARCHAR(150),
         `telefone` VARCHAR(20),
         `celular` VARCHAR(20),
         `cep` VARCHAR(10),
@@ -277,7 +286,7 @@ function criarTabelas($pdo) {
         ['mp_access_token', ''],
         ['mp_public_key', ''],
         ['mp_webhook_url', ''],
-        ['cor_primaria', '#0d6efd'],
+        ['cor_primaria', '#0f7b5c'],
         ['cor_secundaria', '#6c757d'],
         ['cor_fundo', '#f8f9fa'],
         ['logo_empresa', ''],

@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/settings.php';
+require_once __DIR__ . '/asaas.php';
 
 function getMPConfig() {
     $pdo = getConnection();
@@ -209,6 +210,9 @@ function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome) {
     if ($api === 'pix_manual') {
         return criarPagamentoPixManual($descricao, $valor, $clienteEmail, $clienteNome);
     }
+    if ($api === 'asaas') {
+        return criarPagamentoAsaas($descricao, $valor, $clienteEmail, $clienteNome);
+    }
     if ($api === 'pagbank') {
         if (!function_exists('criarPedidoPixPagBank')) {
             require_once __DIR__ . '/pagbank.php';
@@ -238,6 +242,9 @@ function criarBoleto($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cliente
     if ($api === 'bb') {
         return criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
     }
+    if ($api === 'asaas') {
+        return criarBoletoAsaas($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+    }
     if ($api === 'pagbank') {
         if (!function_exists('criarPedidoBoletoPagBank')) {
             require_once __DIR__ . '/pagbank.php';
@@ -256,9 +263,20 @@ function getConfigInter() {
     return $config;
 }
 
+function resolverCaminhoCert($caminho) {
+    if (!empty($caminho) && !file_exists($caminho)) {
+        $nome = basename(str_replace('\\', '/', $caminho));
+        $alternativo = __DIR__ . '/inter_certs/' . $nome;
+        if (file_exists($alternativo)) {
+            return $alternativo;
+        }
+    }
+    return $caminho;
+}
+
 function getInterBaseUrl() {
     $config = getConfigInter();
-    $certCrt = $config['inter_cert_crt'] ?? '';
+    $certCrt = resolverCaminhoCert($config['inter_cert_crt'] ?? '');
     if (!empty($certCrt) && file_exists($certCrt)) {
         $certData = openssl_x509_parse(file_get_contents($certCrt));
         $issuerCn = $certData['issuer']['CN'] ?? '';
@@ -275,8 +293,8 @@ function obterTokenInter() {
     if (empty($config['inter_client_id']) || empty($config['inter_client_secret'])) {
         return ['erro' => 'Credenciais do Banco Inter não configuradas.'];
     }
-    $certCrt = $config['inter_cert_crt'] ?? '';
-    $certKey = $config['inter_cert_key'] ?? '';
+    $certCrt = resolverCaminhoCert($config['inter_cert_crt'] ?? '');
+    $certKey = resolverCaminhoCert($config['inter_cert_key'] ?? '');
     if (empty($certCrt) || empty($certKey) || !file_exists($certCrt) || !file_exists($certKey)) {
         return ['erro' => 'Certificados do Banco Inter não configurados ou não encontrados.'];
     }
@@ -333,8 +351,8 @@ function criarCobrancaInter($dados) {
     if (isset($token['erro'])) {
         return $token;
     }
-    $certCrt = $config['inter_cert_crt'] ?? '';
-    $certKey = $config['inter_cert_key'] ?? '';
+    $certCrt = resolverCaminhoCert($config['inter_cert_crt'] ?? '');
+    $certKey = resolverCaminhoCert($config['inter_cert_key'] ?? '');
     $contaDigitos = preg_replace('/[^0-9]/', '', $config['inter_conta'] ?? '');
     $conta = ltrim(substr($contaDigitos, 4), '0');
     $ch = curl_init();
@@ -371,7 +389,7 @@ function criarCobrancaInter($dados) {
     $violacoes = '';
     if (!empty($result['violacoes'])) {
         foreach ($result['violacoes'] as $v) {
-            $violacoes .= ($v['razao'] ?? '') . ' ';
+            $violacoes .= '[' . ($v['campo'] ?? 'campo?') . '] ' . ($v['razao'] ?? '') . '  ';
         }
     }
     return ['erro' => trim($erroMsg . ' ' . $detalhes . ' ' . $violacoes)];
@@ -383,8 +401,8 @@ function consultarCobrancaInter($codigoSolicitacao) {
     if (isset($token['erro'])) {
         return ['erro' => $token['erro']];
     }
-    $certCrt = $config['inter_cert_crt'] ?? '';
-    $certKey = $config['inter_cert_key'] ?? '';
+    $certCrt = resolverCaminhoCert($config['inter_cert_crt'] ?? '');
+    $certKey = resolverCaminhoCert($config['inter_cert_key'] ?? '');
     $contaDigitos = preg_replace('/[^0-9]/', '', $config['inter_conta'] ?? '');
     $conta = ltrim(substr($contaDigitos, 4), '0');
     $ch = curl_init();
@@ -427,8 +445,8 @@ function obterPdfInter($codigoSolicitacao) {
     if (isset($token['erro'])) {
         return null;
     }
-    $certCrt = $config['inter_cert_crt'] ?? '';
-    $certKey = $config['inter_cert_key'] ?? '';
+    $certCrt = resolverCaminhoCert($config['inter_cert_crt'] ?? '');
+    $certKey = resolverCaminhoCert($config['inter_cert_key'] ?? '');
     $contaDigitos = preg_replace('/[^0-9]/', '', $config['inter_conta'] ?? '');
     $conta = ltrim(substr($contaDigitos, 4), '0');
     $ch = curl_init();
@@ -473,14 +491,14 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome) {
     $pagador = [
         'cpfCnpj' => $cpfCnpj ?: '00000000000',
         'tipoPessoa' => $tipoPessoa,
-        'nome' => $cli['nome_razao'] ?? ($clienteNome ?: 'Pagador'),
+        'nome' => mb_substr($cli['nome_razao'] ?? ($clienteNome ?: 'Pagador'), 0, 60),
         'email' => $cli['email'] ?? ($clienteEmail ?: ''),
-        'endereco' => $cli['logradouro'] ?? 'NAO INFORMADO',
+        'endereco' => mb_substr($cli['logradouro'] ?? 'NAO INFORMADO', 0, 100),
         'numero' => $cli['numero'] ?? '0',
         'complemento' => $cli['complemento'] ?? '',
-        'bairro' => $cli['bairro'] ?? 'NAO INFORMADO',
-        'cidade' => $cli['cidade'] ?? 'SAO PAULO',
-        'uf' => $cli['estado'] ?? 'SP',
+        'bairro' => mb_substr($cli['bairro'] ?? 'NAO INFORMADO', 0, 50),
+        'cidade' => mb_substr($cli['cidade'] ?? 'SAO PAULO', 0, 60),
+        'uf' => substr(preg_replace('/[^A-Za-z]/', '', $cli['estado'] ?? 'SP'), 0, 2) ?: 'SP',
         'cep' => str_pad(preg_replace('/[^0-9]/', '', $cli['cep'] ?? ''), 8, '0', STR_PAD_LEFT) ?: '01000000',
     ];
     $dados = [
@@ -528,28 +546,54 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome) {
 }
 
 function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
-    $cpfCnpj = preg_replace('/[^0-9]/', '', $clienteCpfCnpj);
-    $tipoPessoa = strlen($cpfCnpj) === 11 ? 'FISICA' : 'JURIDICA';
+    $cpfCnpj = preg_replace('/[^0-9]/', '', (string) $clienteCpfCnpj);
+    $nome = mb_substr(trim((string) $clienteNome), 0, 60);
+    $endereco = mb_substr(trim((string) $clienteLogradouro), 0, 100);
+    $bairro = mb_substr(trim((string) $clienteBairro), 0, 50);
+    $cidade = mb_substr(trim((string) $clienteCidade), 0, 60);
+    $uf = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $clienteEstado));
+    $cep = preg_replace('/[^0-9]/', '', (string) $clienteCep);
+    $email = trim((string) $clienteEmail);
+
+    // Validação prévia — o Inter exige pagador completo
+    $faltando = [];
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        $faltando[] = 'CPF/CNPJ inválido';
+    }
+    if ($nome === '') { $faltando[] = 'nome'; }
+    if ($endereco === '') { $faltando[] = 'endereço (logradouro)'; }
+    if ($bairro === '') { $faltando[] = 'bairro'; }
+    if ($cidade === '') { $faltando[] = 'cidade'; }
+    if (strlen($uf) !== 2) { $faltando[] = 'UF (sigla com 2 letras)'; }
+    if (strlen($cep) !== 8) { $faltando[] = 'CEP (8 dígitos)'; }
+    if (!empty($faltando)) {
+        return ['erro' => 'Cadastro do cliente incompleto para o Banco Inter. Faltando/preencha: ' . implode(', ', $faltando) . '.'];
+    }
+
+    $pagador = [
+        'cpfCnpj' => $cpfCnpj,
+        'tipoPessoa' => strlen($cpfCnpj) === 11 ? 'FISICA' : 'JURIDICA',
+        'nome' => $nome,
+        'endereco' => $endereco,
+        'numero' => trim((string) $clienteNumero) !== '' ? mb_substr(trim((string) $clienteNumero), 0, 10) : '0',
+        'complemento' => '',
+        'bairro' => $bairro,
+        'cidade' => $cidade,
+        'uf' => $uf,
+        'cep' => $cep,
+    ];
+    if ($email !== '') {
+        $pagador['email'] = mb_substr($email, 0, 100);
+    }
+
     $dados = [
         'seuNumero' => substr('BOL' . date('ymd') . rand(100, 999), 0, 15),
         'valorNominal' => (float) $valor,
         'dataVencimento' => date('Y-m-d'),
         'numDiasAgenda' => 30,
-        'pagador' => [
-            'cpfCnpj' => $cpfCnpj,
-            'tipoPessoa' => $tipoPessoa,
-            'nome' => $clienteNome ?: '',
-            'email' => $clienteEmail ?: '',
-            'endereco' => $clienteLogradouro ?: '',
-            'numero' => $clienteNumero ?: '0',
-            'complemento' => '',
-            'bairro' => $clienteBairro ?: '',
-            'cidade' => $clienteCidade ?: '',
-            'uf' => $clienteEstado ?: '',
-            'cep' => str_pad(preg_replace('/[^0-9]/', '', $clienteCep ?: ''), 8, '0', STR_PAD_LEFT) ?: '01000000',
-        ],
+        'pagador' => $pagador,
         'mensagem' => [
-            'linha1' => $descricao,
+            'linha1' => mb_substr(trim((string) $descricao), 0, 100),
         ],
     ];
     $resultado = criarCobrancaInter($dados);
@@ -760,8 +804,8 @@ function cancelarCobrancaInter($codigoSolicitacao) {
     if (isset($token['erro'])) {
         return ['erro' => $token['erro']];
     }
-    $certCrt = $config['inter_cert_crt'] ?? '';
-    $certKey = $config['inter_cert_key'] ?? '';
+    $certCrt = resolverCaminhoCert($config['inter_cert_crt'] ?? '');
+    $certKey = resolverCaminhoCert($config['inter_cert_key'] ?? '');
     $contaDigitos = preg_replace('/[^0-9]/', '', $config['inter_conta'] ?? '');
     $conta = ltrim(substr($contaDigitos, 4), '0');
     $ch = curl_init();
@@ -863,6 +907,10 @@ function cancelarCobrancaFatura($fatura) {
             require_once __DIR__ . '/pagbank.php';
         }
         return cancelarPedidoPagBank($fatura['mp_payment_id']);
+    }
+
+    if ($api === 'asaas' && !empty($fatura['mp_payment_id'])) {
+        return cancelarCobrancaAsaas($fatura['mp_payment_id']);
     }
 
     return ['sucesso' => true, 'sem_cobranca' => true];

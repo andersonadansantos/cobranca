@@ -88,13 +88,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipo = 'success';
     }
 
+    if ($acao === 'salvar_asaas') {
+        $pdo = getConnection();
+        $campos = ['asaas_api_key', 'asaas_ambiente', 'asaas_webhook_url', 'asaas_webhook_token'];
+        foreach ($campos as $campo) {
+            $valor = trim($_POST[$campo] ?? '');
+            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
+            $stmt->execute([$campo, $valor, $valor]);
+        }
+        $mensagem = 'Configurações do Asaas salvas com sucesso!';
+        $tipo = 'success';
+    }
+
     if ($acao === 'ativar_api') {
         $pdo = getConnection();
         $api = $_POST['api'] ?? '';
-        if (in_array($api, ['mercadopago', 'inter', 'bb', 'pix_manual'])) {
+        if (in_array($api, ['mercadopago', 'inter', 'bb', 'pix_manual', 'asaas'])) {
             $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
             $stmt->execute(['api_pagamento_ativa', $api, $api]);
-            $nomes = ['mercadopago' => 'Mercado Pago', 'inter' => 'Banco Inter', 'bb' => 'Banco do Brasil', 'pix_manual' => 'PIX Manual'];
+            $nomes = ['mercadopago' => 'Mercado Pago', 'inter' => 'Banco Inter', 'bb' => 'Banco do Brasil', 'pix_manual' => 'PIX Manual', 'asaas' => 'ASAAS'];
             $mensagem = "API ativa alterada para {$nomes[$api]}!";
             $tipo = 'success';
         }
@@ -148,6 +160,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <span class="badge bg-info fs-6"><i class="fas fa-university me-1"></i> Banco Inter</span>
                     <?php elseif ($apiAtiva === 'pix_manual'): ?>
                         <span class="badge bg-warning text-dark fs-6"><i class="fas fa-qrcode me-1"></i> PIX Manual</span>
+                    <?php elseif ($apiAtiva === 'asaas'): ?>
+                        <span class="badge fs-6" style="background:#1CC3F2;"><span style="font-weight:800;">asaas</span></span>
                     <?php else: ?>
                         <span class="badge bg-secondary fs-6">Nenhuma</span>
                     <?php endif; ?>
@@ -176,6 +190,14 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <button class="nav-link <?= $apiAtiva === 'pix_manual' ? 'active' : '' ?>" id="pixManual-tab" data-bs-toggle="tab" data-bs-target="#pixManual" type="button" role="tab">
                     <i class="fas fa-qrcode me-1"></i> PIX Manual
                     <?php if ($apiAtiva === 'pix_manual'): ?>
+                        <span class="badge bg-success ms-1">Ativa</span>
+                    <?php endif; ?>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?= $apiAtiva === 'asaas' ? 'active' : '' ?>" id="asaas-tab" data-bs-toggle="tab" data-bs-target="#asaas" type="button" role="tab">
+                    <span style="font-weight:800;color:#1CC3F2;margin-right:6px;">asaas</span> ASAAS
+                    <?php if ($apiAtiva === 'asaas'): ?>
                         <span class="badge bg-success ms-1">Ativa</span>
                     <?php endif; ?>
                 </button>
@@ -475,6 +497,103 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <div class="d-flex align-items-center">
                                     <span class="badge bg-secondary me-2"><i class="fas fa-times"></i></span>
                                     <span>Não configurado</span>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== ASAAS ==================== -->
+            <div class="tab-pane fade show <?= $apiAtiva === 'asaas' ? 'active' : '' ?>" id="asaas" role="tabpanel">
+                <?php $asaasConfig = getAsaasConfig(); ?>
+                <div class="d-flex flex-column flex-lg-row gap-4">
+                    <div class="flex-fill" style="min-width:0;">
+                        <h6 class="mb-3 tw-font-bold tw-text-slate-700">
+                            <span class="badge-api-active" style="background:#e0f7ff;color:#0e7490;">asaas</span>
+                            — Credenciais do Asaas
+                        </h6>
+                        <div class="alert alert-info tw-text-sm">
+                            <i class="fas fa-info-circle tw-flex-shrink-0"></i>
+                            <div>
+                                Acesse <a href="https://www.asaas.com/c/documents/apiReference" target="_blank" class="tw-font-semibold">Asaas API Reference</a> para obter sua chave de API. O sistema emite cobranças <strong>PIX</strong> (QR Code + copia e cola) e <strong>Boleto</strong>.
+                            </div>
+                        </div>
+                        <form method="POST">
+                            <input type="hidden" name="acao" value="salvar_asaas">
+                            <div class="d-flex flex-column gap-3">
+                                <div>
+                                    <label class="form-label">API Key</label>
+                                    <input type="password" name="asaas_api_key" class="form-control font-monospace"
+                                        placeholder="$aact_prod_000MzkmOLVtQWYNaYAFpaqSVJAsIRLJx"
+                                        value="<?= htmlspecialchars($asaasConfig['asaas_api_key'] ?? '') ?>">
+                                    <small class="form-text">Chave de API disponível em Configurações &gt; Integrações no painel do Asaas</small>
+                                </div>
+                                <div class="d-flex flex-column flex-md-row gap-3">
+                                    <div class="flex-fill">
+                                        <label class="form-label">Ambiente</label>
+                                        <select name="asaas_ambiente" class="form-select">
+                                            <option value="producao" <?= ($asaasConfig['asaas_ambiente'] ?? 'producao') === 'producao' ? 'selected' : '' ?>>Produção</option>
+                                            <option value="sandbox" <?= ($asaasConfig['asaas_ambiente'] ?? '') === 'sandbox' ? 'selected' : '' ?>>Sandbox</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex-fill">
+                                        <label class="form-label">Token do Webhook (opcional)</label>
+                                        <input type="text" name="asaas_webhook_token" class="form-control font-monospace"
+                                            placeholder="Token de segurança do webhook"
+                                            value="<?= htmlspecialchars($asaasConfig['asaas_webhook_token'] ?? '') ?>">
+                                        <small class="form-text">Valida o header asaas-access-token das notificações</small>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="form-label">URL do Webhook</label>
+                                    <input type="url" name="asaas_webhook_url" class="form-control"
+                                        placeholder="https://seudominio.com/cobranca/api/webhook_asaas.php"
+                                        value="<?= htmlspecialchars($asaasConfig['asaas_webhook_url'] ?? '') ?>">
+                                    <small class="form-text">Cadastre no painel do Asaas para receber confirmações de pagamento</small>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Salvar Configurações
+                                </button>
+                            </div>
+                        </form>
+                        <?php if ($apiAtiva !== 'asaas'): ?>
+                        <form method="POST" class="mt-3">
+                            <input type="hidden" name="acao" value="ativar_api">
+                            <input type="hidden" name="api" value="asaas">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-power-off"></i> Ativar ASAAS
+                            </button>
+                        </form>
+                        <?php endif; ?>
+                    </div>
+                    <div style="width:300px;flex-shrink:0;">
+                        <div class="form-card">
+                            <h6 class="mb-3"><i class="fas fa-question-circle me-2 tw-text-slate-400"></i> Como Configurar</h6>
+                            <ol class="small tw-text-slate-500 tw-mb-0" style="padding-left:20px;line-height:1.8;">
+                                <li class="mb-2">Crie sua conta no <a href="https://www.asaas.com" target="_blank" class="tw-font-semibold">Asaas</a></li>
+                                <li class="mb-2">Copie a <strong class="tw-text-slate-600">API Key</strong> em Integrações</li>
+                                <li class="mb-2">Selecione o <strong class="tw-text-slate-600">Ambiente</strong> (Produção ou Sandbox)</li>
+                                <li class="mb-2">No painel do Asaas, cadastre o <strong class="tw-text-slate-600">Webhook</strong> com a URL acima e os eventos (<em>PAYMENT_RECEIVED / PAYMENT_CONFIRMED</em>)</li>
+                                <li class="mb-2">O cliente precisa ter <strong class="tw-text-slate-600">CPF/CNPJ cadastrado</strong> no sistema</li>
+                                <li class="mb-2">Salve e clique em <strong class="tw-text-slate-600">Ativar ASAAS</strong></li>
+                            </ol>
+                        </div>
+                        <div class="form-card mt-3">
+                            <h6 class="mb-3"><i class="fas fa-server me-2 tw-text-slate-400"></i> Status</h6>
+                            <?php if (!empty($asaasConfig['asaas_api_key'])): ?>
+                                <div class="d-flex align-items-center gap-2 tw-text-sm">
+                                    <span class="badge bg-success tw-rounded-full"><i class="fas fa-check"></i></span>
+                                    <span class="tw-font-semibold tw-text-slate-700">Credenciais configuradas</span>
+                                </div>
+                                <small class="form-text d-block mt-2">Ambiente: <?= ucfirst($asaasConfig['asaas_ambiente'] ?: 'producao') ?></small>
+                                <small class="form-text d-block">API Key: <?= htmlspecialchars(substr($asaasConfig['asaas_api_key'], 0, 12)) ?>...</small>
+                            <?php else: ?>
+                                <div class="d-flex align-items-center gap-2 tw-text-sm">
+                                    <span class="badge bg-secondary tw-rounded-full"><i class="fas fa-times"></i></span>
+                                    <span class="tw-text-slate-500">Não configurado</span>
                                 </div>
                             <?php endif; ?>
                         </div>

@@ -32,7 +32,7 @@ if ($fatura['status'] === 'pago') {
     exit;
 }
 
-$apiAtiva = getApiAtiva();
+$apiAtiva = $fatura['api_pagamento'] ?: getApiAtiva();
 $novoStatus = $fatura['status'];
 $dataPagamento = null;
 
@@ -65,6 +65,29 @@ if ($apiAtiva === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
             case 'RECEBIDO':
                 $novoStatus = 'pago';
                 $dataPagamento = date('Y-m-d');
+                break;
+        }
+    }
+} elseif ($apiAtiva === 'asaas' && !empty($fatura['mp_payment_id'])) {
+    $pagamento = consultarPagamentoAsaas($fatura['mp_payment_id']);
+    if ($pagamento && !isset($pagamento['erro'])) {
+        $statusAsaas = strtoupper($pagamento['status'] ?? '');
+        switch ($statusAsaas) {
+            case 'RECEIVED':
+            case 'CONFIRMED':
+            case 'RECEIVED_IN_CASH':
+                $novoStatus = 'pago';
+                $dataPagamento = date('Y-m-d');
+                break;
+            case 'OVERDUE':
+                $novoStatus = 'vencido';
+                break;
+            case 'REFUNDED':
+            case 'CHARGEBACK_REQUESTED':
+            case 'CHARGEBACK_DISPUTE':
+            case 'PAYMENT_DELETED':
+            case 'PAYMENT_FAILED':
+                $novoStatus = 'cancelado';
                 break;
         }
     }

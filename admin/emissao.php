@@ -41,6 +41,11 @@ if (isset($_GET['cancelar'])) {
 }
 if (isset($_GET['excluir'])) {
     $id = intval($_GET['excluir']);
+    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ?");
+    $stFats->execute([$id]);
+    while ($fat = $stFats->fetch()) {
+        cancelarCobrancaFatura($fat);
+    }
     $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id = ?");
     $stmt->execute([$id]);
     $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id = ?");
@@ -53,7 +58,7 @@ if (isset($_GET['enviar'])) {
     $stmt = $pdo->prepare("
         SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
                f.pix_copia_cola, f.pix_qrcode,
-               c.nome_razao, c.email, c.cpf_cnpj
+               c.nome_razao, c.email, c.email2, c.cpf_cnpj
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
         WHERE f.fatura_recorrente_id = ? AND f.status IN ('pendente','vencido','atrasado')
@@ -74,7 +79,7 @@ if (isset($_GET['whatsapp'])) {
     $stmt = $pdo->prepare("
         SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
                f.pix_copia_cola, f.pix_qrcode,
-               c.nome_razao, c.email, c.cpf_cnpj, c.celular, c.telefone
+               c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
         WHERE f.fatura_recorrente_id = ? AND f.status IN ('pendente','vencido','atrasado')
@@ -90,9 +95,249 @@ if (isset($_GET['whatsapp'])) {
     }
     exit;
 }
+
+// Ações em uma fatura gerada específica
+if (isset($_GET['fatura_pago'])) {
+    $id = intval($_GET['fatura_pago']);
+    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ? AND status != 'pago'");
+    $stmt->execute([$id]);
+    header('Location: emissao.php?msg=pago');
+    exit;
+}
+if (isset($_GET['fatura_cancelar'])) {
+    $id = intval($_GET['fatura_cancelar']);
+    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
+    $stFat->execute([$id]);
+    $fat = $stFat->fetch();
+    if ($fat) {
+        if ($fat['status'] === 'pago') {
+            $stmt = $pdo->prepare("UPDATE faturas SET status = 'pendente', data_pagamento = NULL WHERE id = ?");
+            $stmt->execute([$id]);
+            header('Location: emissao.php?msg=fatura_desmarcada');
+            exit;
+        } elseif (in_array($fat['status'], ['pendente', 'vencido', 'atrasado'])) {
+            cancelarCobrancaFatura($fat);
+            $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ?");
+            $stmt->execute([$id]);
+        }
+    }
+    header('Location: emissao.php?msg=fatura_cancelada');
+    exit;
+}
+if (isset($_GET['fatura_excluir'])) {
+    $id = intval($_GET['fatura_excluir']);
+    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
+    $stFat->execute([$id]);
+    $fat = $stFat->fetch();
+    if ($fat) {
+        cancelarCobrancaFatura($fat);
+    }
+    $stmt = $pdo->prepare("DELETE FROM faturas WHERE id = ?");
+    $stmt->execute([$id]);
+    header('Location: emissao.php?msg=fatura_excluida');
+    exit;
+}
+if (isset($_GET['fatura_enviar'])) {
+    $id = intval($_GET['fatura_enviar']);
+    $stmt = $pdo->prepare("
+        SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+               f.pix_copia_cola, f.pix_qrcode,
+               c.nome_razao, c.email, c.email2, c.cpf_cnpj
+        FROM faturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.id = ?
+    ");
+    $stmt->execute([$id]);
+    $fatura = $stmt->fetch();
+    if ($fatura && !empty($fatura['email'])) {
+        $ok = enviarEmailFatura($fatura, 'antes');
+        header('Location: emissao.php?msg=' . ($ok ? 'enviado' : 'erro_envio'));
+    } else {
+        header('Location: emissao.php?msg=sem_email');
+    }
+    exit;
+}
+if (isset($_GET['fatura_whatsapp'])) {
+    $id = intval($_GET['fatura_whatsapp']);
+    $stmt = $pdo->prepare("
+        SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+               f.pix_copia_cola, f.pix_qrcode,
+               c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone
+        FROM faturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.id = ?
+    ");
+    $stmt->execute([$id]);
+    $fatura = $stmt->fetch();
+    if ($fatura) {
+        $ok = enviarWhatsAppFatura($fatura, 'antes');
+        header('Location: emissao.php?msg=' . ($ok ? 'whatsapp_enviado' : 'whatsapp_erro'));
+    } else {
+        header('Location: emissao.php?msg=sem_fatura');
+    }
+    exit;
+}
+
+// Gerar boleto (PDF) de uma fatura gerada específica
+if (isset($_GET['fatura_boleto'])) {
+    $id = intval($_GET['fatura_boleto']);
+    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
+    $stmt->execute([$id]);
+    $fat = $stmt->fetch();
+
+    if (!$fat) {
+        header('Location: emissao.php');
+        exit;
+    }
+    if (!empty($fat['boleto_url'])) {
+        header('Location: ' . $fat['boleto_url']);
+        exit;
+    }
+
+    $stmtCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
+    $stmtCli->execute([$fat['cliente_id']]);
+    $cli = $stmtCli->fetch();
+
+    $result = criarBoleto(
+        $fat['descricao'], $fat['valor_final'], $cli['nome_razao'] ?? '',
+        $cli['cpf_cnpj'] ?? '', $cli['email'] ?? '', $cli['cep'] ?? '',
+        $cli['logradouro'] ?? '', $cli['numero'] ?? '', $cli['bairro'] ?? '',
+        $cli['cidade'] ?? '', $cli['estado'] ?? ''
+    );
+
+    if (isset($result['sucesso']) && $result['sucesso'] && !empty($result['boleto_url'])) {
+        $apiAgora = getApiAtiva();
+        if ($apiAgora === 'inter' || $apiAgora === 'bb') {
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, inter_codigo_solicitacao = ? WHERE id = ?");
+            $stmt->execute([$result['boleto_url'], $result['payment_id'], $id]);
+        } elseif (!empty($fat['mp_payment_id'])) {
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ? WHERE id = ?");
+            $stmt->execute([$result['boleto_url'], $id]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ? WHERE id = ?");
+            $stmt->execute([$result['boleto_url'], $result['payment_id'], $id]);
+        }
+        header('Location: ' . $result['boleto_url']);
+    } else {
+        $erroDetalhe = is_array($result)
+            ? ($result['erro'] ?? trim(json_encode($result)))
+            : 'Resposta inválida da API de pagamento';
+        if (empty($erroDetalhe)) {
+            $erroDetalhe = isset($result['sucesso']) ? 'API retornou sucesso mas sem URL do boleto.' : 'Erro desconhecido.';
+        }
+        $apiAtivaNome = getApiAtiva();
+        error_log("[EMISSAO][BOLETO] Fatura #{$id} | API={$apiAtivaNome} | Erro: " . $erroDetalhe);
+        @file_put_contents(__DIR__ . '/../boleto_debug.log', date('Y-m-d H:i:s') . " | Fatura #{$id} | API={$apiAtivaNome} | ERRO: " . $erroDetalhe . "\n", FILE_APPEND);
+        header('Location: emissao.php?msg=erro_boleto&api=' . urlencode($apiAtivaNome) . '&det=' . urlencode(substr($erroDetalhe, 0, 300)));
+    }
+    exit;
+}
+
+// Obter código PIX copia e cola de uma fatura gerada específica
+if (isset($_GET['fatura_pix'])) {
+    header('Content-Type: application/json');
+    header('Cache-Control: no-store');
+    $id = intval($_GET['fatura_pix']);
+    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
+    $stmt->execute([$id]);
+    $fat = $stmt->fetch();
+
+    if (!$fat) {
+        echo json_encode(['ok' => false, 'erro' => 'Fatura não encontrada.']);
+        exit;
+    }
+    if ($fat['status'] === 'pago') {
+        echo json_encode(['ok' => false, 'erro' => 'Esta fatura já está paga.']);
+        exit;
+    }
+
+    $pix = (string) ($fat['pix_copia_cola'] ?? '');
+    $apiFatura = ($fat['api_pagamento'] ?? '') ?: getApiAtiva();
+    $expirado = false;
+
+    // Detectar PIX expirado: vencimento passou = banco rejeita o código
+    if ($pix !== '' && $fat['status'] !== 'pago') {
+        $vencimentoTs = strtotime($fat['data_vencimento'] ?? '');
+        $hojeTs = strtotime(date('Y-m-d'));
+        $vencimentoPassou = ($vencimentoTs !== false && $vencimentoTs < $hojeTs);
+
+        if ($vencimentoPassou && $apiFatura !== 'pix_manual') {
+            $expirado = true;
+        }
+
+        // Inter: validação extra via API (caso cobrança foi cancelada antes do vencimento)
+        if (!$expirado && $apiFatura === 'inter' && !empty($fat['inter_codigo_solicitacao'])) {
+            $detalheExp = consultarCobrancaInter($fat['inter_codigo_solicitacao']);
+            if (isset($detalheExp['erro'])) {
+                $expirado = true;
+            } else {
+                $sit = strtoupper($detalheExp['situacao'] ?? ($detalheExp['cobranca']['situacao'] ?? ''));
+                if (in_array($sit, ['EXPIRADA', 'CANCELADA', 'VENCIDA', 'REMOVIDA_PELO_USUARIO_RECEBEDOR'], true)) {
+                    $expirado = true;
+                }
+            }
+        }
+
+        error_log("[FATURA PIX] ID={$id} venc={$fat['data_vencimento']} expirado=" . ($expirado ? 'SIM' : 'NAO') . " api={$apiFatura}");
+    }
+
+    $jaTemCobranca = !empty($fat['inter_codigo_solicitacao']) || !empty($fat['mp_payment_id']);
+    $precisaGerar = ($pix === '' && !$jaTemCobranca && empty($fat['link_pagamento'])) || $expirado;
+
+    if ($precisaGerar) {
+        // Gera nova cobrança (mesma lógica do painel do usuário); substitui a anterior se expirada
+        $stmtCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
+        $stmtCli->execute([$fat['cliente_id']]);
+        $cli = $stmtCli->fetch();
+
+        $result = criarPagamento($fat['descricao'], $fat['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '');
+        error_log("[FATURA PIX] criarPagamento returned: " . json_encode(array_keys($result)));
+        if (isset($result['sucesso']) && $result['sucesso']) {
+            $apiUsada = getApiAtiva();
+            if ($apiUsada === 'inter' || $apiUsada === 'bb') {
+                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
+                $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', null, $result['payment_id'] ?? '', $apiUsada, $id]);
+            } else {
+                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
+                $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'] ?? '', $apiUsada, $id]);
+            }
+            $pix = (string) ($result['qr_code_copia_cola'] ?? '');
+        } elseif ($expirado) {
+            error_log("[FATURA PIX] Falha ao regenerar PIX expirado ID={$id}: " . ($result['erro'] ?? json_encode($result)));
+            echo json_encode(['ok' => false, 'erro' => 'O PIX anterior expirou e não foi possível gerar um novo: ' . ($result['erro'] ?? 'erro desconhecido')]);
+            exit;
+        }
+    } elseif ($pix === '' && $jaTemCobranca && !empty($fat['inter_codigo_solicitacao']) && in_array($apiFatura, ['inter', ''], true)) {
+        // Cobrança Inter existe mas o PIX ainda não foi preenchido — consulta como faz o painel do usuário
+        $detalhe = consultarCobrancaInter($fat['inter_codigo_solicitacao']);
+        if ($detalhe && !isset($detalhe['erro'])) {
+            $pixArr = $detalhe['pix'] ?? ($detalhe['cobranca']['pix'] ?? []);
+            $pixNovo = (string) ($pixArr['pixCopiaECola'] ?? '');
+            $qrNovo = (string) ($pixArr['qrcode'] ?? '');
+            if ($pixNovo !== '') {
+                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_copia_cola = ?, pix_qrcode = ? WHERE id = ? AND (pix_copia_cola IS NULL OR pix_copia_cola = '')");
+                $stmtUp->execute([$pixNovo, $qrNovo, $id]);
+                $pix = $pixNovo;
+            }
+        }
+    }
+
+    if ($pix !== '') {
+        echo json_encode(['ok' => true, 'pix' => $pix, 'renovado' => $expirado]);
+    } else {
+        echo json_encode(['ok' => false, 'erro' => 'Nenhum código PIX disponível para esta fatura ainda. Abra a fatura no painel ou aguarde a geração.']);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_delete']) && !empty($_POST['ids'])) {
     $ids = array_map('intval', $_POST['ids']);
     $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id IN ($ph)");
+    $stFats->execute($ids);
+    while ($fat = $stFats->fetch()) {
+        cancelarCobrancaFatura($fat);
+    }
     $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id IN ($ph)");
     $stmt->execute($ids);
     $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id IN ($ph)");
@@ -106,17 +351,29 @@ if (isset($_GET['msg'])) {
         'pago' => ['Fatura marcada como paga!', 'success'],
         'cancelado' => ['Fatura recorrente cancelada!', 'warning'],
         'excluido' => ['Fatura recorrente excluída!', 'warning'],
+        'fatura_cancelada' => ['Fatura cancelada!', 'warning'],
+        'fatura_desmarcada' => ['Fatura desmarcada como paga!', 'warning'],
+        'fatura_excluida' => ['Fatura excluída!', 'warning'],
         'enviado' => ['E-mail de cobrança enviado com sucesso!', 'success'],
         'erro_envio' => ['Erro ao enviar e-mail. Verifique as configurações SMTP.', 'danger'],
         'sem_email' => ['Cliente não possui e-mail cadastrado.', 'warning'],
         'whatsapp_enviado' => ['Fatura enviada via WhatsApp com sucesso!', 'success'],
         'whatsapp_erro' => ['Erro ao enviar WhatsApp. Verifique as configurações.', 'danger'],
         'sem_fatura' => ['Nenhuma fatura pendente encontrada para esta recorrência.', 'warning'],
+        'erro_boleto' => ['Erro ao gerar boleto. Verifique a configuração da API de pagamento.', 'danger'],
         'erro' => ['Erro ao salvar.', 'danger'],
     ];
     if (isset($msgs[$_GET['msg']])) {
         $mensagem = $msgs[$_GET['msg']][0];
         $tipo = $msgs[$_GET['msg']][1];
+        if ($_GET['msg'] === 'erro_boleto') {
+            if (!empty($_GET['api'])) {
+                $mensagem .= '<br><small><strong>API usada na tentativa:</strong> ' . htmlspecialchars($_GET['api']) . '</small>';
+            }
+            if (!empty($_GET['det'])) {
+                $mensagem .= '<br><small><strong>Detalhe:</strong> ' . htmlspecialchars(substr($_GET['det'], 0, 300)) . '</small>';
+            }
+        }
     }
 }
 
@@ -136,7 +393,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $numero = generateInvoiceNumber();
-            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, numero) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, numero, ativo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
             $stmt->execute([$cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $numero]);
             $faturaRecorrenteId = $pdo->lastInsertId();
 
@@ -172,7 +429,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 enviarEmailFatura($faturaDados, 'antes');
             }
 
-            $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
+            $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.email2, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
             $stmtFat->execute([$faturaId]);
             $faturaCompleta = $stmtFat->fetch();
             if (!empty($cliente['celular']) || !empty($cliente['telefone'])) {
@@ -249,6 +506,19 @@ $params[] = $offset;
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $faturasRecorrentes = $stmt->fetchAll();
+
+// Todas as faturas geradas (manualmente ou automaticamente pelo cron)
+// de cada recorrência listada, para exibição no histórico expansível.
+$frIds = array_column($faturasRecorrentes, 'id');
+$faturasPorRecorrencia = [];
+if ($frIds) {
+    $phIds = implode(',', array_fill(0, count($frIds), '?'));
+    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE fatura_recorrente_id IN ($phIds) ORDER BY data_vencimento ASC, id ASC");
+    $stmtFatsFr->execute($frIds);
+    foreach ($stmtFatsFr->fetchAll() as $ffr) {
+        $faturasPorRecorrencia[$ffr['fatura_recorrente_id']][] = $ffr;
+    }
+}
 
 $pageTitle = 'Emissão de Faturas';
 include __DIR__ . '/../includes/header.php';
@@ -337,18 +607,18 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 
         <div class="table-card">
             <div class="p-3 border-bottom">
-                <h6 class="mb-0"><i class="fas fa-sync-alt me-2"></i>Faturas Recorrentes Ativas</h6>
+                <h6 class="mb-0"><i class="fas fa-sync-alt me-2"></i>Recorrentes Ativas</h6>
             </div>
             <div class="p-3 border-bottom">
                 <form method="GET" class="row g-2 align-items-end">
                     <div class="col-md-6">
                         <label class="form-label small">Status</label>
                         <div class="d-flex gap-1 flex-wrap">
-                            <a href="?filtro_status=&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === '' ? 'btn-dark' : 'btn-outline-dark' ?>"><i class="fas fa-square me-1" style="color:#6c757d;font-size:.6rem"></i> Todos</a>
-                            <a href="?filtro_status=pendente&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'pendente' ? 'btn-warning' : 'btn-outline-warning' ?>"><i class="fas fa-square me-1" style="color:#fd7e14;font-size:.6rem"></i> Pendente</a>
-                            <a href="?filtro_status=pago&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'pago' ? 'btn-success' : 'btn-outline-success' ?>"><i class="fas fa-square me-1" style="color:#198754;font-size:.6rem"></i> Pago</a>
-                            <a href="?filtro_status=vencido&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'vencido' ? 'btn-danger' : 'btn-outline-danger' ?>"><i class="fas fa-square me-1" style="color:#dc3545;font-size:.6rem"></i> Atrasado</a>
-                            <a href="?filtro_status=cancelado&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'cancelado' ? 'btn-secondary' : 'btn-outline-secondary' ?>"><i class="fas fa-square me-1" style="color:#6c757d;font-size:.6rem"></i> Cancelado</a>
+                            <a href="?filtro_status=&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === '' ? 'btn-dark' : 'btn-outline-dark' ?>"><i class="bi bi-square-fill me-1" style="color:#6c757d;font-size:.6rem"></i> Todos</a>
+                            <a href="?filtro_status=pendente&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'pendente' ? 'btn-warning' : 'btn-outline-warning' ?>"><i class="bi bi-square-fill me-1" style="color:#fd7e14;font-size:.6rem"></i> Pendente</a>
+                            <a href="?filtro_status=pago&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'pago' ? 'btn-success' : 'btn-outline-success' ?>"><i class="bi bi-square-fill me-1" style="color:#198754;font-size:.6rem"></i> Pago</a>
+                            <a href="?filtro_status=vencido&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'vencido' ? 'btn-danger' : 'btn-outline-danger' ?>"><i class="bi bi-square-fill me-1" style="color:#dc3545;font-size:.6rem"></i> Atrasado</a>
+                            <a href="?filtro_status=cancelado&filtro_busca=<?= urlencode($filtro_busca) ?>" class="btn btn-sm <?= $filtro_status === 'cancelado' ? 'btn-secondary' : 'btn-outline-secondary' ?>"><i class="bi bi-square-fill me-1" style="color:#6c757d;font-size:.6rem"></i> Cancelado</a>
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -356,10 +626,10 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <input type="text" name="filtro_busca" class="form-control form-control-sm" placeholder="Buscar por nome, CPF/CNPJ ou Nº Fatura..." value="<?= htmlspecialchars($filtro_busca) ?>">
                     </div>
                     <div class="col-md-1">
-                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button>
+                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search"></i></button>
                     </div>
                     <div class="col-md-1">
-                        <a href="emissao.php" class="btn btn-sm btn-outline-secondary w-100"><i class="fas fa-times"></i></a>
+                        <a href="emissao.php" class="btn btn-sm btn-outline-secondary w-100"><i class="bi bi-x-lg"></i></a>
                     </div>
                 </form>
             </div>
@@ -372,7 +642,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <input class="form-check-input" type="checkbox" id="selectAll">
                         <label class="form-check-label small" for="selectAll">Selecionar todos</label>
                     </div>
-                    <button type="submit" name="bulk_delete" class="btn btn-sm btn-outline-danger" onclick="return confirm('Excluir permanentemente os selecionados?')"><i class="fas fa-trash me-1"></i>Excluir Selecionados</button>
+                    <button type="submit" name="bulk_delete" class="btn btn-sm btn-outline-danger" onclick="event.preventDefault(); showConfirmForm('Excluir Selecionados','Excluir permanentemente os selecionados?', this.closest('form'))"><i class="bi bi-trash3 me-1"></i>Excluir Selecionados</button>
                 </div>
                 <div class="p-3">
                     <?php foreach ($faturasRecorrentes as $fr): ?>
@@ -386,11 +656,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         ];
                         $statusAtual = $fr['ultimo_status'] ?? 'pendente';
                         $statusClass = $statusClasses[$statusAtual] ?? 'bg-secondary';
-
-                        $telWhatsApp = preg_replace('/[^0-9]/', '', $fr['celular'] ?: $fr['telefone'] ?? '');
-                        $linkPagamento = $fr['ultimo_link'] ?? '';
-                        $msgWhatsApp = "Olá, Tudo bem? identificamos uma fatura pendente, segue o link para fazer o pagamento:\n\n" . ($linkPagamento ? $linkPagamento : 'Link não disponível');
-                        $urlWhatsApp = 'https://wa.me/55' . $telWhatsApp . '?text=' . urlencode($msgWhatsApp);
                         ?>
                         <div class="fr-row mb-2 <?= ($fr['status'] ?? 'ativa') === 'cancelado' ? 'opacity-50' : '' ?>">
                             <div class="form-check mb-0" style="min-width:60px;">
@@ -413,23 +678,54 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <span class="fr-dado-label">Venc.</span>
                                 <strong><?= $fr['dia_vencimento'] ?></strong>
                             </div>
-                            <div class="fr-dado">
-                                <span class="fr-dado-label">Período</span>
-                                <strong class="fr-periodo"><?= date('d/m/Y', strtotime($fr['data_inicio'])) ?><?= $fr['data_fim'] ? '<br>até ' . date('d/m/Y', strtotime($fr['data_fim'])) : '' ?></strong>
-                            </div>
                             <span class="badge <?= $statusClass ?> fr-badge"><?= ucfirst($statusAtual) ?></span>
                             <div class="fr-acoes">
-                                <?php if ($telWhatsApp): ?>
-                                    <a href="#" class="btn btn-sm btn-outline-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-id="<?= $fr['id'] ?>"><i class="fab fa-whatsapp"></i></a>
+                                <button type="button" class="acao-btn acao-btn-secondary" title="Ver todas as faturas geradas" data-bs-toggle="collapse" data-bs-target="#hist<?= $fr['id'] ?>" aria-expanded="false"><i class="bi bi-layers"></i> <span class="small"><?= count($faturasPorRecorrencia[$fr['id']] ?? []) ?></span></button>
+                            </div>
+                        </div>
+                        <div class="collapse fr-hist" id="hist<?= $fr['id'] ?>">
+                            <div class="fr-hist-inner">
+                                <?php $faturasFr = $faturasPorRecorrencia[$fr['id']] ?? []; ?>
+                                <?php if (empty($faturasFr)): ?>
+                                    <span class="text-muted small">Nenhuma fatura gerada ainda para esta recorrência.</span>
+                                <?php else: ?>
+                                <table class="table table-sm mb-0 align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Fatura</th>
+                                            <th>Emissão</th>
+                                            <th>Vencimento</th>
+                                            <th>Valor</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($faturasFr as $fh): ?>
+                                        <tr class="<?= in_array($fh['status'], ['pendente','vencido','atrasado']) && $fh['data_vencimento'] < date('Y-m-d') ? 'table-danger' : '' ?>">
+                                            <td><strong><?= htmlspecialchars($fh['numero']) ?></strong></td>
+                                            <td><?= date('d/m/Y', strtotime($fh['data_emissao'])) ?></td>
+                                            <td><?= date('d/m/Y', strtotime($fh['data_vencimento'])) ?></td>
+                                            <td>R$ <?= number_format($fh['valor_final'], 2, ',', '.') ?></td>
+                                            <td><span class="badge <?= $statusClasses[$fh['status']] ?? 'bg-secondary' ?>"><?= ucfirst($fh['status']) ?></span></td>
+                                            <td>
+                                                <div class="d-inline-flex gap-1 align-items-center">
+                                                    <?php if (!in_array($fh['status'], ['pago', 'cancelado'])): ?>
+                                                    <a href="#" class="acao-btn acao-btn-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-url="?fatura_whatsapp=<?= $fh['id'] ?>"><i class="bi bi-whatsapp"></i></a>
+                                                    <a href="#" class="acao-btn acao-btn-primary" title="Enviar e-mail de cobrança" data-bs-toggle="modal" data-bs-target="#modalEnviarEmail" data-url="?fatura_enviar=<?= $fh['id'] ?>"><i class="bi bi-envelope-fill"></i></a>
+                                                    <a href="?fatura_boleto=<?= $fh['id'] ?>" target="_blank" class="acao-btn acao-btn-secondary" title="Gerar boleto em PDF"><i class="bi bi-upc-scan"></i></a>
+                                                    <button type="button" class="acao-btn acao-btn-dark" title="Copiar código PIX copia e cola" data-fatura="<?= $fh['id'] ?>" onclick="copiarPixFatura(this)"><i class="bi bi-qr-code"></i></button>
+                                                    <a href="#" class="acao-btn acao-btn-success" title="Pago" data-bs-toggle="modal" data-bs-target="#modalMarcarPago" data-url="?fatura_pago=<?= $fh['id'] ?>"><i class="bi bi-check-circle-fill"></i></a>
+                                                    <a href="#" class="acao-btn acao-btn-warning" title="Cancelar" onclick="event.preventDefault(); showConfirm('Cancelar Fatura','Deseja cancelar esta fatura?','?fatura_cancelar=<?= $fh['id'] ?>','primary')"><i class="bi bi-x-circle-fill"></i></a>
+                                                    <?php endif; ?>
+                                                    <a href="#" class="acao-btn acao-btn-danger" title="Excluir" data-bs-toggle="modal" data-bs-target="#modalExcluir" data-url="?fatura_excluir=<?= $fh['id'] ?>"><i class="bi bi-trash3"></i></a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
                                 <?php endif; ?>
-                                <?php if ($statusAtual !== 'pago' && ($fr['status'] ?? 'ativa') !== 'cancelado'): ?>
-                                    <a href="#" class="btn btn-sm btn-outline-primary" title="Enviar e-mail de cobrança" data-bs-toggle="modal" data-bs-target="#modalEnviarEmail" data-id="<?= $fr['id'] ?>"><i class="fas fa-envelope"></i></a>
-                                    <a href="#" class="btn btn-sm btn-outline-success" title="Pago" data-bs-toggle="modal" data-bs-target="#modalMarcarPago" data-id="<?= $fr['id'] ?>"><i class="fas fa-check"></i></a>
-                                <?php endif; ?>
-                                <?php if (($fr['status'] ?? 'ativa') !== 'cancelado'): ?>
-                                    <a href="#" class="btn btn-sm btn-outline-warning" title="Cancelar" data-bs-toggle="modal" data-bs-target="#modalCancelar" data-id="<?= $fr['id'] ?>"><i class="fas fa-ban"></i></a>
-                                <?php endif; ?>
-                                <a href="#" class="btn btn-sm btn-outline-danger" title="Excluir" data-bs-toggle="modal" data-bs-target="#modalExcluir" data-id="<?= $fr['id'] ?>"><i class="fas fa-trash"></i></a>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -483,7 +779,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h6 class="modal-title" id="modalEnviarEmailLabel"><i class="fas fa-envelope me-2"></i>Enviar Cobrança</h6>
+                <h6 class="modal-title" id="modalEnviarEmailLabel"><i class="bi bi-envelope-fill me-2"></i>Enviar Cobrança</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
@@ -501,7 +797,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h6 class="modal-title" id="modalEnviarWhatsAppLabel"><i class="fab fa-whatsapp me-2"></i>Enviar Fatura via WhatsApp</h6>
+                <h6 class="modal-title" id="modalEnviarWhatsAppLabel"><i class="bi bi-whatsapp me-2"></i>Enviar Fatura via WhatsApp</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
@@ -519,7 +815,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h6 class="modal-title"><i class="fas fa-check-circle me-2 text-success"></i>Marcar como Paga</h6>
+                <h6 class="modal-title"><i class="bi bi-check-circle-fill me-2 text-success"></i>Marcar como Paga</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
@@ -533,29 +829,11 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     </div>
 </div>
 
-<div class="modal fade" id="modalCancelar" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h6 class="modal-title"><i class="fas fa-ban me-2 text-warning"></i>Cancelar Recorrência</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-            </div>
-            <div class="modal-body">
-                Deseja cancelar esta recorrência? As faturas pendentes também serão canceladas.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Voltar</button>
-                <a href="#" id="btnConfirmarCancelar" class="btn btn-warning btn-sm">Sim, cancelar</a>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="modal fade" id="modalExcluir" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h6 class="modal-title"><i class="fas fa-trash me-2 text-danger"></i>Excluir Fatura</h6>
+                <h6 class="modal-title"><i class="bi bi-trash3 me-2 text-danger"></i>Excluir Fatura</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
@@ -572,28 +850,27 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 <script>
 document.getElementById('modalEnviarEmail').addEventListener('show.bs.modal', function(event) {
     var button = event.relatedTarget;
-    var id = button.getAttribute('data-id');
-    document.getElementById('btnConfirmarEnviar').href = '?enviar=' + id;
+    var url = button.getAttribute('data-url');
+    if (!url) { url = '?enviar=' + button.getAttribute('data-id'); }
+    document.getElementById('btnConfirmarEnviar').href = url;
 });
 document.getElementById('modalEnviarWhatsApp').addEventListener('show.bs.modal', function(event) {
     var button = event.relatedTarget;
-    var id = button.getAttribute('data-id');
-    document.getElementById('btnConfirmarEnviarWhatsApp').href = '?whatsapp=' + id;
+    var url = button.getAttribute('data-url');
+    if (!url) { url = '?whatsapp=' + button.getAttribute('data-id'); }
+    document.getElementById('btnConfirmarEnviarWhatsApp').href = url;
 });
 document.getElementById('modalMarcarPago').addEventListener('show.bs.modal', function(event) {
     var button = event.relatedTarget;
-    var id = button.getAttribute('data-id');
-    document.getElementById('btnConfirmarPago').href = '?pago=' + id;
-});
-document.getElementById('modalCancelar').addEventListener('show.bs.modal', function(event) {
-    var button = event.relatedTarget;
-    var id = button.getAttribute('data-id');
-    document.getElementById('btnConfirmarCancelar').href = '?cancelar=' + id;
+    var url = button.getAttribute('data-url');
+    if (!url) { url = '?pago=' + button.getAttribute('data-id'); }
+    document.getElementById('btnConfirmarPago').href = url;
 });
 document.getElementById('modalExcluir').addEventListener('show.bs.modal', function(event) {
     var button = event.relatedTarget;
-    var id = button.getAttribute('data-id');
-    document.getElementById('btnConfirmarExcluir').href = '?excluir=' + id;
+    var url = button.getAttribute('data-url');
+    if (!url) { url = '?excluir=' + button.getAttribute('data-id'); }
+    document.getElementById('btnConfirmarExcluir').href = url;
 });
 document.getElementById('selectAll').addEventListener('change', function() {
     var checks = document.querySelectorAll('.bulk-check');
@@ -603,6 +880,53 @@ document.getElementById('formNovaFatura').addEventListener('submit', function() 
     var modal = new bootstrap.Modal(document.getElementById('modalCriando'));
     modal.show();
 });
+function copiarPixFatura(btn) {
+    var id = btn.getAttribute('data-fatura');
+    if (!id) return;
+    var icon = btn.querySelector('i');
+    var iconOriginal = icon ? icon.className : '';
+    if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
+    fetch('emissao.php?fatura_pix=' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d || !d.ok || !d.pix) {
+                showAlert('Aviso', (d && d.erro) ? d.erro : 'Nenhum código PIX disponível para esta fatura.');
+                if (icon) { icon.className = iconOriginal; }
+                return;
+            }
+            var codigo = d.pix;
+            var done = function() {
+                if (icon) {
+                    icon.className = 'fas fa-check';
+                    btn.classList.replace('btn-outline-dark', 'btn-success');
+                    setTimeout(function() {
+                        icon.className = iconOriginal;
+                        btn.classList.replace('btn-success', 'btn-outline-dark');
+                    }, 1500);
+                }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(codigo).then(done).catch(function() { fallbackCopiarPix(codigo, done); });
+            } else {
+                fallbackCopiarPix(codigo, done);
+            }
+        })
+        .catch(function() {
+            showAlert('Erro', 'Erro ao buscar o código PIX.');
+            if (icon) { icon.className = iconOriginal; }
+        });
+}
+function fallbackCopiarPix(codigo, done) {
+    var ta = document.createElement('textarea');
+    ta.value = codigo;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    done();
+}
 </script>
 
 <div class="modal fade" id="modalCriando" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">

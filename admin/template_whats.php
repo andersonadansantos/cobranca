@@ -102,7 +102,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             </div>
                             <div class="d-flex gap-2">
                                 <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-save me-1"></i>Salvar</button>
-                                <button type="submit" name="acao" value="restaurar_antes" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Restaurar padrão?')"><i class="fas fa-undo me-1"></i>Restaurar</button>
+                                <button type="submit" name="acao" value="restaurar_antes" class="btn btn-outline-secondary btn-sm" onclick="event.preventDefault(); showConfirmForm('Restaurar Lembrete','Restaurar o template Lembrete para o padrão?', this.closest('form'))"><i class="fas fa-undo me-1"></i>Restaurar</button>
                             </div>
                         </form>
                     </div>
@@ -125,7 +125,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             </div>
                             <div class="d-flex gap-2">
                                 <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-save me-1"></i>Salvar</button>
-                                <button type="submit" name="acao" value="restaurar_depois" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Restaurar padrão?')"><i class="fas fa-undo me-1"></i>Restaurar</button>
+                                <button type="submit" name="acao" value="restaurar_depois" class="btn btn-outline-secondary btn-sm" onclick="event.preventDefault(); showConfirmForm('Restaurar Cobrança','Restaurar o template Cobrança para o padrão?', this.closest('form'))"><i class="fas fa-undo me-1"></i>Restaurar</button>
                             </div>
                         </form>
                     </div>
@@ -148,7 +148,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             </div>
                             <div class="d-flex gap-2">
                                 <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-save me-1"></i>Salvar</button>
-                                <button type="submit" name="acao" value="restaurar_pagamento" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Restaurar padrão?')"><i class="fas fa-undo me-1"></i>Restaurar</button>
+                                <button type="submit" name="acao" value="restaurar_pagamento" class="btn btn-outline-secondary btn-sm" onclick="event.preventDefault(); showConfirmForm('Restaurar Pagamento','Restaurar o template Pagamento Recebido para o padrão?', this.closest('form'))"><i class="fas fa-undo me-1"></i>Restaurar</button>
                             </div>
                         </form>
                     </div>

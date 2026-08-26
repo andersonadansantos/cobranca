@@ -101,11 +101,18 @@ function formatMoney(value) {
 }
 
 // Confirmar exclusão
-function confirmarExclusao(nome, url) {
+function confirmarExclusao(nome, url, formElement) {
     var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
     document.getElementById('confirmModalTitle').textContent = 'Confirmar Exclusão';
     document.getElementById('confirmModalBody').textContent = 'Tem certeza que deseja excluir ' + nome + '?';
-    document.getElementById('confirmModalBtn').href = url;
+    var btn = document.getElementById('confirmModalBtn');
+    if (formElement) {
+        btn.href = '#';
+        btn.onclick = function() { formElement.submit(); };
+    } else {
+        btn.href = url;
+        btn.onclick = null;
+    }
     modal.show();
 }
 
@@ -125,6 +132,13 @@ function showConfirmForm(title, message, formElement) {
     document.getElementById('confirmModalFormBody').textContent = message;
     var btn = document.getElementById('confirmModalFormBtn');
     btn.onclick = function() { formElement.submit(); };
+    modal.show();
+}
+
+function showAlert(title, message) {
+    var modal = new bootstrap.Modal(document.getElementById('alertModal'));
+    document.getElementById('alertModalTitle').textContent = title;
+    document.getElementById('alertModalBody').textContent = message;
     modal.show();
 }
 
@@ -229,4 +243,22 @@ function validarCNPJ(cnpj) {
     rest = sum % 11;
     var d2 = rest < 2 ? 0 : 11 - rest;
     return parseInt(cnpj[13]) === d2;
+}
+
+function abrirModalCliente(c) {
+    document.getElementById('mc-nome').textContent = c.nome_razao || '-';
+    document.getElementById('mc-cpf').textContent = c.cpf_cnpj || '-';
+    document.getElementById('mc-tipo').innerHTML = '<span class="badge bg-' + (c.tipo_pessoa === 'PJ' ? 'info' : 'secondary') + '">' + (c.tipo_pessoa || '-') + '</span>';
+    document.getElementById('mc-email').textContent = c.email || '-';
+    document.getElementById('mc-email2').textContent = c.email2 || '-';
+    document.getElementById('mc-telefone').textContent = c.telefone || '-';
+    document.getElementById('mc-celular').textContent = c.celular || '-';
+    document.getElementById('mc-endereco').textContent = [c.logradouro, c.numero, c.complemento].filter(Boolean).join(', ') || '-';
+    document.getElementById('mc-bairro').textContent = c.bairro || '-';
+    document.getElementById('mc-cidade').textContent = [c.cidade, c.estado].filter(Boolean).join(' / ') || '-';
+    document.getElementById('mc-cep').textContent = c.cep || '-';
+    document.getElementById('mc-data').textContent = c.criado_em ? new Date(c.criado_em).toLocaleDateString('pt-BR') : '-';
+    document.getElementById('mc-link-editar').href = '?editar=' + c.id;
+    var modal = new bootstrap.Modal(document.getElementById('modalCliente'));
+    modal.show();
 }

@@ -36,7 +36,7 @@ function getAllConfig() {
 }
 
 function getCorPrimaria() {
-    return getConfig('cor_primaria', '#0d6efd');
+    return getConfig('cor_primaria', '#0f7b5c');
 }
 
 function getCorSecundaria() {
