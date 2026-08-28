@@ -103,6 +103,70 @@ function getConnection() {
         } catch (PDOException $e) {}
 
         try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `superadmin` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `usuario` VARCHAR(50) NOT NULL UNIQUE,
+                `senha` VARCHAR(255) NOT NULL,
+                `nome` VARCHAR(100) NOT NULL,
+                `email` VARCHAR(150),
+                `avatar` VARCHAR(255),
+                `ultimo_login` TIMESTAMP NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `admin_evolution` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `admin_id` INT NOT NULL,
+                `url_api` VARCHAR(255) NOT NULL DEFAULT '',
+                `api_key` VARCHAR(255) NOT NULL DEFAULT '',
+                `instance` VARCHAR(100) NOT NULL DEFAULT '',
+                `ativo` TINYINT(1) DEFAULT 1,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_admin_evolution` (`admin_id`),
+                FOREIGN KEY (`admin_id`) REFERENCES `administradores`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `planos` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `nome` VARCHAR(50) NOT NULL,
+                `slug` VARCHAR(50) NOT NULL UNIQUE,
+                `preco` DECIMAL(10,2) DEFAULT 0.00,
+                `descricao` VARCHAR(500),
+                `beneficios` TEXT,
+                `cor` VARCHAR(20) DEFAULT 'secondary',
+                `ativo` TINYINT(1) DEFAULT 1,
+                `ordem` INT DEFAULT 0,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `admin_planos` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `admin_id` INT NOT NULL,
+                `plano_id` INT NOT NULL,
+                `data_inicio` DATE,
+                `data_fim` DATE,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_admin_plano` (`admin_id`),
+                FOREIGN KEY (`admin_id`) REFERENCES `administradores`(`id`) ON DELETE CASCADE,
+                FOREIGN KEY (`plano_id`) REFERENCES `planos`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        try {
+            $pdo->exec("INSERT IGNORE INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `ordem`, `ativo`) VALUES
+                ('Bronze', 'bronze', 49.90, 'Plano inicial para pequenos negócios', 'bronze', 1, 1),
+                ('Prata', 'prata', 99.90, 'Plano intermediário com mais recursos', 'secondary', 2, 1),
+                ('Ouro', 'ouro', 199.90, 'Plano premium com todos os recursos', 'warning', 3, 1)");
+        } catch (PDOException $e) {}
+
+        try {
             $pdo->exec("CREATE TABLE IF NOT EXISTS `admin_certificados` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
                 `admin_id` INT NOT NULL,
@@ -367,5 +431,13 @@ function criarTabelas($pdo) {
         $stmt->execute(['admin', $hash]);
         $credFile = __DIR__ . '/../_initial_credentials.txt';
         file_put_contents($credFile, "Usuário: admin\nSenha: " . $senhaAdmin . "\n\nAltere esta senha após o primeiro login.\n");
+    }
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM `superadmin` WHERE `usuario` = 'superadmin'");
+    $stmt->execute();
+    if ($stmt->fetchColumn() == 0) {
+        $hash = password_hash('superadmin123', PASSWORD_BCRYPT);
+        $stmt = $pdo->prepare("INSERT INTO `superadmin` (`usuario`, `senha`, `nome`, `email`) VALUES (?, ?, 'Super Admin', 'superadmin@sistema.com')");
+        $stmt->execute(['superadmin', $hash]);
     }
 }

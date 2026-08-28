@@ -7,14 +7,33 @@ require_once __DIR__ . '/../config/settings.php';
 $mensagem = '';
 $tipo = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Busca a configuração de WhatsApp do admin logado na tabela admin_evolution
+$adminId = $_SESSION['admin_id'] ?? 0;
+$evoConfig = null;
+if ($adminId > 0) {
+    $stmt = $pdo->prepare("SELECT * FROM admin_evolution WHERE admin_id = ?");
+    $stmt->execute([$adminId]);
+    $evoConfig = $stmt->fetch();
+}
+
+// Sem instância configurada -> bloqueio, não processa ações
+$semInstancia = empty($evoConfig) || empty($evoConfig['url_api']) || empty($evoConfig['instance']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $semInstancia) {
+    $mensagem = 'Seu WhatsApp ainda não está configurado. Entre em contato com o suporte.';
+    $tipo = 'danger';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$semInstancia) {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_config') {
-        saveConfig('whatsapp_api_url', trim($_POST['whatsapp_api_url'] ?? ''));
-        saveConfig('whatsapp_api_key', trim($_POST['whatsapp_api_key'] ?? ''));
-        saveConfig('whatsapp_instance', trim($_POST['whatsapp_instance'] ?? ''));
-        saveConfig('whatsapp_ativo', isset($_POST['whatsapp_ativo']) ? '1' : '0');
+        $url = trim($_POST['whatsapp_api_url'] ?? '');
+        $key = trim($_POST['whatsapp_api_key'] ?? '');
+        $inst = trim($_POST['whatsapp_instance'] ?? '');
+        $ativo = isset($_POST['whatsapp_ativo']) ? 1 : 0;
+        $pdo->prepare("UPDATE admin_evolution SET url_api=?, api_key=?, instance=?, ativo=? WHERE admin_id=?")
+            ->execute([$url, $key, $inst, $ativo, $adminId]);
         $mensagem = 'Configurações do WhatsApp salvas!';
         $tipo = 'success';
     }
@@ -56,10 +75,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$apiUrl = rtrim(getConfig('whatsapp_api_url', ''), '/');
-$apiKey = getConfig('whatsapp_api_key', '');
-$instance = getConfig('whatsapp_instance', '');
-$whatsappAtivo = getConfig('whatsapp_ativo', '0');
+$apiUrl = $semInstancia ? '' : rtrim($evoConfig['url_api'], '/');
+$apiKey = $semInstancia ? '' : ($evoConfig['api_key'] ?? '');
+$instance = $semInstancia ? '' : $evoConfig['instance'];
+$whatsappAtivo = $semInstancia ? '0' : ($evoConfig['ativo'] ? '1' : '0');
 
 $statusConexao = 'desconectado';
 $qrCode = null;
@@ -174,6 +193,17 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             </div>
         <?php endif; ?>
 
+        <?php if ($semInstancia): ?>
+            <div class="form-card text-center py-5" style="max-width:560px;margin:0 auto;">
+                <div style="width:90px;height:90px;border-radius:50%;background:#fee2e2;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;">
+                    <i class="fas fa-lock" style="font-size:2.2rem;color:#dc2626;"></i>
+                </div>
+                <h5 class="mb-2" style="color:#dc2626;"><i class="fab fa-whatsapp me-1"></i>WhatsApp bloqueado</h5>
+                <p class="text-muted mb-1">Seu WhatsApp ainda não está configurado.</p>
+                <p class="text-muted mb-4">Entre em contato com o suporte para conectar a API do WhatsApp.</p>
+                <a href="https://wa.me/5591982675573" target="_blank" class="btn" style="background:#25D366;color:#fff;"><i class="fab fa-whatsapp me-1"></i>Falar com Suporte</a>
+            </div>
+        <?php else: ?>
         <div class="row g-4">
             <div class="col-lg-6">
                 <div class="form-card">
@@ -243,6 +273,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
 
     </div>

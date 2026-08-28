@@ -65,6 +65,9 @@ $basePath = '/cobranca/admin';
         </div>
 
         <div class="nav-section">Conta</div>
+        <a href="<?= $basePath ?>/meu_plano.php" class="nav-link <?= $currentPage === 'meu_plano' ? 'active' : '' ?>">
+            <i class="fas fa-tags"></i> Meu Plano
+        </a>
         <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
             <i class="fas fa-users-cog"></i> Usuários Admin
         </a>

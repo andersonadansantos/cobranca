@@ -151,9 +151,12 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <?php endif; ?>
 
         <div class="form-card mb-4">
-            <div class="d-flex align-items-center justify-content-between">
+            <div class="p-3 border-bottom">
+                <h6 class="mb-0"><i class="fas fa-exchange-alt me-2"></i>API de Pagamento Ativa</h6>
+            </div>
+            <div class="p-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center">
-                    <span class="me-2">API Ativa:</span>
+                    <span class="me-2 text-muted">API Ativa:</span>
                     <?php if ($apiAtiva === 'mercadopago'): ?>
                         <span class="badge bg-success fs-6"><i class="fab fa-pix me-1"></i> Mercado Pago</span>
                     <?php elseif ($apiAtiva === 'inter'): ?>
