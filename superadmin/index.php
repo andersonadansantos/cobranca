@@ -150,7 +150,7 @@ include __DIR__ . '/includes/sidebar.php';
                                 <td><?= htmlspecialchars($adm['email']) ?></td>
                                 <td>
                                     <?php if (!empty($adm['plano'])): ?>
-                                        <span class="badge" style="background:<?= $adm['plano_cor'] ?: 'secondary' ?>;color:#fff;"><?= htmlspecialchars($adm['plano']) ?></span>
+                                        <span class="badge" style="background:#000000;color:#fff;"><?= htmlspecialchars($adm['plano']) ?></span>
                                     <?php else: ?>
                                         <span class="badge bg-secondary">Sem plano</span>
                                     <?php endif; ?>
@@ -174,7 +174,7 @@ include __DIR__ . '/includes/sidebar.php';
                                     <div class="d-inline-flex gap-1">
                                         <a href="cadastros.php?editar=<?= $adm['id'] ?>" class="acao-btn acao-btn-primary" title="Editar"><i class="bi bi-pencil-square"></i></a>
                                         <a href="api_admins.php?admin=<?= $adm['id'] ?>" class="acao-btn" style="background:#25D366;color:#fff;" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
-                                        <a href="cadastros.php?excluir=<?= $adm['id'] ?>" class="acao-btn acao-btn-danger" title="Excluir" onclick="return confirmarExclusao('<?= htmlspecialchars(addslashes($adm['nome'])) ?>', this.href);"><i class="bi bi-trash3"></i></a>
+                                        <a href="#" class="acao-btn acao-btn-danger" title="Excluir" onclick="return confirmarExclusaoAdmin('<?= htmlspecialchars(addslashes($adm['nome'])) ?>', <?= (int)$adm['id'] ?>);"><i class="bi bi-trash3"></i></a>
                                     </div>
                                 </td>
                             </tr>

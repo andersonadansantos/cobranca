@@ -7,20 +7,22 @@ require_once __DIR__ . '/../config/mercadopago.php';
 
 $pdo = getConnection();
 
+$adminIdF = (int)$_SESSION['admin_id'];
+
 // Cancelar fatura
 if (isset($_GET['cancelar'])) {
     $id = intval($_GET['cancelar']);
 
-    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND status != 'pago'");
-    $stFat->execute([$id]);
+    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ? AND status != 'pago'");
+    $stFat->execute([$id, $adminIdF]);
     $faturaCancel = $stFat->fetch();
 
     if ($faturaCancel) {
         cancelarCobrancaFatura($faturaCancel);
     }
 
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ? AND status != 'pago'");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ? AND admin_id = ? AND status != 'pago'");
+    $stmt->execute([$id, $adminIdF]);
     header('Location: faturas.php?msg=cancelado');
     exit;
 }
@@ -49,6 +51,9 @@ $filtro_ano = $_GET['ano'] ?? date('Y');
 $where = [];
 $params = [];
 
+$where[] = "f.admin_id = ?";
+$params[] = $adminIdF;
+
 if ($filtro_status) {
     $where[] = "f.status = ?";
     $params[] = $filtro_status;
@@ -75,7 +80,9 @@ $stmt = $pdo->prepare("
 $stmt->execute($params);
 $faturas = $stmt->fetchAll();
 
-$clientes = $pdo->query("SELECT id, nome_razao FROM clientes WHERE ativo = 1 ORDER BY nome_razao")->fetchAll();
+$stmtCli = $pdo->prepare("SELECT id, nome_razao FROM clientes WHERE ativo = 1 AND admin_id = ? ORDER BY nome_razao");
+$stmtCli->execute([$adminIdF]);
+$clientes = $stmtCli->fetchAll();
 
 $pageTitle = 'Faturas';
 include __DIR__ . '/../includes/header.php';

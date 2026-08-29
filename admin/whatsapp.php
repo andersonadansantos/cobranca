@@ -7,6 +7,8 @@ require_once __DIR__ . '/../config/settings.php';
 $mensagem = '';
 $tipo = '';
 
+$pdo = getConnection();
+
 // Busca a configuração de WhatsApp do admin logado na tabela admin_evolution
 $adminId = $_SESSION['admin_id'] ?? 0;
 $evoConfig = null;
@@ -164,6 +166,27 @@ $pageTitle = 'WhatsApp';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/sidebar_admin.php';
 ?>
+<style>
+.content-blurred {
+    filter: blur(6px);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.6;
+}
+.with-block-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 5;
+}
+</style>
 
 <div class="main-content">
     <div class="topbar">
@@ -194,47 +217,38 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <?php endif; ?>
 
         <?php if ($semInstancia): ?>
-            <div class="form-card text-center py-5" style="max-width:560px;margin:0 auto;">
-                <div style="width:90px;height:90px;border-radius:50%;background:#fee2e2;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;">
-                    <i class="fas fa-lock" style="font-size:2.2rem;color:#dc2626;"></i>
-                </div>
-                <h5 class="mb-2" style="color:#dc2626;"><i class="fab fa-whatsapp me-1"></i>WhatsApp bloqueado</h5>
-                <p class="text-muted mb-1">Seu WhatsApp ainda não está configurado.</p>
-                <p class="text-muted mb-4">Entre em contato com o suporte para conectar a API do WhatsApp.</p>
-                <a href="https://wa.me/5591982675573" target="_blank" class="btn" style="background:#25D366;color:#fff;"><i class="fab fa-whatsapp me-1"></i>Falar com Suporte</a>
-            </div>
-        <?php else: ?>
+        <div class="position-relative" style="overflow:hidden;">
+            <div class="content-blurred">
+        <?php endif; ?>
         <div class="row g-4">
             <div class="col-lg-6">
                 <div class="form-card">
                     <h6 class="mb-3"><i class="fab fa-whatsapp me-2" style="color:#25D366;"></i>Configuração da Evolution API</h6>
-                    <form method="POST">
-                        <input type="hidden" name="acao" value="salvar_config">
-                        <div class="mb-3">
-                            <label class="form-label">URL da API <small class="text-muted">(ex: https://sua-api.onrender.com)</small></label>
-                            <input type="url" name="whatsapp_api_url" class="form-control" value="<?= htmlspecialchars($apiUrl) ?>" placeholder="https://sua-api.onrender.com">
+                    <div class="mb-1">
+                        <label class="form-label text-muted mb-0">URL da API</label>
+                        <div class="form-control bg-light" style="border:1px solid #dee2e6;"><?= !empty($apiUrl) ? '****' : '<em class="text-muted">Não configurado</em>' ?></div>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label text-muted mb-0">API Key</label>
+                        <div class="form-control bg-light" style="border:1px solid #dee2e6;"><?= !empty($apiKey) ? '****' : '<em class="text-muted">Não configurado</em>' ?></div>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label text-muted mb-0">Nome da Instância</label>
+                        <div class="form-control bg-light" style="border:1px solid #dee2e6;"><?= !empty($instance) ? htmlspecialchars($instance) : '<em class="text-muted">Não configurado</em>' ?></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted mb-0">Envio via WhatsApp no cron</label>
+                        <div>
+                            <?php if ($whatsappAtivo === '1'): ?>
+                                <span class="badge bg-success"><i class="fas fa-check me-1"></i>Ativo</span>
+                            <?php else: ?>
+                                <span class="badge bg-secondary">Inativo</span>
+                            <?php endif; ?>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">API Key</label>
-                            <input type="text" name="whatsapp_api_key" class="form-control" value="<?= htmlspecialchars($apiKey) ?>" placeholder="Sua chave da API">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Nome da Instância</label>
-                            <input type="text" name="whatsapp_instance" class="form-control" value="<?= htmlspecialchars($instance) ?>" placeholder="minha-instancia">
-                        </div>
-                        <div class="mb-3 form-check form-switch">
-                            <input type="checkbox" name="whatsapp_ativo" class="form-check-input" id="whatsappAtivo" <?= $whatsappAtivo === '1' ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="whatsappAtivo">Ativar envio via WhatsApp no cron</label>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Salvar</button>
-                        </div>
-                    </form>
-                    <hr>
-                    <form method="POST">
-                        <input type="hidden" name="acao" value="testar">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-plug me-1"></i>Testar Conexão</button>
-                    </form>
+                    </div>
+                    <div class="alert alert-info py-2 mb-0">
+                        <i class="fas fa-lock me-1"></i> As configurações do WhatsApp são gerenciadas pelo suporte e não podem ser alteradas aqui.
+                    </div>
                 </div>
             </div>
 
@@ -243,7 +257,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <h6 class="mb-3"><i class="fas fa-qrcode me-2"></i>Status da Conexão</h6>
                     <?php if (empty($apiUrl) || empty($apiKey) || empty($instance)): ?>
                         <div class="alert alert-info mb-0">
-                            <i class="fas fa-info-circle me-1"></i>Preencha a URL, API Key e Instância ao lado para conectar o WhatsApp.
+                            <i class="fas fa-info-circle me-1"></i>A conexão do WhatsApp ainda não foi configurada pelo suporte.
                         </div>
                     <?php elseif ($statusConexao === 'conectado'): ?>
                         <div class="text-center py-4">
@@ -270,6 +284,20 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php if ($semInstancia): ?>
+            </div>
+            <div class="with-block-overlay">
+                <div class="form-card text-center py-5" style="max-width:460px;margin:0 auto;">
+                    <div style="width:90px;height:90px;border-radius:50%;background:#fee2e2;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;">
+                        <i class="fas fa-lock" style="font-size:2.2rem;color:#dc2626;"></i>
+                    </div>
+                    <h5 class="mb-2" style="color:#dc2626;"><i class="fab fa-whatsapp me-1"></i>WhatsApp bloqueado</h5>
+                    <p class="mb-1" style="color:#000000;font-weight:500;">Seu WhatsApp ainda não está configurado.</p>
+                    <p class="mb-4" style="color:#000000;font-weight:500;">Entre em contato com o suporte para conectar a API do WhatsApp.</p>
+                    <a href="https://wa.me/5591982675573" target="_blank" class="btn" style="background:#25D366;color:#fff;"><i class="fab fa-whatsapp me-1"></i>Falar com Suporte</a>
                 </div>
             </div>
         </div>

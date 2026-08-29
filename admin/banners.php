@@ -6,6 +6,14 @@ require_once __DIR__ . '/../config/settings.php';
 
 $mensagem = '';
 $tipo = '';
+$adminIdB = (int)($_SESSION['admin_id'] ?? 0);
+$bannerSub = 'admin_' . $adminIdB;
+
+// Caminho físico a partir da URL pública (/cobranca/assets/...)
+function bannerPathFromUrl($url) {
+    if (empty($url)) return '';
+    return __DIR__ . '/..' . str_replace('/cobranca', '', $url);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
@@ -15,8 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'remover' && $slot >= 1 && $slot <= 3 && in_array($tipoBanner, ['desktop','mobile'])) {
         $chave = 'banner_' . $tipoBanner . '_' . $slot;
         $antigo = getConfig($chave, '');
-        if ($antigo && file_exists(__DIR__ . '/..' . $antigo)) {
-            unlink(__DIR__ . '/..' . $antigo);
+        $antigoPath = bannerPathFromUrl($antigo);
+        if ($antigo && $antigoPath && file_exists($antigoPath)) {
+            unlink($antigoPath);
         }
         saveConfig($chave, '');
         $mensagem = 'Banner ' . $tipoBanner . ' slot ' . $slot . ' removido.';
@@ -29,16 +38,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($file && $file['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
-                $dir = __DIR__ . '/../assets/img/banners';
+                $dir = __DIR__ . '/../assets/img/banners/' . $bannerSub;
                 if (!is_dir($dir)) mkdir($dir, 0777, true);
                 $filename = $tipoBanner . '_' . $slot . '.' . $ext;
                 $chave = 'banner_' . $tipoBanner . '_' . $slot;
                 $antigo = getConfig($chave, '');
-                if ($antigo && file_exists(__DIR__ . '/..' . $antigo)) {
-                    unlink(__DIR__ . '/..' . $antigo);
+                $antigoPath = bannerPathFromUrl($antigo);
+                if ($antigo && $antigoPath && file_exists($antigoPath)) {
+                    unlink($antigoPath);
                 }
                 if (move_uploaded_file($file['tmp_name'], $dir . '/' . $filename)) {
-                    saveConfig($chave, '/cobranca/assets/img/banners/' . $filename);
+                    saveConfig($chave, '/cobranca/assets/img/banners/' . $bannerSub . '/' . $filename);
                     $mensagem = 'Banner ' . $tipoBanner . ' slot ' . $slot . ' salvo com sucesso!';
                     $tipo = 'success';
                 }

@@ -11,52 +11,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_antes') {
-        $pdo = getConnection();
-        $corpo = $_POST['template_whats_antes'] ?? '';
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_whats_antes', $corpo, $corpo]);
+        saveConfig('template_whats_antes', trim($_POST['template_whats_antes'] ?? ''));
         $mensagem = 'Template Lembrete salvo com sucesso!';
         $tipo = 'success';
     }
 
     if ($acao === 'salvar_depois') {
-        $pdo = getConnection();
-        $corpo = $_POST['template_whats_depois'] ?? '';
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_whats_depois', $corpo, $corpo]);
+        saveConfig('template_whats_depois', trim($_POST['template_whats_depois'] ?? ''));
         $mensagem = 'Template Cobrança salvo com sucesso!';
         $tipo = 'success';
     }
 
     if ($acao === 'salvar_pagamento') {
-        $pdo = getConnection();
-        $corpo = $_POST['template_whats_pagamento'] ?? '';
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_whats_pagamento', $corpo, $corpo]);
+        saveConfig('template_whats_pagamento', trim($_POST['template_whats_pagamento'] ?? ''));
         $mensagem = 'Template Pagamento Recebido salvo com sucesso!';
         $tipo = 'success';
     }
 
     if ($acao === 'restaurar_antes') {
-        $pdo = getConnection();
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_whats_antes', '', '']);
+        saveConfig('template_whats_antes', '');
         $mensagem = 'Template Lembrete restaurado para o padrão!';
         $tipo = 'info';
     }
 
     if ($acao === 'restaurar_depois') {
-        $pdo = getConnection();
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_whats_depois', '', '']);
+        saveConfig('template_whats_depois', '');
         $mensagem = 'Template Cobrança restaurado para o padrão!';
         $tipo = 'info';
     }
 
     if ($acao === 'restaurar_pagamento') {
-        $pdo = getConnection();
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_whats_pagamento', '', '']);
+        saveConfig('template_whats_pagamento', '');
         $mensagem = 'Template Pagamento Recebido restaurado para o padrão!';
         $tipo = 'info';
     }

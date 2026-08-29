@@ -28,11 +28,21 @@ $faturasPendentes = $pdo->prepare("SELECT f.*, c.email, c.email2, c.celular, c.t
 $faturasPendentes->execute();
 $pendentes = $faturasPendentes->fetchAll();
 
-$apiAtiva = getApiAtiva();
+$apiAtivaGlobal = getApiAtiva();
+
+// Define o contexto de tenant (admin) a partir do admin da fatura
+function cronTenantContext($adminId) {
+    if (function_exists('getTenantAdminId')) {
+        if (!empty($adminId)) $_SESSION['tenant_admin_id'] = (int)$adminId;
+    }
+    return $adminId ?: 0;
+}
 
 foreach ($pendentes as $fat) {
     $novoStatus = null;
     $dataPagamento = null;
+    cronTenantContext($fat['admin_id'] ?? 0);
+    $apiAtiva = $fat['api_pagamento'] ?: $apiAtivaGlobal;
 
     if ($apiAtiva === 'inter' && !empty($fat['inter_codigo_solicitacao'])) {
         $detalhe = consultarCobrancaInter($fat['inter_codigo_solicitacao']);
@@ -139,6 +149,9 @@ $stmtRec->execute();
 $recorrentes = $stmtRec->fetchAll();
 
 foreach ($recorrentes as $rec) {
+    // Contexto de tenant (admin) da recorrência
+    cronTenantContext($rec['admin_id'] ?? 0);
+
     // Última fatura da recorrência por data de vencimento, SEM filtrar
     // por status: o pagamento (ou não) da anterior não bloqueia a geração.
     $stmtUlt = $pdo->prepare("SELECT data_vencimento FROM faturas WHERE fatura_recorrente_id = ? ORDER BY data_vencimento DESC, id DESC LIMIT 1");
@@ -178,8 +191,8 @@ foreach ($recorrentes as $rec) {
     $numero = generateInvoiceNumber();
     $acessoToken = function_exists('generateAcessoToken') ? generateAcessoToken() : bin2hex(random_bytes(32));
 
-    $stmt = $pdo->prepare("INSERT INTO faturas (cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
-    $stmt->execute([$rec['cliente_id'], $rec['id'], $numero, $rec['descricao'], $rec['valor'], $rec['valor'], $proximaVenc, $acessoToken, getApiAtiva()]);
+    $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
+    $stmt->execute([$rec['admin_id'], $rec['cliente_id'], $rec['id'], $numero, $rec['descricao'], $rec['valor'], $rec['valor'], $proximaVenc, $acessoToken, getApiAtiva()]);
     $faturaId = $pdo->lastInsertId();
 
     $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
@@ -271,7 +284,6 @@ function montarAssunto($antes, $fat) {
     ], $assunto);
 }
 
-$s = ['host'=>$smtpHost,'port'=>$smtpPort,'user'=>$smtpUser,'pass'=>$smtpPass,'from'=>$smtpFrom,'nome'=>$smtpNome,'ssl'=>$smtpSsl];
 $faturas = buscarFaturas($pdo, ['pendente', 'vencido', 'atrasado']);
 
 $dataAlvo2 = ($regua2 > 0) ? date('Y-m-d', strtotime("+{$regua2} days")) : null;
@@ -280,6 +292,27 @@ $dataAlvo5 = ($regua5 > 0) ? date('Y-m-d', strtotime("-{$regua5} days")) : null;
 
 foreach ($faturas as &$fat) {
     $tipoEnviado = null;
+
+    // Contexto de tenant (admin) da fatura — configurações específicas do admin
+    cronTenantContext($fat['admin_id'] ?? 0);
+    $smtpHost = getConfig('smtp_host', '');
+    $smtpPort = getConfig('smtp_port', '587');
+    $smtpUser = getConfig('smtp_usuario', '');
+    $smtpPass = getConfig('smtp_senha', '');
+    $smtpFrom = getConfig('smtp_from_email', '');
+    $smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobranca');
+    $smtpSsl  = getConfig('smtp_ssl', 'tls');
+    $s = ['host'=>$smtpHost,'port'=>$smtpPort,'user'=>$smtpUser,'pass'=>$smtpPass,'from'=>$smtpFrom,'nome'=>$smtpNome,'ssl'=>$smtpSsl];
+    if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) { continue; }
+
+    $regua1 = (getConfig('regua_1_enviar_geracao', '0') === '1');
+    $regua2 = intval(getConfig('regua_2_dias_antes', '0'));
+    $regua3 = intval(getConfig('regua_3_dias_antes', '0'));
+    $regua4 = (getConfig('regua_4_no_vencimento', '0') === '1');
+    $regua5 = intval(getConfig('regua_5_dias_depois', '0'));
+    $dataAlvo2 = ($regua2 > 0) ? date('Y-m-d', strtotime("+{$regua2} days")) : null;
+    $dataAlvo3 = ($regua3 > 0) ? date('Y-m-d', strtotime("+{$regua3} days")) : null;
+    $dataAlvo5 = ($regua5 > 0) ? date('Y-m-d', strtotime("-{$regua5} days")) : null;
 
     if ($regua1 && $fat['ultimo_envio_tipo'] === null) {
         $tipoEnviado = 'geracao';

@@ -15,14 +15,21 @@ if ($rateLimit['blocked']) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
     $turnstile = trim($_POST['cf-turnstile-response'] ?? '');
-    if (empty($turnstile)) {
+    $turnstileSecret = getenv('TURNSTILE_SECRET_KEY') ?: '';
+    if (empty($turnstileSecret)) {
+        require_once __DIR__ . '/../config/settings.php';
+        $turnstileSecret = getConfig('turnstile_secret_key', '');
+    }
+    if (empty($turnstileSecret)) {
+        error_log('Turnstile secret não configurado (env TURNSTILE_SECRET_KEY ou config turnstile_secret_key). Verificação desativada.');
+    } elseif (empty($turnstile)) {
         $erro = 'Confirme que você não é um robô.';
     } else {
         $verify = @file_get_contents('https://challenges.cloudflare.com/turnstile/v0/siteverify', false, stream_context_create([
             'http' => [
                 'method' => 'POST',
                 'header' => 'Content-Type: application/x-www-form-urlencoded',
-                'content' => http_build_query(['secret' => '0x4AAAAAAEACAhXWvc8TyCBkN3agKRr5vkc', 'response' => $turnstile])
+                'content' => http_build_query(['secret' => $turnstileSecret, 'response' => $turnstile])
             ]
         ]));
         $result = json_decode($verify ?? '', true);

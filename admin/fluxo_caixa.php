@@ -9,43 +9,57 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 
 $pdo = getConnection();
+$adminIdF = (int)$_SESSION['admin_id'];
 
-$entradasMes = $pdo->query("
-    SELECT COALESCE(SUM(valor_final), 0) FROM faturas WHERE status = 'pago' AND MONTH(data_pagamento) = MONTH(NOW()) AND YEAR(data_pagamento) = YEAR(NOW())
-")->fetchColumn();
+$entradasMes = $pdo->prepare("
+    SELECT COALESCE(SUM(valor_final), 0) FROM faturas WHERE admin_id = ? AND status = 'pago' AND MONTH(data_pagamento) = MONTH(NOW()) AND YEAR(data_pagamento) = YEAR(NOW())
+");
+$entradasMes->execute([$adminIdF]);
+$entradasMes = $entradasMes->fetchColumn();
 
-$saidasMes = $pdo->query("SELECT COALESCE(SUM(valor), 0) FROM livro_caixa_saidas WHERE MONTH(data) = MONTH(NOW()) AND YEAR(data) = YEAR(NOW())")->fetchColumn();
-$custosMes = $pdo->query("SELECT COALESCE(SUM(valor), 0) FROM livro_caixa_custos WHERE MONTH(data) = MONTH(NOW()) AND YEAR(data) = YEAR(NOW())")->fetchColumn();
+$saidasMes = $pdo->prepare("SELECT COALESCE(SUM(valor), 0) FROM livro_caixa_saidas WHERE admin_id = ? AND MONTH(data) = MONTH(NOW()) AND YEAR(data) = YEAR(NOW())");
+$saidasMes->execute([$adminIdF]);
+$saidasMes = $saidasMes->fetchColumn();
+
+$custosMes = $pdo->prepare("SELECT COALESCE(SUM(valor), 0) FROM livro_caixa_custos WHERE admin_id = ? AND MONTH(data) = MONTH(NOW()) AND YEAR(data) = YEAR(NOW())");
+$custosMes->execute([$adminIdF]);
+$custosMes = $custosMes->fetchColumn();
 $saldoMes = $entradasMes - $saidasMes - $custosMes;
 
-$prox30 = $pdo->query("
+$prox30 = $pdo->prepare("
     SELECT f.numero, f.valor_final, f.data_vencimento, c.nome_razao,
            DATEDIFF(f.data_vencimento, NOW()) AS dias
     FROM faturas f JOIN clientes c ON f.cliente_id = c.id
-    WHERE f.status IN ('pendente','vencido','atrasado')
+    WHERE f.admin_id = ? AND f.status IN ('pendente','vencido','atrasado')
       AND f.data_vencimento <= DATE_ADD(NOW(), INTERVAL 30 DAY)
     ORDER BY f.data_vencimento ASC
-")->fetchAll();
+");
+$prox30->execute([$adminIdF]);
+$prox30 = $prox30->fetchAll();
 
-$prox60 = $pdo->query("
+$prox60 = $pdo->prepare("
     SELECT f.numero, f.valor_final, f.data_vencimento, c.nome_razao,
            DATEDIFF(f.data_vencimento, NOW()) AS dias
     FROM faturas f JOIN clientes c ON f.cliente_id = c.id
-    WHERE f.status IN ('pendente','vencido','atrasado')
+    WHERE f.admin_id = ? AND f.status IN ('pendente','vencido','atrasado')
       AND f.data_vencimento > DATE_ADD(NOW(), INTERVAL 30 DAY)
       AND f.data_vencimento <= DATE_ADD(NOW(), INTERVAL 60 DAY)
     ORDER BY f.data_vencimento ASC
-")->fetchAll();
+");
+$prox60->execute([$adminIdF]);
+$prox60 = $prox60->fetchAll();
 
-$prox90 = $pdo->query("
+$prox90 = $pdo->prepare("
     SELECT f.numero, f.valor_final, f.data_vencimento, c.nome_razao,
            DATEDIFF(f.data_vencimento, NOW()) AS dias
     FROM faturas f JOIN clientes c ON f.cliente_id = c.id
-    WHERE f.status IN ('pendente','vencido','atrasado')
+    WHERE f.admin_id = ? AND f.status IN ('pendente','vencido','atrasado')
       AND f.data_vencimento > DATE_ADD(NOW(), INTERVAL 60 DAY)
       AND f.data_vencimento <= DATE_ADD(NOW(), INTERVAL 90 DAY)
     ORDER BY f.data_vencimento ASC
-")->fetchAll();
+");
+$prox90->execute([$adminIdF]);
+$prox90 = $prox90->fetchAll();
 
 $total30 = array_sum(array_column($prox30, 'valor_final'));
 $total60 = array_sum(array_column($prox60, 'valor_final'));

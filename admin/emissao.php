@@ -12,44 +12,45 @@ require_once __DIR__ . '/../config/email_helpers.php';
 require_once __DIR__ . '/../api/whatsapp_send.php';
 
 $pdo = getConnection();
+$adminIdE = (int)$_SESSION['admin_id'];
 $mensagem = '';
 $tipo = '';
 
 // Ações na fatura recorrente
 if (isset($_GET['pago'])) {
     $id = intval($_GET['pago']);
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE fatura_recorrente_id = ? AND status != 'pago' ORDER BY data_vencimento DESC LIMIT 1");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE fatura_recorrente_id = ? AND admin_id = ? AND status != 'pago' ORDER BY data_vencimento DESC LIMIT 1");
+    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=pago');
     exit;
 }
 if (isset($_GET['cancelar'])) {
     $id = intval($_GET['cancelar']);
 
-    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND status IN ('pendente','vencido','atrasado')");
-    $stFats->execute([$id]);
+    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ? AND status IN ('pendente','vencido','atrasado')");
+    $stFats->execute([$id, $adminIdE]);
     while ($fat = $stFats->fetch()) {
         cancelarCobrancaFatura($fat);
     }
 
-    $stmt = $pdo->prepare("UPDATE faturas_recorrentes SET status = 'cancelado' WHERE id = ?");
-    $stmt->execute([$id]);
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE fatura_recorrente_id = ? AND status IN ('pendente','vencido','atrasado')");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("UPDATE faturas_recorrentes SET status = 'cancelado' WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
+    $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE fatura_recorrente_id = ? AND admin_id = ? AND status IN ('pendente','vencido','atrasado')");
+    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=cancelado');
     exit;
 }
 if (isset($_GET['excluir'])) {
     $id = intval($_GET['excluir']);
-    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ?");
-    $stFats->execute([$id]);
+    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ?");
+    $stFats->execute([$id, $adminIdE]);
     while ($fat = $stFats->fetch()) {
         cancelarCobrancaFatura($fat);
     }
-    $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id = ?");
-    $stmt->execute([$id]);
-    $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
+    $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=excluido');
     exit;
 }
@@ -61,10 +62,10 @@ if (isset($_GET['enviar'])) {
                c.nome_razao, c.email, c.email2, c.cpf_cnpj
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
-        WHERE f.fatura_recorrente_id = ? AND f.status IN ('pendente','vencido','atrasado')
+        WHERE f.fatura_recorrente_id = ? AND f.admin_id = ? AND f.status IN ('pendente','vencido','atrasado')
         ORDER BY f.data_vencimento DESC LIMIT 1
     ");
-    $stmt->execute([$frId]);
+    $stmt->execute([$frId, $adminIdE]);
     $fatura = $stmt->fetch();
     if ($fatura && !empty($fatura['email'])) {
         $ok = enviarEmailFatura($fatura, 'antes');
@@ -82,10 +83,10 @@ if (isset($_GET['whatsapp'])) {
                c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
-        WHERE f.fatura_recorrente_id = ? AND f.status IN ('pendente','vencido','atrasado')
+        WHERE f.fatura_recorrente_id = ? AND f.admin_id = ? AND f.status IN ('pendente','vencido','atrasado')
         ORDER BY f.data_vencimento DESC LIMIT 1
     ");
-    $stmt->execute([$frId]);
+    $stmt->execute([$frId, $adminIdE]);
     $fatura = $stmt->fetch();
     if ($fatura) {
         $ok = enviarWhatsAppFatura($fatura, 'antes');
@@ -99,26 +100,26 @@ if (isset($_GET['whatsapp'])) {
 // Ações em uma fatura gerada específica
 if (isset($_GET['fatura_pago'])) {
     $id = intval($_GET['fatura_pago']);
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ? AND status != 'pago'");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ? AND admin_id = ? AND status != 'pago'");
+    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=pago');
     exit;
 }
 if (isset($_GET['fatura_cancelar'])) {
     $id = intval($_GET['fatura_cancelar']);
-    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
-    $stFat->execute([$id]);
+    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ?");
+    $stFat->execute([$id, $adminIdE]);
     $fat = $stFat->fetch();
     if ($fat) {
         if ($fat['status'] === 'pago') {
-            $stmt = $pdo->prepare("UPDATE faturas SET status = 'pendente', data_pagamento = NULL WHERE id = ?");
-            $stmt->execute([$id]);
+            $stmt = $pdo->prepare("UPDATE faturas SET status = 'pendente', data_pagamento = NULL WHERE id = ? AND admin_id = ?");
+            $stmt->execute([$id, $adminIdE]);
             header('Location: emissao.php?msg=fatura_desmarcada');
             exit;
         } elseif (in_array($fat['status'], ['pendente', 'vencido', 'atrasado'])) {
             cancelarCobrancaFatura($fat);
-            $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ?");
-            $stmt->execute([$id]);
+            $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ? AND admin_id = ?");
+            $stmt->execute([$id, $adminIdE]);
         }
     }
     header('Location: emissao.php?msg=fatura_cancelada');
@@ -126,14 +127,14 @@ if (isset($_GET['fatura_cancelar'])) {
 }
 if (isset($_GET['fatura_excluir'])) {
     $id = intval($_GET['fatura_excluir']);
-    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
-    $stFat->execute([$id]);
+    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ?");
+    $stFat->execute([$id, $adminIdE]);
     $fat = $stFat->fetch();
     if ($fat) {
         cancelarCobrancaFatura($fat);
     }
-    $stmt = $pdo->prepare("DELETE FROM faturas WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("DELETE FROM faturas WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=fatura_excluida');
     exit;
 }
@@ -145,9 +146,9 @@ if (isset($_GET['fatura_enviar'])) {
                c.nome_razao, c.email, c.email2, c.cpf_cnpj
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
-        WHERE f.id = ?
+        WHERE f.id = ? AND f.admin_id = ?
     ");
-    $stmt->execute([$id]);
+    $stmt->execute([$id, $adminIdE]);
     $fatura = $stmt->fetch();
     if ($fatura && !empty($fatura['email'])) {
         $ok = enviarEmailFatura($fatura, 'antes');
@@ -165,9 +166,9 @@ if (isset($_GET['fatura_whatsapp'])) {
                c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone
         FROM faturas f
         JOIN clientes c ON f.cliente_id = c.id
-        WHERE f.id = ?
+        WHERE f.id = ? AND f.admin_id = ?
     ");
-    $stmt->execute([$id]);
+    $stmt->execute([$id, $adminIdE]);
     $fatura = $stmt->fetch();
     if ($fatura) {
         $ok = enviarWhatsAppFatura($fatura, 'antes');
@@ -181,8 +182,8 @@ if (isset($_GET['fatura_whatsapp'])) {
 // Gerar boleto (PDF) de uma fatura gerada específica
 if (isset($_GET['fatura_boleto'])) {
     $id = intval($_GET['fatura_boleto']);
-    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
     $fat = $stmt->fetch();
 
     if (!$fat) {
@@ -208,14 +209,14 @@ if (isset($_GET['fatura_boleto'])) {
     if (isset($result['sucesso']) && $result['sucesso'] && !empty($result['boleto_url'])) {
         $apiAgora = getApiAtiva();
         if ($apiAgora === 'inter' || $apiAgora === 'bb') {
-            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, inter_codigo_solicitacao = ? WHERE id = ?");
-            $stmt->execute([$result['boleto_url'], $result['payment_id'], $id]);
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, inter_codigo_solicitacao = ? WHERE id = ? AND admin_id = ?");
+            $stmt->execute([$result['boleto_url'], $result['payment_id'], $id, $adminIdE]);
         } elseif (!empty($fat['mp_payment_id'])) {
-            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ? WHERE id = ?");
-            $stmt->execute([$result['boleto_url'], $id]);
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ? WHERE id = ? AND admin_id = ?");
+            $stmt->execute([$result['boleto_url'], $id, $adminIdE]);
         } else {
-            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ? WHERE id = ?");
-            $stmt->execute([$result['boleto_url'], $result['payment_id'], $id]);
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ? WHERE id = ? AND admin_id = ?");
+            $stmt->execute([$result['boleto_url'], $result['payment_id'], $id, $adminIdE]);
         }
         header('Location: ' . $result['boleto_url']);
     } else {
@@ -238,8 +239,8 @@ if (isset($_GET['fatura_pix'])) {
     header('Content-Type: application/json');
     header('Cache-Control: no-store');
     $id = intval($_GET['fatura_pix']);
-    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
     $fat = $stmt->fetch();
 
     if (!$fat) {
@@ -295,11 +296,11 @@ if (isset($_GET['fatura_pix'])) {
         if (isset($result['sucesso']) && $result['sucesso']) {
             $apiUsada = getApiAtiva();
             if ($apiUsada === 'inter' || $apiUsada === 'bb') {
-                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
-                $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', null, $result['payment_id'] ?? '', $apiUsada, $id]);
+                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?");
+                $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', null, $result['payment_id'] ?? '', $apiUsada, $id, $adminIdE]);
             } else {
-                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
-                $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'] ?? '', $apiUsada, $id]);
+                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?");
+                $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'] ?? '', $apiUsada, $id, $adminIdE]);
             }
             $pix = (string) ($result['qr_code_copia_cola'] ?? '');
         } elseif ($expirado) {
@@ -315,8 +316,8 @@ if (isset($_GET['fatura_pix'])) {
             $pixNovo = (string) ($pixArr['pixCopiaECola'] ?? '');
             $qrNovo = (string) ($pixArr['qrcode'] ?? '');
             if ($pixNovo !== '') {
-                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_copia_cola = ?, pix_qrcode = ? WHERE id = ? AND (pix_copia_cola IS NULL OR pix_copia_cola = '')");
-                $stmtUp->execute([$pixNovo, $qrNovo, $id]);
+                $stmtUp = $pdo->prepare("UPDATE faturas SET pix_copia_cola = ?, pix_qrcode = ? WHERE id = ? AND admin_id = ? AND (pix_copia_cola IS NULL OR pix_copia_cola = '')");
+                $stmtUp->execute([$pixNovo, $qrNovo, $id, $adminIdE]);
                 $pix = $pixNovo;
             }
         }
@@ -333,15 +334,15 @@ if (isset($_GET['fatura_pix'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_delete']) && !empty($_POST['ids'])) {
     $ids = array_map('intval', $_POST['ids']);
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id IN ($ph)");
-    $stFats->execute($ids);
+    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id IN ($ph) AND admin_id = ?");
+    $stFats->execute(array_merge($ids, [$adminIdE]));
     while ($fat = $stFats->fetch()) {
         cancelarCobrancaFatura($fat);
     }
-    $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id IN ($ph)");
-    $stmt->execute($ids);
-    $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id IN ($ph)");
-    $stmt->execute($ids);
+    $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id IN ($ph) AND admin_id = ?");
+    $stmt->execute(array_merge($ids, [$adminIdE]));
+    $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id IN ($ph) AND admin_id = ?");
+    $stmt->execute(array_merge($ids, [$adminIdE]));
     header('Location: emissao.php?msg=excluido');
     exit;
 }
@@ -392,9 +393,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipo = 'danger';
     } else {
         try {
+            // Valida que o cliente pertence ao admin logado
+            $stChkCli = $pdo->prepare("SELECT id FROM clientes WHERE id = ? AND admin_id = ?");
+            $stChkCli->execute([$cliente_id, $adminIdE]);
+            if (!$stChkCli->fetch()) {
+                $mensagem = 'Cliente inválido.';
+                $tipo = 'danger';
+                $erroCliente = true;
+            } else {
             $numero = generateInvoiceNumber();
-            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, numero, ativo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
-            $stmt->execute([$cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $numero]);
+            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, numero, ativo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
+            $stmt->execute([$adminIdE, $cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $numero]);
             $faturaRecorrenteId = $pdo->lastInsertId();
 
             $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT));
@@ -402,12 +411,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
             }
 
-            $stmt = $pdo->prepare("INSERT INTO faturas (cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
-            $stmt->execute([$cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken(), getApiAtiva()]);
+            $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
+            $stmt->execute([$adminIdE, $cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken(), getApiAtiva()]);
             $faturaId = $pdo->lastInsertId();
 
-            $stmtCliente = $pdo->prepare("SELECT nome_razao, email, celular, telefone FROM clientes WHERE id = ?");
-            $stmtCliente->execute([$cliente_id]);
+            $stmtCliente = $pdo->prepare("SELECT nome_razao, email, celular, telefone, cpf_cnpj FROM clientes WHERE id = ? AND admin_id = ?");
+            $stmtCliente->execute([$cliente_id, $adminIdE]);
             $cliente = $stmtCliente->fetch();
 
             if ($cliente && !empty($cliente['email'])) {
@@ -429,18 +438,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 enviarEmailFatura($faturaDados, 'antes');
             }
 
-            $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.email2, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
-            $stmtFat->execute([$faturaId]);
+            $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.email2, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
+            $stmtFat->execute([$faturaId, $adminIdE]);
             $faturaCompleta = $stmtFat->fetch();
             if (!empty($cliente['celular']) || !empty($cliente['telefone'])) {
                 enviarWhatsAppFatura($faturaCompleta, 'antes');
             }
 
-            $stmtUp = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = 'geracao' WHERE id = ?");
-            $stmtUp->execute([$faturaId]);
+            $stmtUp = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = 'geracao' WHERE id = ? AND admin_id = ?");
+            $stmtUp->execute([$faturaId, $adminIdE]);
 
             header('Location: emissao.php?msg=salvo');
             exit;
+            }
         } catch (PDOException $e) {
             $mensagem = 'Erro: ' . $e->getMessage();
             $tipo = 'danger';
@@ -448,7 +458,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$clientes = $pdo->query("SELECT id, nome_razao, cpf_cnpj FROM clientes WHERE ativo = 1 ORDER BY nome_razao")->fetchAll();
+$stmtCliList = $pdo->prepare("SELECT id, nome_razao, cpf_cnpj FROM clientes WHERE ativo = 1 AND admin_id = ? ORDER BY nome_razao");
+$stmtCliList->execute([$adminIdE]);
+$clientes = $stmtCliList->fetchAll();
 
 $filtro_status = $_GET['filtro_status'] ?? '';
 $filtro_busca = trim($_GET['filtro_busca'] ?? '');
@@ -461,11 +473,11 @@ $sql = "
         (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_status
         FROM faturas_recorrentes fr 
         JOIN clientes c ON fr.cliente_id = c.id 
-        WHERE (fr.ativo = 1 OR fr.status = 'cancelado')
+        WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?
     ) AS base
     WHERE 1=1
 ";
-$params = [];
+$params = [$adminIdE];
 
 if ($filtro_status !== '') {
     $sql .= " AND base.ultimo_status = ?";
@@ -484,10 +496,10 @@ $sql .= " ORDER BY base.criado_em DESC";
 $countSql = "SELECT COUNT(*) FROM (
     SELECT fr.id FROM faturas_recorrentes fr 
     JOIN clientes c ON fr.cliente_id = c.id 
-    WHERE (fr.ativo = 1 OR fr.status = 'cancelado')
+    WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?
     AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) <=> ?
 ) AS cnt";
-$countParams = [$filtro_status !== '' ? $filtro_status : null];
+$countParams = [$adminIdE, $filtro_status !== '' ? $filtro_status : null];
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($countParams);
 $totalFaturasRecorrentes = $countStmt->fetchColumn();
@@ -513,8 +525,8 @@ $frIds = array_column($faturasRecorrentes, 'id');
 $faturasPorRecorrencia = [];
 if ($frIds) {
     $phIds = implode(',', array_fill(0, count($frIds), '?'));
-    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE fatura_recorrente_id IN ($phIds) ORDER BY data_vencimento ASC, id ASC");
-    $stmtFatsFr->execute($frIds);
+    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY data_vencimento ASC, id ASC");
+    $stmtFatsFr->execute(array_merge([$adminIdE], $frIds));
     foreach ($stmtFatsFr->fetchAll() as $ffr) {
         $faturasPorRecorrencia[$ffr['fatura_recorrente_id']][] = $ffr;
     }

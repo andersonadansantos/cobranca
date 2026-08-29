@@ -58,6 +58,9 @@ if (!$fatura) {
     exit;
 }
 
+// Contexto de tenant para resolução de configurações (email etc.)
+if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
+
 foreach ($charges as $charge) {
     $chargeStatus = $charge['status'] ?? '';
     $chargeId = $charge['id'] ?? '';

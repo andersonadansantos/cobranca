@@ -9,15 +9,18 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 
 $pdo = getConnection();
+$adminIdN = (int)$_SESSION['admin_id'];
 
-$inadimplentes = $pdo->query("
+$inadimplentesStmt = $pdo->prepare("
     SELECT f.*, c.nome_razao, c.cpf_cnpj, c.email, c.celular, c.telefone,
            DATEDIFF(NOW(), f.data_vencimento) AS dias_atraso
     FROM faturas f
     JOIN clientes c ON f.cliente_id = c.id
-    WHERE f.status IN ('atrasado','vencido')
+    WHERE f.admin_id = ? AND f.status IN ('atrasado','vencido')
     ORDER BY dias_atraso DESC
-")->fetchAll();
+");
+$inadimplentesStmt->execute([$adminIdN]);
+$inadimplentes = $inadimplentesStmt->fetchAll();
 
 $totalInadimplencia = 0;
 foreach ($inadimplentes as $f) {

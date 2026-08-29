@@ -7,6 +7,8 @@ require_once __DIR__ . '/../config/mercadopago.php';
 
 $mensagem = '';
 $tipo = '';
+$adminId = getCurrentAdminId();
+$configAdminId = $adminId > 0 ? $adminId : null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
@@ -29,11 +31,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $campos = ['inter_client_id', 'inter_client_secret', 'inter_conta', 'inter_webhook_url'];
         foreach ($campos as $campo) {
             $valor = trim($_POST[$campo] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute([$campo, $valor, $valor]);
+            $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+            $stmt->execute([$configAdminId, $campo, $valor]);
         }
 
-        $certDir = __DIR__ . '/../config/inter_certs';
+        $certDir = __DIR__ . '/../config/inter_certs/admin_' . $configAdminId;
         if (!is_dir($certDir)) {
             mkdir($certDir, 0755, true);
         }
@@ -49,8 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $destino = $certDir . '/' . $nomeArquivo;
                 if (move_uploaded_file($_FILES[$campo]['tmp_name'], $destino)) {
-                    $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-                    $stmt->execute([$campo, $destino, $destino]);
+                    $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+                    $stmt->execute([$configAdminId, $campo, $destino]);
                 } else {
                     $mensagem = 'Erro ao enviar arquivo ' . $nomeArquivo;
                     $tipo = 'danger';
@@ -69,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $campos = ['bb_client_id', 'bb_client_secret', 'bb_conta', 'bb_agencia', 'bb_convenio', 'bb_carteira', 'bb_variacao', 'bb_webhook_url', 'bb_chave_pix', 'bb_ambiente'];
         foreach ($campos as $campo) {
             $valor = trim($_POST[$campo] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute([$campo, $valor, $valor]);
+            $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+            $stmt->execute([$configAdminId, $campo, $valor]);
         }
         $mensagem = 'Configurações do Banco do Brasil salvas com sucesso!';
         $tipo = 'success';
@@ -81,8 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $campos = ['pix_manual_chave', 'pix_manual_banco', 'pix_manual_favorecido', 'pix_manual_cnpj', 'pix_manual_whatsapp'];
         foreach ($campos as $campo) {
             $valor = trim($_POST[$campo] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute([$campo, $valor, $valor]);
+            $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+            $stmt->execute([$configAdminId, $campo, $valor]);
         }
         $mensagem = 'Configurações do PIX Manual salvas com sucesso!';
         $tipo = 'success';
@@ -93,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $campos = ['asaas_api_key', 'asaas_ambiente', 'asaas_webhook_url', 'asaas_webhook_token'];
         foreach ($campos as $campo) {
             $valor = trim($_POST[$campo] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute([$campo, $valor, $valor]);
+            $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+            $stmt->execute([$configAdminId, $campo, $valor]);
         }
         $mensagem = 'Configurações do Asaas salvas com sucesso!';
         $tipo = 'success';
@@ -104,8 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo = getConnection();
         $api = $_POST['api'] ?? '';
         if (in_array($api, ['mercadopago', 'inter', 'bb', 'pix_manual', 'asaas'])) {
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute(['api_pagamento_ativa', $api, $api]);
+            $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+            $stmt->execute([$configAdminId, 'api_pagamento_ativa', $api]);
             $nomes = ['mercadopago' => 'Mercado Pago', 'inter' => 'Banco Inter', 'bb' => 'Banco do Brasil', 'pix_manual' => 'PIX Manual', 'asaas' => 'ASAAS'];
             $mensagem = "API ativa alterada para {$nomes[$api]}!";
             $tipo = 'success';

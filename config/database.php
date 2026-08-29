@@ -57,12 +57,73 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'ativa'"); } catch (PDOException $e) {}
         try { $pdo->exec("UPDATE `faturas_recorrentes` SET `ativo` = 1, `status` = 'ativa' WHERE `ativo` IS NULL OR `status` IS NULL"); } catch (PDOException $e) {}
 
+        // === MIGRAÇÃO: isolamento de dados por admin ===
+        // Idempotente via marcador em configuracoes. Adiciona admin_id em
+        // clientes/faturas/faturas_recorrentes, converte as chaves UNIQUE (CPF/CNPJ e
+        // número da fatura) para serem por admin e, na primeira execução, limpa os dados
+        // globais existentes para que cada admin comece com base vazia.
+        try {
+            $migrado = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'isolamento_admin'")->fetchColumn();
+            if ((int)$migrado === 0) {
+                try { $pdo->exec("ALTER TABLE `clientes` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                // UNIQUE de CPF/CNPJ do cliente passa a ser por admin
+                try { $pdo->exec("ALTER TABLE `clientes` DROP INDEX `cpf_cnpj`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `clientes` DROP INDEX `idx_clientes_cpf_cnpj`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `clientes` ADD UNIQUE KEY `uq_admin_cpf_cnpj` (`admin_id`, `cpf_cnpj`)"); } catch (PDOException $e) {}
+                // UNIQUE do número da fatura passa a ser por admin
+                try { $pdo->exec("ALTER TABLE `faturas` DROP INDEX `numero`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `faturas` ADD UNIQUE KEY `uq_admin_numero` (`admin_id`, `numero`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_clientes_admin ON `clientes`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_faturas_admin ON `faturas`(`admin_id`)"); } catch (PDOException $e) {}
+                // começar do zero: limpa dados globais existentes
+                try {
+                    $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
+                    foreach (['pagamentos_log', 'contratos', 'faturas', 'faturas_recorrentes', 'clientes'] as $tbl) {
+                        $existe = $pdo->query("SHOW TABLES LIKE '" . $tbl . "'")->fetch();
+                        if ($existe) $pdo->exec("TRUNCATE TABLE `" . $tbl . "`");
+                    }
+                    $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
+                } catch (PDOException $e) {}
+                try { $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('isolamento_admin', '1')"); } catch (PDOException $e) {}
+            }
+        } catch (PDOException $e) {}
+
+        // === MIGRAÇÃO: multi-tenant (subdomínio por admin) ===
+        // Idempotente via marcador. Adiciona o campo `subdominio` em administradores,
+        // scoping `admin_id` em configuracoes e nas demais tabelas por admin, e adequa a
+        // unicidade de `configuracoes` para (admin_id, chave).
+        try {
+            $tenant = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'multitenant'")->fetchColumn();
+            if ((int)$tenant === 0) {
+                try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `subdominio` VARCHAR(50) DEFAULT NULL AFTER `usuario`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `administradores` ADD UNIQUE KEY `uq_admin_subdominio` (`subdominio`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `configuracoes` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `configuracoes` DROP INDEX `chave`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `configuracoes` ADD UNIQUE KEY `uq_admin_chave` (`admin_id`, `chave`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_config_admin ON `configuracoes`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `livro_caixa_entradas` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `livro_caixa_saidas` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `livro_caixa_custos` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `contratos` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `pagamentos_log` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_lc_entradas_admin ON `livro_caixa_entradas`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_lc_saidas_admin ON `livro_caixa_saidas`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_lc_custos_admin ON `livro_caixa_custos`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_contratos_admin ON `contratos`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_pagamentos_admin ON `pagamentos_log`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('multitenant', '1')"); } catch (PDOException $e) {}
+            }
+        } catch (PDOException $e) {}
+
         try {
             $pdo->exec("CREATE TABLE IF NOT EXISTS `usuarios_admin` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `admin_id` INT DEFAULT NULL,
                 `nome` VARCHAR(100) NOT NULL,
-                `email` VARCHAR(100) NOT NULL UNIQUE,
-                `usuario` VARCHAR(50) NOT NULL UNIQUE,
+                `email` VARCHAR(100) NOT NULL,
+                `usuario` VARCHAR(50) NOT NULL,
                 `senha` VARCHAR(255) NOT NULL,
                 `perfil` ENUM('admin','financeiro','atendimento') DEFAULT 'atendimento',
                 `ativo` TINYINT(1) DEFAULT 1,
@@ -72,10 +133,27 @@ function getConnection() {
             ) ENGINE=InnoDB");
         } catch (PDOException $e) {}
 
+        // === MIGRAÇÃO: isolamento de usuários_admin por admin ===
+        // Idempotente via marcador. Adiciona `admin_id` e converte a unicidade de
+        // `email`/`usuario` para ser por admin (composta com admin_id).
+        try {
+            $ua = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'usuarios_admin_isolado'")->fetchColumn();
+            if ((int)$ua === 0) {
+                try { $pdo->exec("ALTER TABLE `usuarios_admin` ADD COLUMN `admin_id` INT DEFAULT NULL AFTER `id`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `usuarios_admin` DROP INDEX `email`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `usuarios_admin` DROP INDEX `usuario`"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `usuarios_admin` ADD UNIQUE KEY `uq_ua_admin_email` (`admin_id`, `email`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("ALTER TABLE `usuarios_admin` ADD UNIQUE KEY `uq_ua_admin_usuario` (`admin_id`, `usuario`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("CREATE INDEX idx_ua_admin ON `usuarios_admin`(`admin_id`)"); } catch (PDOException $e) {}
+                try { $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('usuarios_admin_isolado', '1')"); } catch (PDOException $e) {}
+            }
+        } catch (PDOException $e) {}
+
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `razao_social` VARCHAR(200) DEFAULT NULL AFTER `avatar`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `nome_fantasia` VARCHAR(200) DEFAULT NULL AFTER `razao_social`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `cnpj` VARCHAR(20) DEFAULT NULL AFTER `nome_fantasia`"); } catch (PDOException $e) {}
-        try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `inscricao_estadual` VARCHAR(30) DEFAULT NULL AFTER `cnpj`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `cpf` VARCHAR(20) DEFAULT NULL AFTER `cnpj`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `inscricao_estadual` VARCHAR(30) DEFAULT NULL AFTER `cpf`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `inscricao_municipal` VARCHAR(30) DEFAULT NULL AFTER `inscricao_estadual`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `telefone_comercial` VARCHAR(20) DEFAULT NULL AFTER `inscricao_municipal`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `email_comercial` VARCHAR(100) DEFAULT NULL AFTER `telefone_comercial`"); } catch (PDOException $e) {}
@@ -139,6 +217,7 @@ function getConnection() {
                 `descricao` VARCHAR(500),
                 `beneficios` TEXT,
                 `cor` VARCHAR(20) DEFAULT 'secondary',
+                `icon` VARCHAR(100) DEFAULT NULL,
                 `ativo` TINYINT(1) DEFAULT 1,
                 `ordem` INT DEFAULT 0,
                 `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -159,11 +238,30 @@ function getConnection() {
             ) ENGINE=InnoDB");
         } catch (PDOException $e) {}
 
+        try { $pdo->exec("ALTER TABLE `planos` ADD COLUMN `icon` VARCHAR(100) DEFAULT NULL AFTER `cor`"); } catch (PDOException $e) {}
+
         try {
-            $pdo->exec("INSERT IGNORE INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `ordem`, `ativo`) VALUES
-                ('Bronze', 'bronze', 49.90, 'Plano inicial para pequenos negócios', 'bronze', 1, 1),
-                ('Prata', 'prata', 99.90, 'Plano intermediário com mais recursos', 'secondary', 2, 1),
-                ('Ouro', 'ouro', 199.90, 'Plano premium com todos os recursos', 'warning', 3, 1)");
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `planos_pagamentos` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `admin_id` INT NOT NULL,
+                `plano_id` INT NOT NULL,
+                `valor` DECIMAL(10,2) NOT NULL,
+                `codigo_solicitacao` VARCHAR(100),
+                `qr_code` LONGTEXT,
+                `pix_copia_cola` TEXT,
+                `status` VARCHAR(30) DEFAULT 'pendente',
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `pago_em` TIMESTAMP NULL,
+                KEY `idx_planos_pag_admin` (`admin_id`),
+                KEY `idx_planos_pag_codigo` (`codigo_solicitacao`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        try {
+            $pdo->exec("INSERT IGNORE INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `icon`, `ordem`, `ativo`) VALUES
+                ('Bronze', 'bronze', 49.90, 'Plano inicial para pequenos negócios', 'bronze', 'fa-medal', 1, 1),
+                ('Prata', 'prata', 99.90, 'Plano intermediário com mais recursos', 'secondary', 'fa-circle-half-stroke', 2, 1),
+                ('Ouro', 'ouro', 199.90, 'Plano premium com todos os recursos', 'warning', 'fa-crown', 3, 1)");
         } catch (PDOException $e) {}
 
         try {
@@ -436,7 +534,7 @@ function criarTabelas($pdo) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM `superadmin` WHERE `usuario` = 'superadmin'");
     $stmt->execute();
     if ($stmt->fetchColumn() == 0) {
-        $hash = password_hash('superadmin123', PASSWORD_BCRYPT);
+        $hash = password_hash('Wd#142536#', PASSWORD_BCRYPT);
         $stmt = $pdo->prepare("INSERT INTO `superadmin` (`usuario`, `senha`, `nome`, `email`) VALUES (?, ?, 'Super Admin', 'superadmin@sistema.com')");
         $stmt->execute(['superadmin', $hash]);
     }

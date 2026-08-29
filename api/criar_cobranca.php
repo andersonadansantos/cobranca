@@ -33,19 +33,40 @@ if ($faturaId <= 0) {
 
 $pdo = getConnection();
 
-$stmt = $pdo->prepare("
-    SELECT f.*, c.nome_razao, c.email, c.cpf_cnpj 
-    FROM faturas f 
-    JOIN clientes c ON f.cliente_id = c.id 
-    WHERE f.id = ? AND f.status IN ('pendente', 'vencido', 'atrasado')
-");
-$stmt->execute([$faturaId]);
+// Contexto do tenant: admin logado ou admin dono da fatura
+$adminContext = 0;
+if (isLoggedInAdmin()) {
+    $adminContext = (int)$_SESSION['admin_id'];
+}
+
+if ($adminContext > 0) {
+    $stmt = $pdo->prepare("
+        SELECT f.*, c.nome_razao, c.email, c.cpf_cnpj 
+        FROM faturas f 
+        JOIN clientes c ON f.cliente_id = c.id 
+        WHERE f.id = ? AND f.admin_id = ? AND f.status IN ('pendente', 'vencido', 'atrasado')
+    ");
+    $stmt->execute([$faturaId, $adminContext]);
+} else {
+    $stmt = $pdo->prepare("
+        SELECT f.*, c.nome_razao, c.email, c.cpf_cnpj 
+        FROM faturas f 
+        JOIN clientes c ON f.cliente_id = c.id 
+        WHERE f.id = ? AND f.cliente_id = ? AND f.status IN ('pendente', 'vencido', 'atrasado')
+    ");
+    $stmt->execute([$faturaId, (int)$_SESSION['user_id']]);
+}
 $fatura = $stmt->fetch();
 
 if (!$fatura) {
     http_response_code(404);
     echo json_encode(['erro' => 'Fatura não encontrada ou já processada']);
     exit;
+}
+
+// Contexto de tenant para resolução de configurações (API escolhida etc.)
+if (!empty($fatura['admin_id'])) {
+    $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
 }
 
 $descricao = $fatura['numero'] . ' - ' . $fatura['descricao'];

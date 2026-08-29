@@ -40,6 +40,9 @@ $stmt->execute([$codigoSolicitacao]);
 $fatura = $stmt->fetch();
 
 if ($fatura) {
+    // Contexto de tenant para resolução de configurações (email etc.)
+    if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
+
     $novoStatus = 'pendente';
     $dataPagamento = null;
 

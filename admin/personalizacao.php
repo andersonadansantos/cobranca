@@ -16,14 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $corSecundaria = trim($_POST['cor_secundaria'] ?? '#6c757d');
         $corFundo = trim($_POST['cor_fundo'] ?? '#f8f9fa');
         $nomeSistema = trim($_POST['nome_sistema'] ?? 'Sistema de Cobrança');
-        
-        $pdo = getConnection();
-        $stmt = $pdo->prepare("UPDATE configuracoes SET valor = ? WHERE chave = ?");
-        $stmt->execute([$corPrimaria, 'cor_primaria']);
-        $stmt->execute([$corSecundaria, 'cor_secundaria']);
-        $stmt->execute([$corFundo, 'cor_fundo']);
-        $stmt->execute([$nomeSistema, 'nome_sistema']);
-        
+
+        saveConfig('cor_primaria', $corPrimaria);
+        saveConfig('cor_secundaria', $corSecundaria);
+        saveConfig('cor_fundo', $corFundo);
+        saveConfig('nome_sistema', $nomeSistema);
+
         $mensagem = 'Personalização salva com sucesso!';
         $tipo = 'success';
     }
@@ -40,15 +38,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (move_uploaded_file($_FILES['logo']['tmp_name'], $destino)) {
                     // Remover logo anterior
-                    $pdo = getConnection();
                     $logoAntiga = getConfig('logo_empresa');
                     $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
                     if ($logoAntiga && file_exists($logoAntigaPath)) {
                         unlink($logoAntigaPath);
                     }
                     
-                    $stmt = $pdo->prepare("UPDATE configuracoes SET valor = ? WHERE chave = 'logo_empresa'");
-                    $stmt->execute(['/cobranca/assets/img/' . $nome]);
+                    saveConfig('logo_empresa', '/cobranca/assets/img/' . $nome);
                     
                     $mensagem = 'Logo atualizada com sucesso!';
                     $tipo = 'success';
@@ -73,15 +69,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $destino = __DIR__ . '/../assets/img/' . $nome;
                 
                 if (move_uploaded_file($_FILES['logo_login']['tmp_name'], $destino)) {
-                    $pdo = getConnection();
                     $logoAntiga = getConfig('logo_login');
                     $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
                     if ($logoAntiga && file_exists($logoAntigaPath)) {
                         unlink($logoAntigaPath);
                     }
                     
-                    $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('logo_login', ?) ON DUPLICATE KEY UPDATE valor = ?");
-                    $stmt->execute(['/cobranca/assets/img/' . $nome, '/cobranca/assets/img/' . $nome]);
+                    saveConfig('logo_login', '/cobranca/assets/img/' . $nome);
                     
                     $mensagem = 'Logo de login atualizada com sucesso!';
                     $tipo = 'success';
@@ -106,15 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $destino = __DIR__ . '/../assets/img/' . $nome;
                 
                 if (move_uploaded_file($_FILES['logo_mobile']['tmp_name'], $destino)) {
-                    $pdo = getConnection();
                     $logoAntiga = getConfig('logo_mobile');
                     $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
                     if ($logoAntiga && file_exists($logoAntigaPath)) {
                         unlink($logoAntigaPath);
                     }
                     
-                    $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('logo_mobile', ?) ON DUPLICATE KEY UPDATE valor = ?");
-                    $stmt->execute(['/cobranca/assets/img/' . $nome, '/cobranca/assets/img/' . $nome]);
+                    saveConfig('logo_mobile', '/cobranca/assets/img/' . $nome);
                     
                     $mensagem = 'Logo mobile atualizada com sucesso!';
                     $tipo = 'success';

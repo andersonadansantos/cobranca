@@ -11,12 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_financeiro') {
-        $pdo = getConnection();
         $campos = ['financeiro_whatsapp', 'financeiro_email', 'financeiro_fone'];
         foreach ($campos as $campo) {
-            $valor = trim($_POST[$campo] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute([$campo, $valor, $valor]);
+            saveConfig($campo, trim($_POST[$campo] ?? ''));
         }
         $mensagem = 'Contatos financeiros salvos com sucesso!';
         $tipo = 'success';

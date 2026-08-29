@@ -11,6 +11,7 @@ require_once __DIR__ . '/../config/settings.php';
 $pdo = getConnection();
 $tipo = '';
 $msg = '';
+$adminId = (int)($_SESSION['admin_id'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
@@ -27,11 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tipo = 'danger';
                 $msg = 'A senha deve ter no mínimo 6 caracteres.';
             } else {
-                $check = $pdo->prepare("SELECT COUNT(*) FROM usuarios_admin WHERE usuario = ? OR email = ?");
-                $check->execute([$usuario, $email]);
+                $check = $pdo->prepare("SELECT COUNT(*) FROM usuarios_admin WHERE admin_id = ? AND (usuario = ? OR email = ?)");
+                $check->execute([$adminId, $usuario, $email]);
                 if ($check->fetchColumn() == 0) {
-                    $stmt = $pdo->prepare("INSERT INTO usuarios_admin (nome, email, usuario, senha, perfil) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$nome, $email, $usuario, password_hash($senha, PASSWORD_BCRYPT), $perfil]);
+                    $stmt = $pdo->prepare("INSERT INTO usuarios_admin (admin_id, nome, email, usuario, senha, perfil) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$adminId, $nome, $email, $usuario, password_hash($senha, PASSWORD_BCRYPT), $perfil]);
                     $tipo = 'success';
                     $msg = 'Usuário criado com sucesso!';
                 } else {
@@ -59,11 +60,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'A senha deve ter no mínimo 6 caracteres.';
             } else {
                 if ($senha) {
-                    $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=?, senha=? WHERE id=?");
-                    $stmt->execute([$nome, $email, $perfil, $ativo, password_hash($senha, PASSWORD_BCRYPT), $id]);
+                    $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=?, senha=? WHERE id=? AND admin_id=?");
+                    $stmt->execute([$nome, $email, $perfil, $ativo, password_hash($senha, PASSWORD_BCRYPT), $id, $adminId]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=? WHERE id=?");
-                    $stmt->execute([$nome, $email, $perfil, $ativo, $id]);
+                    $stmt = $pdo->prepare("UPDATE usuarios_admin SET nome=?, email=?, perfil=?, ativo=? WHERE id=? AND admin_id=?");
+                    $stmt->execute([$nome, $email, $perfil, $ativo, $id, $adminId]);
                 }
                 $tipo = 'success';
                 $msg = 'Usuário atualizado!';
@@ -74,8 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'excluir') {
         $id = intval($_POST['id'] ?? 0);
         if ($id && $id != $_SESSION['admin_id']) {
-            $stmt = $pdo->prepare("DELETE FROM usuarios_admin WHERE id = ?");
-            $stmt->execute([$id]);
+            $stmt = $pdo->prepare("DELETE FROM usuarios_admin WHERE id = ? AND admin_id = ?");
+            $stmt->execute([$id, $adminId]);
             $tipo = 'success';
             $msg = 'Usuário removido!';
         } else {
@@ -85,7 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$usuarios = $pdo->query("SELECT * FROM usuarios_admin ORDER BY criado_em DESC")->fetchAll();
+$stmtUsuarios = $pdo->prepare("SELECT * FROM usuarios_admin WHERE admin_id = ? ORDER BY criado_em DESC");
+$stmtUsuarios->execute([$adminId]);
+$usuarios = $stmtUsuarios->fetchAll();
 $totalUsuarios = count($usuarios);
 $perfis = ['admin' => 'Administrador', 'financeiro' => 'Financeiro', 'atendimento' => 'Atendimento'];
 $corPerfil = ['admin' => 'primary', 'financeiro' => 'warning', 'atendimento' => 'info'];

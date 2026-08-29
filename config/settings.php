@@ -4,12 +4,30 @@
 // =====================================================
 
 require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/tenant.php';
+
+// Contexto de admin usado para ler/gravar configurações por admin.
+// Painel admin -> admin logado. Demais contextos (portal, login, webhook) -> tenant do subdomínio.
+function getConfigAdminId() {
+    if (isset($_SESSION['admin_id']) && (int)$_SESSION['admin_id'] > 0) {
+        return (int)$_SESSION['admin_id'];
+    }
+    return getTenantAdminId();
+}
 
 function getConfig($chave, $padrao = '') {
     $pdo = getConnection();
     if (!$pdo) return $padrao;
-    
-    $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = ?");
+    $adminId = getConfigAdminId();
+
+    if ($adminId > 0) {
+        $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = ?");
+        $stmt->execute([$adminId, $chave]);
+        $row = $stmt->fetch();
+        if ($row) return $row['valor'];
+    }
+
+    $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
     $stmt->execute([$chave]);
     $row = $stmt->fetch();
     return $row ? $row['valor'] : $padrao;
@@ -18,17 +36,37 @@ function getConfig($chave, $padrao = '') {
 function saveConfig($chave, $valor) {
     $pdo = getConnection();
     if (!$pdo) return false;
-    
-    $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-    return $stmt->execute([$chave, $valor, $valor]);
+    $adminId = getConfigAdminId();
+    if ($adminId <= 0) {
+        $adminId = null;
+    }
+    $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+    return $stmt->execute([$adminId, $chave, $valor]);
 }
 
 function getAllConfig() {
     $pdo = getConnection();
     if (!$pdo) return [];
-    
-    $stmt = $pdo->query("SELECT chave, valor FROM configuracoes");
+    $adminId = getConfigAdminId();
+
     $config = [];
+
+    if ($adminId > 0) {
+        // Globais (admin_id NULL) como base + sobreposição do admin atual
+        $stmt = $pdo->query("SELECT chave, valor FROM configuracoes WHERE admin_id IS NULL");
+        while ($row = $stmt->fetch()) {
+            $config[$row['chave']] = $row['valor'];
+        }
+        $stmt = $pdo->prepare("SELECT chave, valor FROM configuracoes WHERE admin_id = ?");
+        $stmt->execute([$adminId]);
+        while ($row = $stmt->fetch()) {
+            $config[$row['chave']] = $row['valor'];
+        }
+        return $config;
+    }
+
+    $stmt = $pdo->query("SELECT chave, valor FROM configuracoes WHERE admin_id IS NULL");
     while ($row = $stmt->fetch()) {
         $config[$row['chave']] = $row['valor'];
     }

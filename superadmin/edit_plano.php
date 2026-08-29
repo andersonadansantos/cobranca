@@ -25,12 +25,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $descricao = trim($_POST['descricao'] ?? '');
     $beneficios = $_POST['beneficios'] ?? '';
     $cor = trim($_POST['cor'] ?? 'secondary');
+    $icon = trim($_POST['icon'] ?? 'fa-circle');
     $ordem = intval($_POST['ordem'] ?? 0);
     $ativo = isset($_POST['ativo']) ? 1 : 0;
 
     if (!empty($nome) && is_numeric($preco)) {
-        $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, beneficios=?, cor=?, ordem=?, ativo=? WHERE id=?")
-            ->execute([$nome, $preco, $descricao, $beneficios, $cor, $ordem, $ativo, $id]);
+        $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, beneficios=?, cor=?, icon=?, ordem=?, ativo=? WHERE id=?")
+            ->execute([$nome, $preco, $descricao, $beneficios, $cor, $icon, $ordem, $ativo, $id]);
         header('Location: planos.php?msg=salvo');
         exit;
     } else {
@@ -95,6 +96,20 @@ include __DIR__ . '/includes/sidebar.php';
                                     <option value="danger" <?= $planEdit['cor'] == 'danger' ? 'selected' : '' ?>>Vermelho (danger)</option>
                                     <option value="info" <?= $planEdit['cor'] == 'info' ? 'selected' : '' ?>>Azul claro (info)</option>
                                     <option value="bronze" <?= $planEdit['cor'] == 'bronze' ? 'selected' : '' ?>>Bronze</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Ícone</label>
+                                <select name="icon" class="form-select">
+                                    <option value="fa-crown" <?= $planEdit['icon'] == 'fa-crown' ? 'selected' : '' ?>>Coroa</option>
+                                    <option value="fa-medal" <?= $planEdit['icon'] == 'fa-medal' ? 'selected' : '' ?>>Medalha</option>
+                                    <option value="fa-gem" <?= $planEdit['icon'] == 'fa-gem' ? 'selected' : '' ?>>Gema (Diamante)</option>
+                                    <option value="fa-star" <?= $planEdit['icon'] == 'fa-star' ? 'selected' : '' ?>>Estrela</option>
+                                    <option value="fa-rocket" <?= $planEdit['icon'] == 'fa-rocket' ? 'selected' : '' ?>>Foguete</option>
+                                    <option value="fa-circle-half-stroke" <?= $planEdit['icon'] == 'fa-circle-half-stroke' ? 'selected' : '' ?>>Círculo (Prata)</option>
+                                    <option value="fa-circle" <?= $planEdit['icon'] == 'fa-circle' ? 'selected' : '' ?>>Círculo</option>
+                                    <option value="fa-bolt" <?= $planEdit['icon'] == 'fa-bolt' ? 'selected' : '' ?>>Raio</option>
+                                    <option value="fa-shield-halved" <?= $planEdit['icon'] == 'fa-shield-halved' ? 'selected' : '' ?>>Escudo</option>
                                 </select>
                             </div>
                             <div class="mb-3">

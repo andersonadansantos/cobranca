@@ -12,11 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acao === 'smtp') {
         $campos = ['smtp_host', 'smtp_port', 'smtp_usuario', 'smtp_senha', 'smtp_from_email', 'smtp_from_nome', 'smtp_ssl'];
-        $pdo = getConnection();
         foreach ($campos as $campo) {
-            $valor = trim($_POST[$campo] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute([$campo, $valor, $valor]);
+            saveConfig($campo, trim($_POST[$campo] ?? ''));
         }
         $mensagem = 'Configurações SMTP salvas com sucesso!';
         $tipo = 'success';
@@ -43,9 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($acao === 'envio') {
-        $pdo = getConnection();
         $envioHora = trim($_POST['envio_hora'] ?? '08:00');
         $cronAtivo = isset($_POST['cron_envio_ativo']) ? '1' : '0';
+
+        saveConfig('envio_hora', $envioHora);
+        saveConfig('cron_envio_ativo', $cronAtivo);
 
         $camposRegua = [
             'regua_1_enviar_geracao' => isset($_POST['regua_1_enviar_geracao']) ? '1' : '0',
@@ -55,12 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'regua_5_dias_depois'    => intval($_POST['regua_5_dias_depois'] ?? 0),
         ];
 
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['envio_hora', $envioHora, $envioHora]);
-        $stmt->execute(['cron_envio_ativo', $cronAtivo, $cronAtivo]);
-
         foreach ($camposRegua as $chave => $valor) {
-            $stmt->execute([$chave, $valor, $valor]);
+            saveConfig($chave, $valor);
         }
 
         $mensagem = 'Régua de cobrança salva com sucesso!';
@@ -68,30 +63,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($acao === 'cron') {
-        $pdo = getConnection();
         $siteUrl = trim($_POST['site_url'] ?? '');
         $cronToken = trim($_POST['cron_token'] ?? '');
 
         if (empty($cronToken)) {
-            $existing = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'cron_token'");
-            $existing->execute();
-            $row = $existing->fetch();
-            $cronToken = $row ? $row['valor'] : bin2hex(random_bytes(16));
+            $cronToken = getConfig('cron_token', '') ?: bin2hex(random_bytes(16));
         }
 
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['site_url', $siteUrl, $siteUrl]);
-        $stmt->execute(['cron_token', $cronToken, $cronToken]);
+        saveConfig('site_url', $siteUrl);
+        saveConfig('cron_token', $cronToken);
 
         $mensagem = 'Configuração CRON salva com sucesso!';
         $tipo = 'success';
     }
 
     if ($acao === 'gerar_token') {
-        $pdo = getConnection();
         $cronToken = bin2hex(random_bytes(16));
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['cron_token', $cronToken, $cronToken]);
+        saveConfig('cron_token', $cronToken);
 
         $mensagem = 'Novo token gerado!';
         $tipo = 'success';
@@ -102,9 +90,8 @@ $config = getAllConfig();
 
 // Gera token automaticamente na primeira visita, para a URL já vir pronta
 if (empty($config['cron_token'] ?? '')) {
-    $pdoTok = getConnection();
     $cronTokenNovo = bin2hex(random_bytes(16));
-    $pdoTok->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('cron_token', ?) ON DUPLICATE KEY UPDATE valor = ?")->execute([$cronTokenNovo, $cronTokenNovo]);
+    saveConfig('cron_token', $cronTokenNovo);
     $config['cron_token'] = $cronTokenNovo;
 }
 

@@ -60,7 +60,7 @@ $basePath = '/cobranca/admin';
                 <i class="fas fa-database"></i> Backup
             </a>
             <a href="<?= $basePath ?>/whatsapp.php" class="nav-link <?= $currentPage === 'whatsapp' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fab fa-whatsapp" style="color:#25D366;"></i> WhatsApp
+                <i class="fab fa-whatsapp" style="color:#25D366;"></i> Config. Whatsapp
             </a>
         </div>
 

@@ -9,15 +9,27 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 
 $pdo = getConnection();
+$adminIdI = (int)$_SESSION['admin_id'];
 
-$totalClientes = $pdo->query("SELECT COUNT(*) FROM clientes WHERE ativo = 1")->fetchColumn();
-$totalFaturas = $pdo->query("SELECT COUNT(*) FROM faturas WHERE status IN ('pendente','vencido','atrasado')")->fetchColumn();
-$totalRecebido = $pdo->query("SELECT COALESCE(SUM(valor),0) FROM faturas WHERE status = 'pago' AND MONTH(data_pagamento) = MONTH(NOW()) AND YEAR(data_pagamento) = YEAR(NOW())")->fetchColumn();
-$totalPendente = $pdo->query("SELECT COALESCE(SUM(valor_final),0) FROM faturas WHERE status IN ('pendente','vencido','atrasado')")->fetchColumn();
+$empCampos = ['razao_social'=>'Razão Social','nome_fantasia'=>'Nome Fantasia','cnpj'=>'CNPJ','telefone_comercial'=>'Telefone Comercial','email_comercial'=>'E-mail Comercial','cep'=>'CEP','logradouro'=>'Logradouro','numero'=>'Número','bairro'=>'Bairro','cidade'=>'Cidade','estado'=>'UF'];
+$empPendentes = [];
+$stmtEmp = $pdo->prepare("SELECT " . implode(',', array_keys($empCampos)) . " FROM administradores WHERE id = ?");
+$stmtEmp->execute([$adminIdI]);
+$dadosEmpresa = $stmtEmp->fetch();
+if ($dadosEmpresa) {
+    foreach ($empCampos as $chave => $rotulo) {
+        if (empty(trim((string)($dadosEmpresa[$chave] ?? '')))) $empPendentes[] = $rotulo;
+    }
+}
+
+$totalClientes = $pdo->query("SELECT COUNT(*) FROM clientes WHERE ativo = 1 AND admin_id = $adminIdI")->fetchColumn();
+$totalFaturas = $pdo->query("SELECT COUNT(*) FROM faturas WHERE status IN ('pendente','vencido','atrasado') AND admin_id = $adminIdI")->fetchColumn();
+$totalRecebido = $pdo->query("SELECT COALESCE(SUM(valor),0) FROM faturas WHERE status = 'pago' AND MONTH(data_pagamento) = MONTH(NOW()) AND YEAR(data_pagamento) = YEAR(NOW()) AND admin_id = $adminIdI")->fetchColumn();
+$totalPendente = $pdo->query("SELECT COALESCE(SUM(valor_final),0) FROM faturas WHERE status IN ('pendente','vencido','atrasado') AND admin_id = $adminIdI")->fetchColumn();
 
 $receitaMes = $pdo->query("
     SELECT MONTH(data_pagamento) AS mes, YEAR(data_pagamento) AS ano, SUM(valor_final) AS total
-    FROM faturas WHERE status = 'pago' AND data_pagamento IS NOT NULL
+    FROM faturas WHERE status = 'pago' AND data_pagamento IS NOT NULL AND admin_id = $adminIdI
     AND data_pagamento >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
     GROUP BY YEAR(data_pagamento), MONTH(data_pagamento)
     ORDER BY ano, mes
@@ -33,6 +45,7 @@ foreach ($receitaMes as $rm) {
 
 $statusDist = $pdo->query("
     SELECT status, COUNT(*) AS qtd FROM faturas
+    WHERE admin_id = $adminIdI
     GROUP BY status ORDER BY qtd DESC
 ")->fetchAll();
 
@@ -51,6 +64,7 @@ $faturasAlerta = $pdo->query("
            DATEDIFF(f.data_vencimento, CURDATE()) AS dias_restantes
     FROM faturas f JOIN clientes c ON f.cliente_id = c.id
     WHERE f.status IN ('pendente','vencido','atrasado')
+      AND f.admin_id = $adminIdI
       AND f.data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
     ORDER BY f.data_vencimento ASC
 ")->fetchAll();
@@ -62,7 +76,7 @@ if (!in_array($perPage, [10, 20, 50, 100])) $perPage = 10;
 $page = max(1, intval($_GET['page'] ?? 1));
 $offset = ($page - 1) * $perPage;
 
-$totalFaturasRecentes = $pdo->query("SELECT COUNT(*) FROM faturas")->fetchColumn();
+$totalFaturasRecentes = $pdo->query("SELECT COUNT(*) FROM faturas WHERE admin_id = $adminIdI")->fetchColumn();
 $totalPages = max(1, ceil($totalFaturasRecentes / $perPage));
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $perPage;
@@ -71,10 +85,11 @@ $faturasRecentes = $pdo->prepare("
     SELECT f.*, c.nome_razao, c.cpf_cnpj 
     FROM faturas f 
     JOIN clientes c ON f.cliente_id = c.id 
+    WHERE f.admin_id = ?
     ORDER BY f.criado_em DESC 
     LIMIT ? OFFSET ?
 ");
-$faturasRecentes->execute([$perPage, $offset]);
+$faturasRecentes->execute([$adminIdI, $perPage, $offset]);
 $faturasRecentes = $faturasRecentes->fetchAll();
 
 $pageTitle = 'Painel Geral';
@@ -85,20 +100,20 @@ $mesAtual = intval(date('m'));
 $anoAtual = intval(date('Y'));
 $meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-$lcEntradasManuais = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_entradas WHERE YEAR(data) = ? AND MONTH(data) = ?");
-$lcEntradasManuais->execute([$anoAtual, $mesAtual]);
+$lcEntradasManuais = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_entradas WHERE admin_id = ? AND YEAR(data) = ? AND MONTH(data) = ?");
+$lcEntradasManuais->execute([$adminIdI, $anoAtual, $mesAtual]);
 $lcTotalEntradasManuais = floatval($lcEntradasManuais->fetchColumn());
 
-$lcFaturasPagas = $pdo->prepare("SELECT COALESCE(SUM(valor_final),0) AS total FROM faturas WHERE status = 'pago' AND YEAR(data_pagamento) = ? AND MONTH(data_pagamento) = ?");
-$lcFaturasPagas->execute([$anoAtual, $mesAtual]);
+$lcFaturasPagas = $pdo->prepare("SELECT COALESCE(SUM(valor_final),0) AS total FROM faturas WHERE status = 'pago' AND admin_id = ? AND YEAR(data_pagamento) = ? AND MONTH(data_pagamento) = ?");
+$lcFaturasPagas->execute([$adminIdI, $anoAtual, $mesAtual]);
 $lcTotalFaturasPagas = floatval($lcFaturasPagas->fetchColumn());
 
-$lcSaidas = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_saidas WHERE YEAR(data) = ? AND MONTH(data) = ?");
-$lcSaidas->execute([$anoAtual, $mesAtual]);
+$lcSaidas = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_saidas WHERE admin_id = ? AND YEAR(data) = ? AND MONTH(data) = ?");
+$lcSaidas->execute([$adminIdI, $anoAtual, $mesAtual]);
 $lcTotalSaidas = floatval($lcSaidas->fetchColumn());
 
-$lcCustos = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_custos WHERE YEAR(data) = ? AND MONTH(data) = ?");
-$lcCustos->execute([$anoAtual, $mesAtual]);
+$lcCustos = $pdo->prepare("SELECT COALESCE(SUM(valor),0) AS total FROM livro_caixa_custos WHERE admin_id = ? AND YEAR(data) = ? AND MONTH(data) = ?");
+$lcCustos->execute([$adminIdI, $anoAtual, $mesAtual]);
 $lcTotalCustos = floatval($lcCustos->fetchColumn());
 
 $lcTotalEntradas = $lcTotalEntradasManuais + $lcTotalFaturasPagas;
@@ -126,6 +141,17 @@ $lcSaldo = $lcTotalEntradas - $lcTotalSaidas - $lcTotalCustos;
     </div>
 
     <div class="content-area fade-in">
+        <?php if (!empty($empPendentes)): ?>
+        <div class="alert alert-danger d-flex align-items-center mb-4" role="alert" style="border-left:4px solid #dc3545;">
+            <i class="fas fa-exclamation-triangle me-3" style="font-size:1.2rem;"></i>
+            <div>
+                <strong>Dados da empresa incompletos.</strong>
+                <br><small>Campos faltando: <?= htmlspecialchars(implode(', ', $empPendentes)) ?>
+                <a href="perfil.php" class="alert-link"><i class="fa-solid fa-wand-magic-sparkles ms-1"></i>Preencher agora →</a></small>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <?php if ($totalAlerta > 0): ?>
         <div class="alert alert-warning d-flex align-items-center mb-4" role="alert" style="border-left:4px solid #ffc107;">
             <i class="fas fa-bell me-3" style="font-size:1.2rem;"></i>

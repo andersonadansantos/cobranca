@@ -23,19 +23,10 @@ function getPagBankBaseUrl() {
 }
 
 function savePagBankConfig($token, $ambiente, $webhookUrl) {
-    $pdo = getConnection();
-    if (!$pdo) return false;
-
-    try {
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['pagbank_token', $token, $token]);
-        $stmt->execute(['pagbank_ambiente', $ambiente, $ambiente]);
-        $stmt->execute(['pagbank_webhook_url', $webhookUrl, $webhookUrl]);
-        return true;
-    } catch (Exception $e) {
-        error_log("Erro ao salvar config PagBank: " . $e->getMessage());
-        return false;
-    }
+    saveConfig('pagbank_token', $token);
+    saveConfig('pagbank_ambiente', $ambiente);
+    saveConfig('pagbank_webhook_url', $webhookUrl);
+    return true;
 }
 
 function criarPedidoPagBank($dados) {

@@ -68,6 +68,9 @@ if (isset($mapeamento[$evento])) {
         $fatura = $stmt->fetch();
 
         if ($fatura && $fatura['status'] !== 'pago') {
+            // Contexto de tenant para resolução de configurações (email etc.)
+            if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
+
             $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ?");
             $stmt->execute([$novoStatus, $dataPagamento, $fatura['id']]);
 

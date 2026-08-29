@@ -9,6 +9,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 
 $pdo = getConnection();
+$adminIdL = (int)$_SESSION['admin_id'];
 $mensagem = '';
 $tipo = '';
 
@@ -20,8 +21,8 @@ $meses = ['', 'Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ago
 // Ações CRUD
 if (isset($_GET['excluir_custo'])) {
     $id = intval($_GET['excluir_custo']);
-    $stmt = $pdo->prepare("DELETE FROM livro_caixa_custos WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("DELETE FROM livro_caixa_custos WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdL]);
     header('Location: livro_caixa.php?ano=' . $anoFiltro . '&mes=' . $mesFiltro . '&msg=excluido');
     exit;
 }
@@ -41,8 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valor = floatval($_POST['valor'] ?? 0);
         $data = $_POST['data'] ?? date('Y-m-d');
         if (!empty($descricao) && $valor > 0) {
-            $stmt = $pdo->prepare("INSERT INTO livro_caixa_entradas (descricao, valor, data) VALUES (?, ?, ?)");
-            $stmt->execute([$descricao, $valor, $data]);
+            $stmt = $pdo->prepare("INSERT INTO livro_caixa_entradas (descricao, valor, data, admin_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$descricao, $valor, $data, $adminIdL]);
             $mensagem = 'Entrada adicionada com sucesso!';
             $tipo = 'success';
         } else {
@@ -56,8 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valor = floatval($_POST['valor'] ?? 0);
         $data = $_POST['data'] ?? date('Y-m-d');
         if (!empty($descricao) && $valor > 0) {
-            $stmt = $pdo->prepare("INSERT INTO livro_caixa_saidas (descricao, valor, data) VALUES (?, ?, ?)");
-            $stmt->execute([$descricao, $valor, $data]);
+            $stmt = $pdo->prepare("INSERT INTO livro_caixa_saidas (descricao, valor, data, admin_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$descricao, $valor, $data, $adminIdL]);
             $mensagem = 'Saída adicionada com sucesso!';
             $tipo = 'success';
         } else {
@@ -71,8 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valor = floatval($_POST['valor'] ?? 0);
         $data = $_POST['data'] ?? date('Y-m-d');
         if (!empty($descricao) && $valor > 0) {
-            $stmt = $pdo->prepare("INSERT INTO livro_caixa_custos (descricao, valor, data) VALUES (?, ?, ?)");
-            $stmt->execute([$descricao, $valor, $data]);
+            $stmt = $pdo->prepare("INSERT INTO livro_caixa_custos (descricao, valor, data, admin_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$descricao, $valor, $data, $adminIdL]);
             $mensagem = 'Custo fixo adicionado com sucesso!';
             $tipo = 'success';
         } else {
@@ -83,15 +84,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acao === 'excluir_entrada') {
         $id = intval($_POST['id'] ?? 0);
-        $stmt = $pdo->prepare("DELETE FROM livro_caixa_entradas WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("DELETE FROM livro_caixa_entradas WHERE id = ? AND admin_id = ?");
+        $stmt->execute([$id, $adminIdL]);
         $mensagem = 'Entrada excluída!';
         $tipo = 'warning';
     }
     if ($acao === 'excluir_saida') {
         $id = intval($_POST['id'] ?? 0);
-        $stmt = $pdo->prepare("DELETE FROM livro_caixa_saidas WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare("DELETE FROM livro_caixa_saidas WHERE id = ? AND admin_id = ?");
+        $stmt->execute([$id, $adminIdL]);
         $mensagem = 'Saída excluída!';
         $tipo = 'warning';
     }
@@ -102,11 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cid = intval($cid);
             $pago = isset($pagos[$cid]) ? 1 : 0;
             if ($pago) {
-                $stmt = $pdo->prepare("UPDATE livro_caixa_custos SET pago_mes = ?, pago_ano = ? WHERE id = ?");
-                $stmt->execute([$mesFiltro, $anoFiltro, $cid]);
+                $stmt = $pdo->prepare("UPDATE livro_caixa_custos SET pago_mes = ?, pago_ano = ? WHERE id = ? AND admin_id = ?");
+                $stmt->execute([$mesFiltro, $anoFiltro, $cid, $adminIdL]);
             } else {
-                $stmt = $pdo->prepare("UPDATE livro_caixa_custos SET pago_mes = NULL, pago_ano = NULL WHERE id = ? AND pago_mes = ? AND pago_ano = ?");
-                $stmt->execute([$cid, $mesFiltro, $anoFiltro]);
+                $stmt = $pdo->prepare("UPDATE livro_caixa_custos SET pago_mes = NULL, pago_ano = NULL WHERE id = ? AND admin_id = ? AND pago_mes = ? AND pago_ano = ?");
+                $stmt->execute([$cid, $adminIdL, $mesFiltro, $anoFiltro]);
             }
         }
         $mensagem = 'Pagamento dos custos atualizado!';
@@ -115,21 +116,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Buscar dados filtrados por ano/mês
-$stmt = $pdo->prepare("SELECT * FROM livro_caixa_entradas WHERE YEAR(data) = ? AND MONTH(data) = ? ORDER BY data DESC");
-$stmt->execute([$anoFiltro, $mesFiltro]);
+$stmt = $pdo->prepare("SELECT * FROM livro_caixa_entradas WHERE admin_id = ? AND YEAR(data) = ? AND MONTH(data) = ? ORDER BY data DESC");
+$stmt->execute([$adminIdL, $anoFiltro, $mesFiltro]);
 $entradas = $stmt->fetchAll();
 
-$stmt = $pdo->prepare("SELECT * FROM livro_caixa_saidas WHERE YEAR(data) = ? AND MONTH(data) = ? ORDER BY data DESC");
-$stmt->execute([$anoFiltro, $mesFiltro]);
+$stmt = $pdo->prepare("SELECT * FROM livro_caixa_saidas WHERE admin_id = ? AND YEAR(data) = ? AND MONTH(data) = ? ORDER BY data DESC");
+$stmt->execute([$adminIdL, $anoFiltro, $mesFiltro]);
 $saidas = $stmt->fetchAll();
 
-$stmt = $pdo->prepare("SELECT * FROM livro_caixa_custos WHERE YEAR(data) = ? ORDER BY data DESC");
-$stmt->execute([$anoFiltro]);
+$stmt = $pdo->prepare("SELECT * FROM livro_caixa_custos WHERE admin_id = ? AND YEAR(data) = ? ORDER BY data DESC");
+$stmt->execute([$adminIdL, $anoFiltro]);
 $custos = $stmt->fetchAll();
 
 // Faturas pagas no mês (entradas automáticas)
-$stmt = $pdo->prepare("SELECT f.id, f.numero, f.descricao, f.valor_final AS valor, f.data_pagamento AS data, c.nome_razao FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status = 'pago' AND YEAR(f.data_pagamento) = ? AND MONTH(f.data_pagamento) = ? ORDER BY f.data_pagamento DESC");
-$stmt->execute([$anoFiltro, $mesFiltro]);
+$stmt = $pdo->prepare("SELECT f.id, f.numero, f.descricao, f.valor_final AS valor, f.data_pagamento AS data, c.nome_razao FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.admin_id = ? AND f.status = 'pago' AND YEAR(f.data_pagamento) = ? AND MONTH(f.data_pagamento) = ? ORDER BY f.data_pagamento DESC");
+$stmt->execute([$adminIdL, $anoFiltro, $mesFiltro]);
 $faturasPagas = $stmt->fetchAll();
 
 $totalEntradasManuais = array_sum(array_column($entradas, 'valor'));
@@ -141,7 +142,8 @@ $saldo = $totalEntradas - $totalSaidas - $totalCustos;
 
 // Anos disponíveis
 $anosDisponiveis = [];
-$stmtAnos = $pdo->query("SELECT ano FROM (SELECT YEAR(data) AS ano FROM livro_caixa_entradas UNION SELECT YEAR(data) AS ano FROM livro_caixa_saidas UNION SELECT YEAR(data) AS ano FROM livro_caixa_custos UNION SELECT YEAR(data_pagamento) AS ano FROM faturas WHERE data_pagamento IS NOT NULL) AS t GROUP BY ano ORDER BY ano DESC");
+$stmtAnos = $pdo->prepare("SELECT ano FROM (SELECT YEAR(data) AS ano FROM livro_caixa_entradas WHERE admin_id = ? UNION SELECT YEAR(data) AS ano FROM livro_caixa_saidas WHERE admin_id = ? UNION SELECT YEAR(data) AS ano FROM livro_caixa_custos WHERE admin_id = ? UNION SELECT YEAR(data_pagamento) AS ano FROM faturas WHERE data_pagamento IS NOT NULL AND admin_id = ?) AS t GROUP BY ano ORDER BY ano DESC");
+$stmtAnos->execute([$adminIdL, $adminIdL, $adminIdL, $adminIdL]);
 foreach ($stmtAnos->fetchAll() as $row) {
     $anosDisponiveis[] = $row['ano'];
 }

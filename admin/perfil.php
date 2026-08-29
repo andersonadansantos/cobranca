@@ -36,7 +36,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cidade = trim($_POST['cidade'] ?? '');
     $estado = trim($_POST['estado'] ?? '');
 
+    $empObrigatorios = [
+        'razao_social' => 'Razão Social',
+        'nome_fantasia' => 'Nome Fantasia',
+        'cnpj' => 'CNPJ',
+        'telefone_comercial' => 'Telefone Comercial',
+        'email_comercial' => 'E-mail Comercial',
+        'cep_empresa' => 'CEP',
+        'logradouro' => 'Logradouro',
+        'numero' => 'Número',
+        'bairro' => 'Bairro',
+        'cidade' => 'Cidade',
+        'estado' => 'UF',
+    ];
+    $empDados = [
+        'razao_social' => $razaoSocial, 'nome_fantasia' => $nomeFantasia, 'cnpj' => $cnpj,
+        'inscricao_estadual' => $inscEstadual, 'inscricao_municipal' => $inscMunicipal,
+        'telefone_comercial' => $telComercial, 'email_comercial' => $emailComercial,
+        'cep_empresa' => $cepEmpresa, 'logradouro' => $logradouro, 'numero' => $numero,
+        'bairro' => $bairro, 'cidade' => $cidade, 'estado' => $estado,
+    ];
+    $empFaltando = [];
+    foreach ($empObrigatorios as $chave => $rotulo) {
+        if (empty($empDados[$chave])) $empFaltando[] = $rotulo;
+    }
+
     try {
+        if (!empty($empFaltando)) {
+            $mensagem = 'Preencha os dados da empresa: ' . implode(', ', $empFaltando) . '.';
+            $tipo = 'danger';
+        } else {
         if (!empty($novaSenha)) {
             if (empty($nome) || empty($email) || empty($usuario)) {
                 $mensagem = 'Nome, e-mail e usuário são obrigatórios.';
@@ -73,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($tipo === 'success') {
             $stmt = $pdo->prepare("UPDATE administradores SET razao_social=?, nome_fantasia=?, cnpj=?, inscricao_estadual=?, inscricao_municipal=?, telefone_comercial=?, email_comercial=?, cep=?, logradouro=?, numero=?, complemento=?, bairro=?, cidade=?, estado=? WHERE id=?");
             $stmt->execute([$razaoSocial, $nomeFantasia, $cnpj, $inscEstadual, $inscMunicipal, $telComercial, $emailComercial, $cepEmpresa, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, $adminId]);
+        }
         }
 
         $avatarPath = $admin['avatar'] ?? null;
@@ -189,15 +219,15 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Razão Social</label>
-                        <input type="text" name="razao_social" class="form-control" value="<?= htmlspecialchars($admin['razao_social'] ?? '') ?>">
+                        <input type="text" name="razao_social" class="form-control" required value="<?= htmlspecialchars($admin['razao_social'] ?? '') ?>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Nome Fantasia</label>
-                        <input type="text" name="nome_fantasia" class="form-control" value="<?= htmlspecialchars($admin['nome_fantasia'] ?? '') ?>">
+                        <input type="text" name="nome_fantasia" class="form-control" required value="<?= htmlspecialchars($admin['nome_fantasia'] ?? '') ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">CNPJ</label>
-                        <input type="text" name="cnpj" class="form-control mask-cnpj" value="<?= htmlspecialchars($admin['cnpj'] ?? '') ?>">
+                        <input type="text" name="cnpj" class="form-control mask-cnpj" required value="<?= htmlspecialchars($admin['cnpj'] ?? '') ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Inscrição Estadual</label>
@@ -209,23 +239,23 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Telefone Comercial</label>
-                        <input type="text" name="telefone_comercial" class="form-control mask-phone" value="<?= htmlspecialchars($admin['telefone_comercial'] ?? '') ?>">
+                        <input type="text" name="telefone_comercial" class="form-control mask-phone" required value="<?= htmlspecialchars($admin['telefone_comercial'] ?? '') ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">E-mail Comercial</label>
-                        <input type="email" name="email_comercial" class="form-control" value="<?= htmlspecialchars($admin['email_comercial'] ?? '') ?>">
+                        <input type="email" name="email_comercial" class="form-control" required value="<?= htmlspecialchars($admin['email_comercial'] ?? '') ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">CEP</label>
-                        <input type="text" name="cep_empresa" class="form-control mask-cep" value="<?= htmlspecialchars($admin['cep'] ?? '') ?>" onblur="buscarCEP(this.value, {logradouro:'logradouro',bairro:'bairro',cidade:'cidade',estado:'estado'})">
+                        <input type="text" name="cep_empresa" class="form-control mask-cep" required value="<?= htmlspecialchars($admin['cep'] ?? '') ?>" onblur="buscarCEP(this.value, {logradouro:'logradouro',bairro:'bairro',cidade:'cidade',estado:'estado'})">
                     </div>
                     <div class="col-md-5">
                         <label class="form-label">Logradouro</label>
-                        <input type="text" name="logradouro" id="logradouro" class="form-control" value="<?= htmlspecialchars($admin['logradouro'] ?? '') ?>">
+                        <input type="text" name="logradouro" id="logradouro" class="form-control" required value="<?= htmlspecialchars($admin['logradouro'] ?? '') ?>">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Nº</label>
-                        <input type="text" name="numero" id="numero" class="form-control" value="<?= htmlspecialchars($admin['numero'] ?? '') ?>">
+                        <input type="text" name="numero" id="numero" class="form-control" required value="<?= htmlspecialchars($admin['numero'] ?? '') ?>">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Complemento</label>
@@ -233,15 +263,15 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Bairro</label>
-                        <input type="text" name="bairro" id="bairro" class="form-control" value="<?= htmlspecialchars($admin['bairro'] ?? '') ?>">
+                        <input type="text" name="bairro" id="bairro" class="form-control" required value="<?= htmlspecialchars($admin['bairro'] ?? '') ?>">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Cidade</label>
-                        <input type="text" name="cidade" id="cidade" class="form-control" value="<?= htmlspecialchars($admin['cidade'] ?? '') ?>">
+                        <input type="text" name="cidade" id="cidade" class="form-control" required value="<?= htmlspecialchars($admin['cidade'] ?? '') ?>">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">UF</label>
-                        <input type="text" name="estado" id="estado" class="form-control" maxlength="2" value="<?= htmlspecialchars($admin['estado'] ?? '') ?>">
+                        <input type="text" name="estado" id="estado" class="form-control" required maxlength="2" value="<?= htmlspecialchars($admin['estado'] ?? '') ?>">
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary mt-3">

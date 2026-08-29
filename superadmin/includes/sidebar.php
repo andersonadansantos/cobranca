@@ -23,6 +23,12 @@ $basePath = '/cobranca/superadmin';
         <a href="<?= $basePath ?>/planos.php" class="nav-link <?= $currentPage === 'planos' ? 'active' : '' ?>">
             <i class="fas fa-tags"></i> Planos
         </a>
+        <a href="<?= $basePath ?>/faturas.php" class="nav-link <?= $currentPage === 'faturas' ? 'active' : '' ?>">
+            <i class="fas fa-file-invoice"></i> Faturas
+        </a>
+        <a href="<?= $basePath ?>/api_pagamento.php" class="nav-link <?= $currentPage === 'api_pagamento' ? 'active' : '' ?>">
+            <i class="fas fa-university"></i> API Pagamento
+        </a>
 
         <div class="nav-section">Conta</div>
         <a href="<?= $basePath ?>/logout.php" class="nav-link">

@@ -9,15 +9,41 @@ if (isLoggedInSuper()) {
 $erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $usuario = trim($_POST['usuario'] ?? '');
-    $senha = trim($_POST['senha'] ?? '');
-    if (empty($usuario) || empty($senha)) {
-        $erro = 'Preencha todos os campos.';
-    } elseif (loginSuper($usuario, $senha)) {
-        header('Location: index.php');
-        exit;
+    $turnstile = trim($_POST['cf-turnstile-response'] ?? '');
+    $turnstileSecret = getenv('TURNSTILE_SECRET_KEY') ?: '';
+    if (empty($turnstileSecret)) {
+        require_once __DIR__ . '/../config/settings.php';
+        $turnstileSecret = getConfig('turnstile_secret_key', '');
+    }
+    if (empty($turnstileSecret)) {
+        error_log('Turnstile secret não configurado (env TURNSTILE_SECRET_KEY ou config turnstile_secret_key). Verificação desativada.');
+    } elseif (empty($turnstile)) {
+        $erro = 'Confirme que você não é um robô.';
     } else {
-        $erro = 'Usuário ou senha inválidos.';
+        $verify = @file_get_contents('https://challenges.cloudflare.com/turnstile/v0/siteverify', false, stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => 'Content-Type: application/x-www-form-urlencoded',
+                'content' => http_build_query(['secret' => $turnstileSecret, 'response' => $turnstile])
+            ]
+        ]));
+        $result = json_decode($verify ?? '', true);
+        if (!$result || empty($result['success'])) {
+            $erro = 'Falha na verificação. Tente novamente.';
+        }
+    }
+
+    if (empty($erro)) {
+        $usuario = trim($_POST['usuario'] ?? '');
+        $senha = trim($_POST['senha'] ?? '');
+        if (empty($usuario) || empty($senha)) {
+            $erro = 'Preencha todos os campos.';
+        } elseif (loginSuper($usuario, $senha)) {
+            header('Location: index.php');
+            exit;
+        } else {
+            $erro = 'Usuário ou senha inválidos.';
+        }
     }
 }
 
@@ -34,6 +60,7 @@ $nomeSistema = getNomeSistema();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="/cobranca/assets/css/style.css" rel="stylesheet">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
     <div class="login-page">
@@ -74,6 +101,9 @@ $nomeSistema = getNomeSistema();
                                 <input type="password" name="senha" id="senhaSuper" class="form-control" placeholder="Digite sua senha" required>
                                 <button type="button" class="btn btn-outline-secondary" onclick="alternarSenha('senhaSuper', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
                             </div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="cf-turnstile" data-sitekey="0x4AAAAAAEACAqDXrIelvjeK" data-theme="light"></div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-sign-in-alt me-1"></i> Entrar

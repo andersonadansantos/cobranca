@@ -12,61 +12,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_antes') {
-        $pdo = getConnection();
         $assunto = trim($_POST['template_email_assunto_antes'] ?? '');
         $corpo = $_POST['template_email_corpo_antes'] ?? '';
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_email_assunto_antes', $assunto, $assunto]);
-        $stmt->execute(['template_email_corpo_antes', $corpo, $corpo]);
+        saveConfig('template_email_assunto_antes', $assunto);
+        saveConfig('template_email_corpo_antes', $corpo);
         $mensagem = 'Template Lembrete salvo com sucesso!';
         $tipo = 'success';
     }
 
     if ($acao === 'salvar_depois') {
-        $pdo = getConnection();
         $assunto = trim($_POST['template_email_assunto_depois'] ?? '');
         $corpo = $_POST['template_email_corpo_depois'] ?? '';
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_email_assunto_depois', $assunto, $assunto]);
-        $stmt->execute(['template_email_corpo_depois', $corpo, $corpo]);
+        saveConfig('template_email_assunto_depois', $assunto);
+        saveConfig('template_email_corpo_depois', $corpo);
         $mensagem = 'Template Cobrança salvo com sucesso!';
         $tipo = 'success';
     }
 
     if ($acao === 'restaurar_antes') {
-        $pdo = getConnection();
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_email_corpo_antes', '', '']);
-        $stmt->execute(['template_email_assunto_antes', 'Lembrete: Fatura {numero} vence em {data_vencimento}', 'Lembrete: Fatura {numero} vence em {data_vencimento}']);
+        saveConfig('template_email_corpo_antes', '');
+        saveConfig('template_email_assunto_antes', 'Lembrete: Fatura {numero} vence em {data_vencimento}');
         $mensagem = 'Template Lembrete restaurado para o padrão!';
         $tipo = 'info';
     }
 
     if ($acao === 'restaurar_depois') {
-        $pdo = getConnection();
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_email_corpo_depois', '', '']);
-        $stmt->execute(['template_email_assunto_depois', 'Cobrança: Fatura {numero} vencida', 'Cobrança: Fatura {numero} vencida']);
+        saveConfig('template_email_corpo_depois', '');
+        saveConfig('template_email_assunto_depois', 'Cobrança: Fatura {numero} vencida');
         $mensagem = 'Template Cobrança restaurado para o padrão!';
         $tipo = 'info';
     }
 
     if ($acao === 'salvar_pagamento') {
-        $pdo = getConnection();
         $assunto = trim($_POST['template_email_assunto_pagamento'] ?? '');
         $corpo = $_POST['template_email_corpo_pagamento'] ?? '';
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_email_assunto_pagamento', $assunto, $assunto]);
-        $stmt->execute(['template_email_corpo_pagamento', $corpo, $corpo]);
+        saveConfig('template_email_assunto_pagamento', $assunto);
+        saveConfig('template_email_corpo_pagamento', $corpo);
         $mensagem = 'Template Pagamento Recebido salvo com sucesso!';
         $tipo = 'success';
     }
 
     if ($acao === 'restaurar_pagamento') {
-        $pdo = getConnection();
-        $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-        $stmt->execute(['template_email_corpo_pagamento', '', '']);
-        $stmt->execute(['template_email_assunto_pagamento', 'Pagamento Confirmado - Fatura {numero}', 'Pagamento Confirmado - Fatura {numero}']);
+        saveConfig('template_email_corpo_pagamento', '');
+        saveConfig('template_email_assunto_pagamento', 'Pagamento Confirmado - Fatura {numero}');
         $mensagem = 'Template Pagamento Recebido restaurado para o padrão!';
         $tipo = 'info';
     }

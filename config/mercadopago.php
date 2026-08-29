@@ -8,28 +8,19 @@ require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/asaas.php';
 
 function getMPConfig() {
-    $pdo = getConnection();
-    if (!$pdo) return [];
-    
-    $stmt = $pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'mp_%'");
+    $chaves = ['mp_access_token', 'mp_public_key', 'mp_webhook_url'];
     $config = [];
-    while ($row = $stmt->fetch()) {
-        $config[$row['chave']] = $row['valor'];
+    foreach ($chaves as $chave) {
+        $config[$chave] = getConfig($chave, '');
     }
     return $config;
 }
 
 function saveMPConfig($accessToken, $publicKey, $webhookUrl) {
-    $pdo = getConnection();
-    if (!$pdo) return false;
-    
     try {
-        $stmt = $pdo->prepare("UPDATE configuracoes SET valor = ? WHERE chave = ?");
-        
-        $stmt->execute([$accessToken, 'mp_access_token']);
-        $stmt->execute([$publicKey, 'mp_public_key']);
-        $stmt->execute([$webhookUrl, 'mp_webhook_url']);
-        
+        saveConfig('mp_access_token', $accessToken);
+        saveConfig('mp_public_key', $publicKey);
+        saveConfig('mp_webhook_url', $webhookUrl);
         return true;
     } catch (Exception $e) {
         error_log("Erro ao salvar config MP: " . $e->getMessage());

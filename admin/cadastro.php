@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 
 $pdo = getConnection();
+$adminIdC = (int)$_SESSION['admin_id'];
 $mensagem = '';
 $tipo = '';
 $editando = false;
@@ -13,8 +14,8 @@ $clienteEdit = null;
 // Excluir cliente
 if (isset($_GET['excluir'])) {
     $id = intval($_GET['excluir']);
-    $stmt = $pdo->prepare("DELETE FROM clientes WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("DELETE FROM clientes WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdC]);
     header('Location: cadastro.php?msg=excluido');
     exit;
 }
@@ -22,8 +23,8 @@ if (isset($_GET['excluir'])) {
 // Logar como cliente
 if (isset($_GET['logar_como'])) {
     $id = intval($_GET['logar_como']);
-    $stmt = $pdo->prepare("SELECT id, nome_razao, email, ativo FROM clientes WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("SELECT id, nome_razao, email, ativo FROM clientes WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdC]);
     $cli = $stmt->fetch();
     if ($cli && $cli['ativo']) {
         $_SESSION['user_id'] = $cli['id'];
@@ -38,8 +39,8 @@ if (isset($_GET['logar_como'])) {
 // Editar cliente
 if (isset($_GET['editar'])) {
     $id = intval($_GET['editar']);
-    $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdC]);
     $clienteEdit = $stmt->fetch();
     if ($clienteEdit) $editando = true;
 }
@@ -94,8 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $params[] = password_hash($senha, PASSWORD_BCRYPT);
                 }
                 
-                $sql .= " WHERE id=?";
+                $sql .= " WHERE id=? AND admin_id=?";
                 $params[] = $id_edit;
+                $params[] = $adminIdC;
                 
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
@@ -105,8 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($senha)) {
                     $senha = $cpf_cnpj;
                 }
-                $stmt = $pdo->prepare("INSERT INTO clientes (tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, email2, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $email2, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);
+                $stmt = $pdo->prepare("INSERT INTO clientes (admin_id, tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, email2, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$adminIdC, $tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $email2, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);
                 header('Location: cadastro.php?msg=salvo');
                 exit;
             }
@@ -119,11 +121,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $busca_nome = trim($_GET['busca_nome'] ?? '');
 if (!empty($busca_nome)) {
-    $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao LIKE ? ORDER BY criado_em DESC");
-    $stmt->execute(['%' . $busca_nome . '%']);
+    $stmt = $pdo->prepare("SELECT * FROM clientes WHERE admin_id = ? AND nome_razao LIKE ? ORDER BY criado_em DESC");
+    $stmt->execute([$adminIdC, '%' . $busca_nome . '%']);
     $clientes = $stmt->fetchAll();
 } else {
-    $clientes = $pdo->query("SELECT * FROM clientes ORDER BY criado_em DESC")->fetchAll();
+    $stmt = $pdo->prepare("SELECT * FROM clientes WHERE admin_id = ? ORDER BY criado_em DESC");
+    $stmt->execute([$adminIdC]);
+    $clientes = $stmt->fetchAll();
 }
 
 $pageTitle = 'Cadastro de Clientes';

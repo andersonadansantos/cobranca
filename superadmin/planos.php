@@ -12,18 +12,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $preco = trim($_POST['preco'] ?? '');
     $descricao = trim($_POST['descricao'] ?? '');
     $cor = trim($_POST['cor'] ?? 'secondary');
+    $icon = trim($_POST['icon'] ?? 'fa-circle');
     $ordem = intval($_POST['ordem'] ?? 0);
     $ativo = isset($_POST['ativo']) ? 1 : 0;
 
     if (!empty($nome) && is_numeric($preco)) {
         try {
             if ($id > 0) {
-                $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, cor=?, ordem=?, ativo=?, beneficios=? WHERE id=?")
-                    ->execute([$nome, $preco, $descricao, $cor, $ordem, $ativo, $_POST['beneficios'] ?? '', $id]);
+                $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, cor=?, icon=?, ordem=?, ativo=?, beneficios=? WHERE id=?")
+                    ->execute([$nome, $preco, $descricao, $cor, $icon, $ordem, $ativo, $_POST['beneficios'] ?? '', $id]);
             } else {
                 $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $nome));
-                $pdo->prepare("INSERT INTO planos (nome, slug, preco, descricao, beneficios, cor, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                    ->execute([$nome, $slug, $preco, $descricao, $_POST['beneficios'] ?? '', $cor, $ativo, $ordem]);
+                $pdo->prepare("INSERT INTO planos (nome, slug, preco, descricao, beneficios, cor, icon, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                    ->execute([$nome, $slug, $preco, $descricao, $_POST['beneficios'] ?? '', $cor, $icon, $ativo, $ordem]);
             }
             header('Location: planos.php?msg=salvo');
             exit;
@@ -110,6 +111,20 @@ include __DIR__ . '/includes/sidebar.php';
                                 </select>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label">Ícone</label>
+                                <select name="icon" class="form-select">
+                                    <option value="fa-crown">Coroa <i class="fas fa-crown"></i></option>
+                                    <option value="fa-medal">Medalha</option>
+                                    <option value="fa-gem">Gema (Diamante)</option>
+                                    <option value="fa-star">Estrela</option>
+                                    <option value="fa-rocket">Foguete</option>
+                                    <option value="fa-circle-half-stroke">Círculo (Prata)</option>
+                                    <option value="fa-circle">Círculo</option>
+                                    <option value="fa-bolt">Raio</option>
+                                    <option value="fa-shield-halved">Escudo</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">Ordem</label>
                                 <input type="number" name="ordem" class="form-control" value="10">
                             </div>
@@ -146,7 +161,9 @@ include __DIR__ . '/includes/sidebar.php';
                                     <tr>
                                         <td>
                                             <div class="d-flex align-items-center gap-2">
-                                                <span class="badge" style="background:<?= $pl['cor'] ?: 'secondary' ?>;color:#fff;"><?= htmlspecialchars($pl['nome']) ?></span>
+                                                <span class="badge" style="background:<?= $pl['cor'] ?: 'secondary' ?>;color:#fff;">
+                                                    <i class="fas <?= htmlspecialchars($pl['icon'] ?: 'fa-circle') ?> me-1"></i><?= htmlspecialchars($pl['nome']) ?>
+                                                </span>
                                             </div>
                                         </td>
                                         <td>R$ <?= number_format($pl['preco'], 2, ',', '.') ?></td>

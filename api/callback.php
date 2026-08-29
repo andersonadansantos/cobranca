@@ -23,6 +23,9 @@ if ($paymentId && $status === 'approved') {
             $fatura = $stmt->fetch();
 
             if ($fatura) {
+                // Contexto de tenant para resolução de configurações (email etc.)
+                if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
+
                 $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ?");
                 $stmt->execute([$fatura['id']]);
 
@@ -47,6 +50,9 @@ if ($paymentId && $status === 'approved') {
             $fatura = $stmt->fetch();
 
             if ($fatura) {
+                // Contexto de tenant para resolução de configurações (email etc.)
+                if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
+
                 $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ?");
                 $stmt->execute([$fatura['id']]);
 

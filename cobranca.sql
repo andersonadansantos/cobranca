@@ -482,6 +482,7 @@ INSERT INTO `pagamentos_log` (`id`, `fatura_id`, `mp_payment_id`, `mp_status`, `
 
 CREATE TABLE `usuarios_admin` (
   `id` int(11) NOT NULL,
+  `admin_id` int(11) DEFAULT NULL,
   `nome` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
   `usuario` varchar(50) NOT NULL,
@@ -590,8 +591,9 @@ ALTER TABLE `pagamentos_log`
 --
 ALTER TABLE `usuarios_admin`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `email` (`email`),
-  ADD UNIQUE KEY `usuario` (`usuario`);
+  ADD KEY `idx_ua_admin` (`admin_id`),
+  ADD UNIQUE KEY `uq_ua_admin_email` (`admin_id`,`email`),
+  ADD UNIQUE KEY `uq_ua_admin_usuario` (`admin_id`,`usuario`);
 
 --
 -- AUTO_INCREMENT para tabelas despejadas
@@ -705,10 +707,102 @@ ALTER TABLE `faturas_recorrentes`
   ADD CONSTRAINT `faturas_recorrentes_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON DELETE CASCADE;
 
 --
--- Restrições para tabelas `pagamentos_log`
+-- Restri����es para tabelas `pagamentos_log`
 --
 ALTER TABLE `pagamentos_log`
   ADD CONSTRAINT `pagamentos_log_ibfk_1` FOREIGN KEY (`fatura_id`) REFERENCES `faturas` (`id`) ON DELETE CASCADE;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `superadmin`
+--
+
+CREATE TABLE `superadmin` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `usuario` VARCHAR(50) NOT NULL UNIQUE,
+  `senha` VARCHAR(255) NOT NULL,
+  `nome` VARCHAR(100) NOT NULL,
+  `email` VARCHAR(150),
+  `avatar` VARCHAR(255),
+  `ultimo_login` TIMESTAMP NULL,
+  `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+--
+-- Estrutura para tabela `admin_evolution`
+--
+
+CREATE TABLE `admin_evolution` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `admin_id` INT NOT NULL,
+  `url_api` VARCHAR(255) NOT NULL DEFAULT '',
+  `api_key` VARCHAR(255) NOT NULL DEFAULT '',
+  `instance` VARCHAR(100) NOT NULL DEFAULT '',
+  `ativo` TINYINT(1) DEFAULT 1,
+  `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_admin_evolution` (`admin_id`),
+  CONSTRAINT `admin_evolution_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `administradores` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+--
+-- Estrutura para tabela `planos`
+--
+
+CREATE TABLE `planos` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `nome` VARCHAR(50) NOT NULL,
+  `slug` VARCHAR(50) NOT NULL UNIQUE,
+  `preco` DECIMAL(10,2) DEFAULT 0.00,
+  `descricao` VARCHAR(500),
+  `beneficios` TEXT,
+  `cor` VARCHAR(20) DEFAULT 'secondary',
+  `icon` VARCHAR(100) DEFAULT NULL,
+  `ativo` TINYINT(1) DEFAULT 1,
+  `ordem` INT DEFAULT 0,
+  `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+INSERT INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `icon`, `ordem`, `ativo`) VALUES
+('Bronze', 'bronze', 49.90, 'Plano inicial para pequenos negócios', 'bronze', 'fa-medal', 1, 1),
+('Prata', 'prata', 99.90, 'Plano intermediário com mais recursos', 'secondary', 'fa-circle-half-stroke', 2, 1),
+('Ouro', 'ouro', 199.90, 'Plano premium com todos os recursos', 'warning', 'fa-crown', 3, 1);
+
+--
+-- Estrutura para tabela `admin_planos`
+--
+
+CREATE TABLE `admin_planos` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `admin_id` INT NOT NULL,
+  `plano_id` INT NOT NULL,
+  `data_inicio` DATE,
+  `data_fim` DATE,
+  `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_admin_plano` (`admin_id`),
+  CONSTRAINT `admin_planos_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `administradores` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `admin_planos_ibfk_2` FOREIGN KEY (`plano_id`) REFERENCES `planos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+--
+-- Estrutura para tabela `planos_pagamentos`
+--
+
+CREATE TABLE `planos_pagamentos` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `admin_id` INT NOT NULL,
+  `plano_id` INT NOT NULL,
+  `valor` DECIMAL(10,2) NOT NULL,
+  `codigo_solicitacao` VARCHAR(100),
+  `qr_code` LONGTEXT,
+  `pix_copia_cola` TEXT,
+  `status` VARCHAR(30) DEFAULT 'pendente',
+  `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `pago_em` TIMESTAMP NULL,
+  KEY `idx_planos_pag_admin` (`admin_id`),
+  KEY `idx_planos_pag_codigo` (`codigo_solicitacao`)
+) ENGINE=InnoDB;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

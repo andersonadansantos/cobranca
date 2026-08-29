@@ -27,6 +27,9 @@ if (!$fatura) {
     exit;
 }
 
+// Contexto de tenant para resolução de configurações (API, email etc.)
+if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
+
 if ($fatura['status'] === 'pago') {
     echo json_encode(['status' => 'pago']);
     exit;
