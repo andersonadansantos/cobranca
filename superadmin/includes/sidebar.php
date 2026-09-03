@@ -29,6 +29,9 @@ $basePath = '/cobranca/superadmin';
         <a href="<?= $basePath ?>/api_pagamento.php" class="nav-link <?= $currentPage === 'api_pagamento' ? 'active' : '' ?>">
             <i class="fas fa-university"></i> API Pagamento
         </a>
+        <a href="<?= $basePath ?>/cron.php" class="nav-link <?= $currentPage === 'cron' ? 'active' : '' ?>">
+            <i class="fas fa-clock"></i> Cron Job
+        </a>
 
         <div class="nav-section">Conta</div>
         <a href="<?= $basePath ?>/logout.php" class="nav-link">

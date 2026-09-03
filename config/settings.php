@@ -45,6 +45,26 @@ function saveConfig($chave, $valor) {
     return $stmt->execute([$adminId, $chave, $valor]);
 }
 
+// Lê uma configuração global (admin_id NULL), independente da sessão.
+// Usada pelo Super Admin para configurações únicas do sistema (ex.: cron).
+function getConfigGlobal($chave, $padrao = '') {
+    $pdo = getConnection();
+    if (!$pdo) return $padrao;
+    $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
+    $stmt->execute([$chave]);
+    $row = $stmt->fetch();
+    return $row ? $row['valor'] : $padrao;
+}
+
+// Grava uma configuração global (admin_id NULL), independente da sessão.
+function salvarConfigGlobal($chave, $valor) {
+    $pdo = getConnection();
+    if (!$pdo) return false;
+    $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (NULL, ?, ?)
+        ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+    return $stmt->execute([$chave, $valor]);
+}
+
 function getAllConfig() {
     $pdo = getConnection();
     if (!$pdo) return [];

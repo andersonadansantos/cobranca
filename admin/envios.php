@@ -61,39 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensagem = 'Régua de cobrança salva com sucesso!';
         $tipo = 'success';
     }
-
-    if ($acao === 'cron') {
-        $siteUrl = trim($_POST['site_url'] ?? '');
-        $cronToken = trim($_POST['cron_token'] ?? '');
-
-        if (empty($cronToken)) {
-            $cronToken = getConfig('cron_token', '') ?: bin2hex(random_bytes(16));
-        }
-
-        saveConfig('site_url', $siteUrl);
-        saveConfig('cron_token', $cronToken);
-
-        $mensagem = 'Configuração CRON salva com sucesso!';
-        $tipo = 'success';
-    }
-
-    if ($acao === 'gerar_token') {
-        $cronToken = bin2hex(random_bytes(16));
-        saveConfig('cron_token', $cronToken);
-
-        $mensagem = 'Novo token gerado!';
-        $tipo = 'success';
-    }
 }
 
 $config = getAllConfig();
-
-// Gera token automaticamente na primeira visita, para a URL já vir pronta
-if (empty($config['cron_token'] ?? '')) {
-    $cronTokenNovo = bin2hex(random_bytes(16));
-    saveConfig('cron_token', $cronTokenNovo);
-    $config['cron_token'] = $cronTokenNovo;
-}
 
 $pageTitle = 'Config. de Envios';
 include __DIR__ . '/../includes/header.php';
@@ -201,7 +171,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 </div>
             </div>
 
-            <!-- CRON + CONFIG DE ENVIO -->
+            <!-- CONFIG DE ENVIO -->
             <div class="col-lg-6">
                 <!-- REGUA DE COBRANCA -->
                 <div class="form-card mb-4">
@@ -285,76 +255,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         </button>
                     </form>
                 </div>
-
-                <!-- CRON -->
-                <div class="form-card">
-                    <h6 class="mb-3"><i class="fas fa-clock me-2"></i>Configuração CRON (cron-job.org)</h6>
-                    <p class="text-muted small mb-3">Este sistema usa o <strong>cron-job.org</strong> (gratuito) para agendar todos os envios automáticos: e-mails, WhatsApp e baixa de faturas pagas. Você só precisa cadastrar uma URL no cron-job.org.</p>
-
-                    <div class="bg-light p-3 rounded mb-3">
-                        <small class="text-muted d-block mb-1"><strong>Passo a passo:</strong></small>
-                        <small class="text-muted d-block">1. Crie uma conta gratuita em <a href="https://cron-job.org" target="_blank">https://cron-job.org</a></small>
-                        <small class="text-muted d-block">2. No painel, clique em <strong>Create cronjob</strong></small>
-                        <small class="text-muted d-block">3. Em <strong>URL</strong>, cole o endereço abaixo (com o token)</small>
-                        <small class="text-muted d-block">4. Em <strong>Schedule</strong>, escolha <strong>Every 10 minutes</strong> (ou 5 minutos para baixa mais rápida)</small>
-                        <small class="text-muted d-block">5. Marque <strong>Enabled</strong> e clique em <strong>Create cronjob</strong></small>
-                        <small class="text-muted d-block">6. Clique em <strong>Run now</strong> para testar e veja a resposta no histórico</small>
-                    </div>
-
-                    <form method="POST">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">URL pública do sistema (domínio)</label>
-                                <input type="text" name="site_url" class="form-control" placeholder="https://www.seudominio.com" value="<?= htmlspecialchars($config['site_url'] ?? '') ?>">
-                                <small class="text-muted">Ex.: https://www.seudominio.com (sem /cobranca no final)</small>
-                            </div>
-                        </div>
-
-                        <?php
-                        $siteUrl = trim($config['site_url'] ?? '');
-                        if ($siteUrl === '') {
-                            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                            $siteUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-                        }
-                        $siteUrl = rtrim($siteUrl, '/');
-                        $cronToken = $config['cron_token'] ?? '';
-                        $cronUrl = $siteUrl . '/cobranca/api/cron_envio.php?token=' . urlencode($cronToken);
-                        ?>
-
-                        <div class="col-12 mt-3">
-                            <label class="form-label">URL do cron (cole no cron-job.org)</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="cronUrl" readonly value="<?= htmlspecialchars($cronUrl) ?>" style="font-family:monospace;font-size:0.8rem;">
-                                <button class="btn btn-outline-secondary" type="button" onclick="copiarCronUrl()"><i class="fas fa-copy me-1"></i>Copiar</button>
-                            </div>
-                            <small class="text-muted d-block mt-1">Token: <code><?= htmlspecialchars($cronToken ?: '') ?></code> (mantenha em segredo)</small>
-                        </div>
-
-                        <div class="col-12 d-flex gap-2 mt-3">
-                            <button type="submit" name="acao" value="cron" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> Salvar CRON
-                            </button>
-                            <button type="submit" name="acao" value="gerar_token" class="btn btn-outline-danger" onclick="event.preventDefault(); showConfirmForm('Gerar novo token','Gerar novo token? A URL no cron-job.org precisará ser atualizada.', this.closest('form'))">
-                                <i class="fas fa-key me-1"></i> Gerar novo token
-                            </button>
-                        </div>
-                    </form>
-
-                    <div class="bg-light p-3 rounded mt-3">
-                        <small class="text-muted d-block mb-1"><strong>Como funciona:</strong></small>
-                        <small class="text-muted d-block">• O cron-job.org acessa a URL a cada poucos minutos (conforme você configurar)</small>
-                        <small class="text-muted d-block">• A cada acesso: consulta pagamentos e dá baixa automática nas faturas pagas</small>
-                        <small class="text-muted d-block">• Gera a próxima fatura recorrente ao término do vencimento da anterior (mesmo que não paga) e envia conforme a régua de cobrança</small>
-                        <small class="text-muted d-block">• E-mails/WhatsApp da régua só são enviados dentro da janela de 1h a partir do horário configurado acima (<?= htmlspecialchars($config['envio_hora'] ?? '08:00') ?>)</small>
-                        <small class="text-muted d-block">• Não envia o mesmo tipo de e-mail duas vezes para a mesma fatura no mesmo dia</small>
-                    </div>
-
-                    <?php if (($config['cron_envio_ativo'] ?? '0') === '1'): ?>
-                        <span class="badge bg-success mt-2"><i class="fas fa-check me-1"></i> Envio automático ativo</span>
-                    <?php else: ?>
-                        <span class="badge bg-secondary mt-2"><i class="fas fa-times me-1"></i> Envio automático desativado</span>
-                    <?php endif; ?>
-                </div>
             </div>
         </div>
     </div>
@@ -363,16 +263,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 
 <script>
-function copiarCronUrl() {
-    var el = document.getElementById('cronUrl');
-    if (!el) return;
-    el.select();
-    el.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(el.value).then(function() {
-        var btn = document.querySelector('[onclick="copiarCronUrl()"]');
-        if (btn) { btn.textContent = 'Copiado!'; setTimeout(function(){ btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copiar'; }, 1500); }
-    });
-}
 document.querySelectorAll('form').forEach(function(f) {
     f.addEventListener('submit', function() {
         var acao = this.querySelector('[name="acao"]');
