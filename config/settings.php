@@ -97,14 +97,19 @@ function getNomeSistema() {
     return getConfig('nome_sistema', 'Sistema de Cobrança');
 }
 
-function generateInvoiceNumber() {
+function generateInvoiceNumber($adminId = null) {
     $ano = date('Y');
     $mes = date('m');
     $pdo = getConnection();
 
-    $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING_INDEX(numero, '-', -1) AS UNSIGNED)) as maior FROM faturas WHERE numero LIKE ? AND numero REGEXP ?");
+    if ($adminId === null) {
+        $adminId = getConfigAdminId();
+    }
+    $adminId = (int)$adminId;
+
+    $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING_INDEX(numero, '-', -1) AS UNSIGNED)) as maior FROM faturas WHERE numero LIKE ? AND numero REGEXP ? AND admin_id = ?");
     $prefixo = "FAT-{$ano}%";
-    $stmt->execute([$prefixo, '^FAT-[0-9]{6}-[0-9]+$']);
+    $stmt->execute([$prefixo, '^FAT-[0-9]{6}-[0-9]+$', $adminId]);
     $row = $stmt->fetch();
     $sequencia = intval($row['maior'] ?? 0) + 1;
 

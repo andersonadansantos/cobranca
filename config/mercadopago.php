@@ -211,9 +211,15 @@ function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome) {
         $fatura = ['descricao' => $descricao, 'valor_final' => $valor, 'email' => $clienteEmail, 'nome_razao' => $clienteNome];
         $cli = null;
         $pdo = getConnection();
+        $adminCtx = getConfigAdminId();
         if ($pdo && !empty($clienteEmail)) {
-            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
-            $stmt->execute([$clienteEmail]);
+            if ($adminCtx > 0) {
+                $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? AND admin_id = ? LIMIT 1");
+                $stmt->execute([$clienteEmail, $adminCtx]);
+            } else {
+                $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
+                $stmt->execute([$clienteEmail]);
+            }
             $cli = $stmt->fetch();
         }
         if ($cli && empty($clienteNome)) {
@@ -467,14 +473,25 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome) {
     $config = getConfigInter();
     $pdo = getConnection();
     $cli = null;
+    $adminCtx = getConfigAdminId();
     if (!empty($clienteEmail)) {
-        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
-        $stmt->execute([$clienteEmail]);
+        if ($adminCtx > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? AND admin_id = ? LIMIT 1");
+            $stmt->execute([$clienteEmail, $adminCtx]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
+            $stmt->execute([$clienteEmail]);
+        }
         $cli = $stmt->fetch();
     }
     if (!$cli && !empty($clienteNome)) {
-        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? LIMIT 1");
-        $stmt->execute([$clienteNome]);
+        if ($adminCtx > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? AND admin_id = ? LIMIT 1");
+            $stmt->execute([$clienteNome, $adminCtx]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? LIMIT 1");
+            $stmt->execute([$clienteNome]);
+        }
         $cli = $stmt->fetch();
     }
     $cpfCnpj = $cli ? preg_replace('/[^0-9]/', '', $cli['cpf_cnpj'] ?? '') : '00000000000';
@@ -1028,14 +1045,25 @@ function criarPagamentoBB($descricao, $valor, $clienteEmail, $clienteNome) {
     $config = getConfigBB();
     $pdo = getConnection();
     $cli = null;
+    $adminCtx = getConfigAdminId();
     if (!empty($clienteEmail)) {
-        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
-        $stmt->execute([$clienteEmail]);
+        if ($adminCtx > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? AND admin_id = ? LIMIT 1");
+            $stmt->execute([$clienteEmail, $adminCtx]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
+            $stmt->execute([$clienteEmail]);
+        }
         $cli = $stmt->fetch();
     }
     if (!$cli && !empty($clienteNome)) {
-        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? LIMIT 1");
-        $stmt->execute([$clienteNome]);
+        if ($adminCtx > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? AND admin_id = ? LIMIT 1");
+            $stmt->execute([$clienteNome, $adminCtx]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? LIMIT 1");
+            $stmt->execute([$clienteNome]);
+        }
         $cli = $stmt->fetch();
     }
     $cpfCnpj = $cli ? preg_replace('/[^0-9]/', '', $cli['cpf_cnpj'] ?? '') : '';

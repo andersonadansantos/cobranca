@@ -531,11 +531,11 @@ function criarTabelas($pdo) {
         file_put_contents($credFile, "Usuário: admin\nSenha: " . $senhaAdmin . "\n\nAltere esta senha após o primeiro login.\n");
     }
 
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM `superadmin` WHERE `usuario` = 'superadmin'");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM `superadmin` WHERE `usuario` = 'super'");
     $stmt->execute();
     if ($stmt->fetchColumn() == 0) {
         $hash = password_hash('Wd#142536#', PASSWORD_BCRYPT);
-        $stmt = $pdo->prepare("INSERT INTO `superadmin` (`usuario`, `senha`, `nome`, `email`) VALUES (?, ?, 'Super Admin', 'superadmin@sistema.com')");
-        $stmt->execute(['superadmin', $hash]);
+        $stmt = $pdo->prepare("INSERT INTO `superadmin` (`usuario`, `senha`, `nome`, `email`) VALUES (?, ?, 'Super Administrador', NULL)");
+        $stmt->execute(['super', $hash]);
     }
 }

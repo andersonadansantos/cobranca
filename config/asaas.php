@@ -139,14 +139,25 @@ function criarCobrancaAsaas($billingType, $descricao, $valor, $vencimento, $cust
 function criarPagamentoAsaas($descricao, $valor, $clienteEmail, $clienteNome) {
     $pdo = getConnection();
     $cli = null;
+    $adminCtx = getConfigAdminId();
     if (!empty($clienteEmail)) {
-        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
-        $stmt->execute([$clienteEmail]);
+        if ($adminCtx > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? AND admin_id = ? LIMIT 1");
+            $stmt->execute([$clienteEmail, $adminCtx]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE email = ? LIMIT 1");
+            $stmt->execute([$clienteEmail]);
+        }
         $cli = $stmt->fetch();
     }
     if (!$cli && !empty($clienteNome)) {
-        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? LIMIT 1");
-        $stmt->execute([$clienteNome]);
+        if ($adminCtx > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? AND admin_id = ? LIMIT 1");
+            $stmt->execute([$clienteNome, $adminCtx]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE nome_razao = ? LIMIT 1");
+            $stmt->execute([$clienteNome]);
+        }
         $cli = $stmt->fetch();
     }
 

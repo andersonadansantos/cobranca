@@ -195,8 +195,8 @@ if (isset($_GET['fatura_boleto'])) {
         exit;
     }
 
-    $stmtCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
-    $stmtCli->execute([$fat['cliente_id']]);
+    $stmtCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ? AND admin_id = ?");
+    $stmtCli->execute([$fat['cliente_id'], $adminIdE]);
     $cli = $stmtCli->fetch();
 
     $result = criarBoleto(
@@ -287,8 +287,8 @@ if (isset($_GET['fatura_pix'])) {
 
     if ($precisaGerar) {
         // Gera nova cobrança (mesma lógica do painel do usuário); substitui a anterior se expirada
-        $stmtCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
-        $stmtCli->execute([$fat['cliente_id']]);
+        $stmtCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ? AND admin_id = ?");
+        $stmtCli->execute([$fat['cliente_id'], $adminIdE]);
         $cli = $stmtCli->fetch();
 
         $result = criarPagamento($fat['descricao'], $fat['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '');

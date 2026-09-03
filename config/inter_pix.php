@@ -243,6 +243,26 @@ function criarPixPlano($adminId, $planoId, $valor, $descricao, $adminDados) {
         }
     }
 
+    // Se o Inter não retornar imagem QR, gerar localmente a partir do copia e cola
+    if (empty($qrCode) && !empty($pixCopiaECola)) {
+        if (file_exists(__DIR__ . '/phpqrcode.php')) {
+            $erroReport = error_reporting(0);
+            try {
+                require_once __DIR__ . '/phpqrcode.php';
+                $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $pixCopiaECola);
+                ob_start();
+                QRcode::png($pixLimpo, false, QR_ECLEVEL_L, 5, 2);
+                $img = ob_get_clean();
+                if ($img !== false && !empty($img)) {
+                    $qrCode = base64_encode($img);
+                }
+            } catch (Exception $e) {
+                error_log("[INTER-SUPER] Erro gerar QRCode local: " . $e->getMessage());
+            }
+            error_reporting($erroReport);
+        }
+    }
+
     $pdo = getConnection();
     $stmt = $pdo->prepare("INSERT INTO planos_pagamentos (admin_id, plano_id, valor, codigo_solicitacao, qr_code, pix_copia_cola, status) VALUES (?, ?, ?, ?, ?, ?, 'pendente')");
     $stmt->execute([$adminId, $planoId, $valor, $codigo, $qrCode, $pixCopiaECola]);
