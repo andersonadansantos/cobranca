@@ -216,6 +216,11 @@ function getConnection() {
                 `preco` DECIMAL(10,2) DEFAULT 0.00,
                 `descricao` VARCHAR(500),
                 `beneficios` TEXT,
+                `max_clientes` INT DEFAULT NULL,
+                `max_usuarios` INT DEFAULT NULL,
+                `max_faturas_mensais` INT DEFAULT NULL,
+                `whatsapp_cobranca` TINYINT(1) DEFAULT 1,
+                `email_cobranca` TINYINT(1) DEFAULT 1,
                 `cor` VARCHAR(20) DEFAULT 'secondary',
                 `icon` VARCHAR(100) DEFAULT NULL,
                 `ativo` TINYINT(1) DEFAULT 1,
@@ -258,10 +263,44 @@ function getConnection() {
         } catch (PDOException $e) {}
 
         try {
-            $pdo->exec("INSERT IGNORE INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `icon`, `ordem`, `ativo`) VALUES
-                ('Bronze', 'bronze', 49.90, 'Plano inicial para pequenos negócios', 'bronze', 'fa-medal', 1, 1),
-                ('Prata', 'prata', 99.90, 'Plano intermediário com mais recursos', 'secondary', 'fa-circle-half-stroke', 2, 1),
-                ('Ouro', 'ouro', 199.90, 'Plano premium com todos os recursos', 'warning', 'fa-crown', 3, 1)");
+            $pdo->exec("INSERT IGNORE INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `icon`, `ordem`, `ativo`, `beneficios`, `max_clientes`, `max_usuarios`, `max_faturas_mensais`) VALUES
+                ('Bronze', 'bronze', 49.00, 'Autônomos/pequenos', 'bronze', 'fa-medal', 1, 1, 'até 100 clientes\n1 usuário\n500 faturas/mês\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual', 100, 1, 500),
+                ('Prata', 'prata', 99.90, 'PMEs/microempresas', 'secondary', 'fa-circle-half-stroke', 2, 1, 'até 500 clientes\n3 usuários\nFaturas ilimitadas\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual', 500, 3, NULL),
+                ('Ouro', 'ouro', 199.90, 'Empresas / recuperadoras', 'warning', 'fa-crown', 3, 1, 'Clientes ilimitados\n10 usuários\nFaturas ilimitadas\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual', NULL, 10, NULL)");
+        } catch (PDOException $e) {}
+
+        // === MIGRAÇÃO: limites dos planos (clientes, usuários, faturas/mês) ===
+        // Idempotente via marcador. Adiciona as colunas de limite e ajusta os
+        // planos padrão Bronze/Prata/Ouro com preço, descrição, benefícios e limites.
+        try {
+            $pdo->exec("ALTER TABLE `planos` ADD COLUMN `max_clientes` INT DEFAULT NULL AFTER `beneficios`");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE `planos` ADD COLUMN `max_usuarios` INT DEFAULT NULL AFTER `max_clientes`");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE `planos` ADD COLUMN `max_faturas_mensais` INT DEFAULT NULL AFTER `max_usuarios`");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE `planos` ADD COLUMN `whatsapp_cobranca` TINYINT(1) DEFAULT 1 AFTER `max_faturas_mensais`");
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE `planos` ADD COLUMN `email_cobranca` TINYINT(1) DEFAULT 1 AFTER `whatsapp_cobranca`");
+        } catch (PDOException $e) {}
+
+        try {
+            $planosLimites = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'planos_limites'")->fetchColumn();
+            if ((int)$planosLimites === 0) {
+                $pdo->exec("INSERT INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `icon`, `ordem`, `ativo`, `beneficios`, `max_clientes`, `max_usuarios`, `max_faturas_mensais`) VALUES
+                    ('Bronze', 'bronze', 49.00, 'Autônomos/pequenos', 'bronze', 'fa-medal', 1, 1, 'até 100 clientes\n1 usuário\n500 faturas/mês\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual', 100, 1, 500),
+                    ('Prata', 'prata', 99.90, 'PMEs/microempresas', 'secondary', 'fa-circle-half-stroke', 2, 1, 'até 500 clientes\n3 usuários\nFaturas ilimitadas\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual', 500, 3, NULL),
+                    ('Ouro', 'ouro', 199.90, 'Empresas / recuperadoras', 'warning', 'fa-crown', 3, 1, 'Clientes ilimitados\n10 usuários\nFaturas ilimitadas\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual', NULL, 10, NULL)
+                    ON DUPLICATE KEY UPDATE
+                    preco = VALUES(preco), descricao = VALUES(descricao), cor = VALUES(cor), icon = VALUES(icon),
+                    ordem = VALUES(ordem), ativo = VALUES(ativo), beneficios = VALUES(beneficios),
+                    max_clientes = VALUES(max_clientes), max_usuarios = VALUES(max_usuarios), max_faturas_mensais = VALUES(max_faturas_mensais)");
+                $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('planos_limites', '1')");
+            }
         } catch (PDOException $e) {}
 
         try {

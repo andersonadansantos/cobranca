@@ -16,7 +16,7 @@ $stmtPlano = $pdo->prepare("
 $stmtPlano->execute([$adminId]);
 $meuPlano = $stmtPlano->fetch();
 
-$planos = $pdo->query("SELECT * FROM planos WHERE ativo = 1 ORDER BY ordem ASC")->fetchAll();
+$planos = $pdo->query("SELECT * FROM planos WHERE ativo = 1 AND COALESCE(slug,'') <> 'diamante' ORDER BY ordem ASC")->fetchAll();
 
 $pageTitle = 'Meu Plano';
 include __DIR__ . '/../includes/header.php';
@@ -69,6 +69,11 @@ function corPlano($cor) {
 .plan-feat { list-style:none; padding:0; margin:0 0 1.2rem; }
 .plan-feat li { display:flex; align-items:center; gap:.55rem; font-size:.9rem; color:#4b3f35; padding:.32rem 0; }
 .plan-feat li i { color:#16a34a; }
+.plan-feat li.plan-gw { align-items:flex-start; }
+.plan-feat li.plan-gw .plan-gw-body { display:flex; flex-direction:column; align-items:flex-start; gap:.15rem; }
+.plan-feat li.plan-gw .plan-gw-logos { display:flex; justify-content:flex-start; align-items:center; gap:.4rem; }
+.plan-feat li.plan-gw .plan-gw-logo { height:14px; max-width:64px; object-fit:contain; opacity:.85; }
+.plan-feat li.plan-gw .plan-gw-text { font-size:.75rem; color:#8b7f72; }
 .current-tag { position:absolute; top:.9rem; right:.9rem; background:#fff; color:#0f7b5c; font-size:.68rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; box-shadow:0 2px 6px rgba(0,0,0,.1); }
 
 #pixModal .qr-box {
@@ -104,6 +109,23 @@ function corPlano($cor) {
     </div>
 
     <div class="content-area" style="background:#fcf9f8; min-height:100vh; border-radius:1.1rem 1.1rem 0 0;">
+        <?php if (function_exists('adminEstaAtivo') && !adminEstaAtivo()): ?>
+        <div class="alert alert-warning d-flex align-items-center mx-md-4 mt-3 mb-0" role="alert" style="border-left:4px solid #ffc107;">
+            <i class="fas fa-user-slash me-3" style="font-size:1.2rem;"></i>
+            <div>
+                <strong>Sua conta está desativada.</strong>
+                <br><small>O acesso ao painel foi restrito pelo administrador. Contate o suporte para reativar o acesso.</small>
+            </div>
+        </div>
+        <?php elseif (function_exists('adminPlanoExpirado') && adminPlanoExpirado()): ?>
+        <div class="alert alert-danger d-flex align-items-center mx-md-4 mt-3 mb-0" role="alert" style="border-left:4px solid #dc3545;">
+            <i class="fas fa-exclamation-triangle me-3" style="font-size:1.2rem;"></i>
+            <div>
+                <strong>Seu plano está vencido.</strong>
+                <br><small>O acesso ao painel foi restrito. Escolha um plano abaixo e efetue o pagamento para reativar o acesso.</small>
+            </div>
+        </div>
+        <?php endif; ?>
         <div class="text-center pt-4 pb-2">
             <div class="d-inline-flex align-items-center gap-2 text-uppercase fw-bold mb-2" style="letter-spacing:.18em; font-size:.75rem; color:#cd7f32;">
                 <span style="width:30px;height:2px;background:#cd7f32;display:inline-block;"></span>
@@ -119,15 +141,15 @@ function corPlano($cor) {
                 <div class="col-12 text-center text-muted py-5">Nenhum plano disponível no momento. Entre em contato com o suporte.</div>
             <?php else:
                 $total = count($planos);
-                $mid = (int)ceil(($total + 1) / 2); // destaque o plano do meio quando há mais de 1
                 $i = 0;
                 foreach ($planos as $p): $i++;
                     $isCurrent = ($meuPlano && $p['id'] == $meuPlano['id']);
-                    $feat = ($total > 1 && $i == $mid);
+                    // Bronze é o plano em destaque ("Mais Popular")
+                    $feat = ($p['slug'] ?? '') === 'bronze';
                     $c = corPlano($p['cor'] ?? '');
                     $benef = array_filter(array_map('trim', explode("\n", $p['beneficios'] ?? '')));
             ?>
-                <div class="col-12 col-sm-6 col-lg-4 col-xl-3 <?= $feat ? 'order-first' : '' ?>">
+                <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
                     <div class="plan-card position-relative h-100 <?= $feat ? 'featured' : '' ?> <?= $isCurrent ? 'border-success' : '' ?>">
                         <?php if ($isCurrent): ?>
                             <span class="current-tag"><i class="fas fa-check me-1"></i>Plano Atual</span>
@@ -145,9 +167,41 @@ function corPlano($cor) {
                         </div>
                         <div class="plan-body">
                             <ul class="plan-feat">
-                                <?php if ($benef): foreach ($benef as $b): ?>
+                                <?php
+                                $gwLogos = [
+                                    'mercado pago' => '/cobranca/assets/img/mercado-pago-logo.png',
+                                    'banco inter'  => '/cobranca/assets/img/banco-inter-logo-0-1.png',
+                                    'inter'        => '/cobranca/assets/img/banco-inter-logo-0-1.png',
+                                    'asaas'        => '/cobranca/assets/img/asaas-logo.svg',
+                                    'pix'          => '/cobranca/assets/img/pix-logo.svg',
+                                    'pix manual'   => '/cobranca/assets/img/pix-logo.svg',
+                                ];
+                                if ($benef):
+                                    foreach ($benef as $b):
+                                        if (stripos($b, 'Gateways:') === 0):
+                                            $lista = trim(substr($b, strpos($b, ':') + 1));
+                                            $nomes = preg_split('/\s*[·,]\s*/u', $lista);
+                                ?>
+                                    <li class="plan-gw">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span class="plan-gw-body">
+                                            <span class="plan-gw-title">Gateways</span>
+                                            <span class="plan-gw-logos">
+                                                <?php foreach ($nomes as $n): $k = strtolower(trim($n)); ?>
+                                                    <?php if (isset($gwLogos[$k])): ?>
+                                                        <img src="<?= $gwLogos[$k] ?>" alt="<?= htmlspecialchars(trim($n)) ?>" title="<?= htmlspecialchars(trim($n)) ?>" class="plan-gw-logo">
+                                                    <?php else: ?>
+                                                        <span class="plan-gw-text"><?= htmlspecialchars(trim($n)) ?></span>
+                                                    <?php endif; ?>
+                                                <?php endforeach; ?>
+                                            </span>
+                                        </span>
+                                    </li>
+                                <?php else: ?>
                                     <li><i class="fas fa-check-circle"></i><span><?= htmlspecialchars($b) ?></span></li>
-                                <?php endforeach; else: ?>
+                                <?php endif; ?>
+                            <?php endforeach;
+                                else: ?>
                                     <li><i class="fas fa-check-circle"></i><span>Recursos inclusos</span></li>
                                 <?php endif; ?>
                             </ul>

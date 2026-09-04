@@ -44,6 +44,42 @@ function requireAdmin() {
         header('Location: /cobranca/admin/login.php');
         exit;
     }
+    // Admin desativado manualmente OU plano vencido: acesso apenas à página de planos.
+    if (!adminEstaAtivo() || adminPlanoExpirado()) {
+        $pagina = basename($_SERVER['PHP_SELF'] ?? '');
+        if ($pagina !== 'meu_plano.php') {
+            header('Location: /cobranca/admin/meu_plano.php');
+            exit;
+        }
+    }
+}
+
+// Verifica se o admin da sessão está habilitado (campo ativo). Se o super admin
+// desativou manualmente, o admin só acessa a página de planos.
+function adminEstaAtivo() {
+    if (!isLoggedInAdmin()) return false;
+    $pdo = getConnection();
+    if (!$pdo) return false;
+
+    $stmt = $pdo->prepare("SELECT ativo FROM administradores WHERE id = ? LIMIT 1");
+    $stmt->execute([(int)$_SESSION['admin_id']]);
+    return (bool)$stmt->fetchColumn();
+}
+
+// Verifica se o plano do admin logado está expirado (data_fim passou).
+// Retorna false também quando não há plano ou data_fim definida (não expira).
+function adminPlanoExpirado() {
+    if (!isLoggedInAdmin()) return false;
+    $pdo = getConnection();
+    if (!$pdo) return false;
+
+    $stmt = $pdo->prepare("SELECT data_fim FROM admin_planos WHERE admin_id = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([(int)$_SESSION['admin_id']]);
+    $dataFim = $stmt->fetchColumn();
+
+    if (empty($dataFim)) return false;
+
+    return strtotime($dataFim) < strtotime(date('Y-m-d'));
 }
 
 function requireUser() {
@@ -57,7 +93,7 @@ function loginAdmin($usuario, $senha) {
     $pdo = getConnection();
     if (!$pdo) return false;
     
-    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE usuario = ? AND ativo = 1");
+    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE usuario = ?");
     $stmt->execute([$usuario]);
     $admin = $stmt->fetch();
     
@@ -175,12 +211,12 @@ function loginAdminGoogle($googleId, $email, $nome) {
     $pdo = getConnection();
     if (!$pdo) return false;
 
-    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE google_id = ? AND ativo = 1");
+    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE google_id = ?");
     $stmt->execute([$googleId]);
     $admin = $stmt->fetch();
 
     if (!$admin) {
-        $stmt = $pdo->prepare("SELECT * FROM administradores WHERE email = ? AND ativo = 1");
+        $stmt = $pdo->prepare("SELECT * FROM administradores WHERE email = ?");
         $stmt->execute([$email]);
         $admin = $stmt->fetch();
         if ($admin) {

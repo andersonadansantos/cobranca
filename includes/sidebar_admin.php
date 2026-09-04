@@ -1,6 +1,9 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $basePath = '/cobranca/admin';
+$planoExpirado = function_exists('adminPlanoExpirado') ? adminPlanoExpirado() : false;
+$adminDesativado = function_exists('adminEstaAtivo') ? !adminEstaAtivo() : false;
+$acessoRestrito = $planoExpirado || $adminDesativado;
 ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -10,6 +13,7 @@ $basePath = '/cobranca/admin';
         <h4><i class="fas fa-shield-halved me-2"></i>Admin</h4>
     </div>
     <nav class="sidebar-nav">
+        <?php if (!$acessoRestrito): ?>
         <div class="nav-section">Menu Principal</div>
         <a href="<?= $basePath ?>/index.php" class="nav-link <?= $currentPage === 'index' ? 'active' : '' ?>">
             <i class="fas fa-chart-pie"></i> Painel Geral
@@ -63,17 +67,30 @@ $basePath = '/cobranca/admin';
                 <i class="fab fa-whatsapp" style="color:#25D366;"></i> Config. Whatsapp
             </a>
         </div>
+        <?php endif; ?>
+
+        <?php if ($acessoRestrito): ?>
+        <div class="nav-section"><?= $adminDesativado ? 'Conta Desativada' : 'Plano Expirado' ?></div>
+        <div style="margin:0 16px 14px;padding:10px 12px;border-radius:8px;background:rgba(220,53,69,.08);border:1px solid rgba(220,53,69,.25);font-size:.75rem;color:#b02a37;">
+            <i class="fas <?= $adminDesativado ? 'fa-user-slash' : 'fa-exclamation-triangle' ?> me-1"></i>
+            <?= $adminDesativado
+                ? 'Sua conta foi desativada pelo administrador. Contate o suporte para reativar o acesso.'
+                : 'Seu plano está vencido. Renove para continuar usando o painel.' ?>
+        </div>
+        <?php endif; ?>
 
         <div class="nav-section">Conta</div>
         <a href="<?= $basePath ?>/meu_plano.php" class="nav-link <?= $currentPage === 'meu_plano' ? 'active' : '' ?>">
             <i class="fas fa-tags"></i> Meu Plano
         </a>
+        <?php if (!$acessoRestrito): ?>
         <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
             <i class="fas fa-users-cog"></i> Usuários Admin
         </a>
         <a href="<?= $basePath ?>/perfil.php" class="nav-link <?= $currentPage === 'perfil' ? 'active' : '' ?>">
             <i class="fas fa-user-edit"></i> Meu Perfil
         </a>
+        <?php endif; ?>
         <a href="<?= $basePath ?>/logout.php" class="nav-link">
             <i class="fas fa-sign-out-alt"></i> Sair
         </a>

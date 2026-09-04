@@ -28,10 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $icon = trim($_POST['icon'] ?? 'fa-circle');
     $ordem = intval($_POST['ordem'] ?? 0);
     $ativo = isset($_POST['ativo']) ? 1 : 0;
+    $limparInt = function ($v) { return ($v === '' || $v === null) ? null : (int)$v; };
+    $max_clientes = $limparInt($_POST['max_clientes'] ?? null);
+    $max_usuarios = $limparInt($_POST['max_usuarios'] ?? null);
+    $max_faturas_mensais = $limparInt($_POST['max_faturas_mensais'] ?? null);
+    $whatsapp_cobranca = isset($_POST['whatsapp_cobranca']) ? 1 : 0;
+    $email_cobranca = isset($_POST['email_cobranca']) ? 1 : 0;
 
     if (!empty($nome) && is_numeric($preco)) {
-        $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, beneficios=?, cor=?, icon=?, ordem=?, ativo=? WHERE id=?")
-            ->execute([$nome, $preco, $descricao, $beneficios, $cor, $icon, $ordem, $ativo, $id]);
+        $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, beneficios=?, cor=?, icon=?, ordem=?, ativo=?, max_clientes=?, max_usuarios=?, max_faturas_mensais=?, whatsapp_cobranca=?, email_cobranca=? WHERE id=?")
+            ->execute([$nome, $preco, $descricao, $beneficios, $cor, $icon, $ordem, $ativo, $max_clientes, $max_usuarios, $max_faturas_mensais, $whatsapp_cobranca, $email_cobranca, $id]);
         header('Location: planos.php?msg=salvo');
         exit;
     } else {
@@ -115,6 +121,26 @@ include __DIR__ . '/includes/sidebar.php';
                             <div class="mb-3">
                                 <label class="form-label">Ordem</label>
                                 <input type="number" name="ordem" class="form-control" value="<?= $planEdit['ordem'] ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Limite de clientes (vazio = ilimitado)</label>
+                                <input type="number" min="0" name="max_clientes" class="form-control" placeholder="Ex: 100" value="<?= $planEdit['max_clientes'] !== null ? (int)$planEdit['max_clientes'] : '' ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Limite de usuários (vazio = ilimitado)</label>
+                                <input type="number" min="0" name="max_usuarios" class="form-control" placeholder="Ex: 3" value="<?= $planEdit['max_usuarios'] !== null ? (int)$planEdit['max_usuarios'] : '' ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Limite de faturas/mês (vazio = ilimitado)</label>
+                                <input type="number" min="0" name="max_faturas_mensais" class="form-control" placeholder="Ex: 500" value="<?= $planEdit['max_faturas_mensais'] !== null ? (int)$planEdit['max_faturas_mensais'] : '' ?>">
+                            </div>
+                            <div class="mb-3 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="whatsapp_cobranca" id="planoWhatsEdit" <?= ($planEdit['whatsapp_cobranca'] ?? 1) ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="planoWhatsEdit">Cobranças por WhatsApp</label>
+                            </div>
+                            <div class="mb-3 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="email_cobranca" id="planoEmailEdit" <?= ($planEdit['email_cobranca'] ?? 1) ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="planoEmailEdit">Cobranças por e-mail</label>
                             </div>
                             <div class="mb-3 form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="ativo" id="planoAtivoEdit" <?= $planEdit['ativo'] ? 'checked' : '' ?>>

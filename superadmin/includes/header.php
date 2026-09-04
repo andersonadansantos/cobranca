@@ -28,8 +28,9 @@ $pageTitle = isset($pageTitle) ? $pageTitle : 'Super Admin';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://unicons.iconscout.com/release/v4.2.0/css/line.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link href="/cobranca/assets/css/style.css" rel="stylesheet">
+    <link href="/cobranca/assets/css/style.css?v=<?= filemtime($_SERVER['DOCUMENT_ROOT'] . '/cobranca/assets/css/style.css') ?>" rel="stylesheet">
     <script>
     (function(){
         var t = localStorage.getItem('theme') || 'light';

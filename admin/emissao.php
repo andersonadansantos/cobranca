@@ -401,6 +401,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tipo = 'danger';
                 $erroCliente = true;
             } else {
+            $limiteFat = verificarLimitePlano('faturas', $adminIdE);
+            if (!$limiteFat['ok']) {
+                $mensagem = $limiteFat['mensagem'];
+                $tipo = 'danger';
+            } else {
             $numero = generateInvoiceNumber();
             $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, numero, ativo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
             $stmt->execute([$adminIdE, $cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $numero]);
@@ -450,6 +455,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             header('Location: emissao.php?msg=salvo');
             exit;
+                }
             }
         } catch (PDOException $e) {
             $mensagem = 'Erro: ' . $e->getMessage();

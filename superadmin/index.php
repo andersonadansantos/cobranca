@@ -150,7 +150,7 @@ include __DIR__ . '/includes/sidebar.php';
                                 <td><?= htmlspecialchars($adm['email']) ?></td>
                                 <td>
                                     <?php if (!empty($adm['plano'])): ?>
-                                        <span class="badge" style="background:#000000;color:#fff;"><?= htmlspecialchars($adm['plano']) ?></span>
+                                        <span class="badge" style="background:<?= planoCorHex($adm['plano_cor'] ?? 'secondary') ?>;color:#fff;"><?= htmlspecialchars($adm['plano']) ?></span>
                                     <?php else: ?>
                                         <span class="badge bg-secondary">Sem plano</span>
                                     <?php endif; ?>
@@ -162,12 +162,11 @@ include __DIR__ . '/includes/sidebar.php';
                                         <span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>Bloqueado</span>
                                     <?php endif; ?>
                                 </td>
-                                <td>
-                                    <?php if ($adm['ativo']): ?>
-                                        <span class="badge bg-success">Ativo</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary">Inativo</span>
-                                    <?php endif; ?>
+                                <td class="text-center">
+                                    <label class="status-toggle-switch">
+                                        <input type="checkbox" class="status-toggle" data-admin-id="<?= (int)$adm['id'] ?>" <?= $adm['ativo'] ? 'checked' : '' ?>>
+                                        <span class="slider"></span>
+                                    </label>
                                 </td>
                                 <td><?= $adm['ultimo_login'] ? date('d/m/Y H:i', strtotime($adm['ultimo_login'])) : '—' ?></td>
                                 <td>
@@ -185,5 +184,25 @@ include __DIR__ . '/includes/sidebar.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || t.id === 'deleteAdminInput' || t.type !== 'checkbox' || !t.hasAttribute('data-admin-id')) return;
+    var id = t.getAttribute('data-admin-id');
+    var status = t.checked ? 1 : 0;
+    t.disabled = true;
+    var fd = new FormData();
+    fd.append('id', id);
+    fd.append('ativo', status);
+    fetch('/cobranca/superadmin/api_admin_status.php', { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            t.disabled = false;
+            if (!res.ok) { t.checked = status === 0; }
+        })
+        .catch(function () { t.disabled = false; t.checked = status === 0; });
+});
+</script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

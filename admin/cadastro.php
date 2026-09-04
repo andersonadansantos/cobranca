@@ -104,13 +104,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: cadastro.php?msg=salvo');
                 exit;
             } else {
-                if (empty($senha)) {
-                    $senha = $cpf_cnpj;
+                $limiteCli = verificarLimitePlano('clientes', $adminIdC);
+                if (!$limiteCli['ok']) {
+                    $mensagem = $limiteCli['mensagem'];
+                    $tipo = 'danger';
+                } else {
+                    if (empty($senha)) {
+                        $senha = $cpf_cnpj;
+                    }
+                    $stmt = $pdo->prepare("INSERT INTO clientes (admin_id, tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, email2, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$adminIdC, $tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $email2, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);
+                    header('Location: cadastro.php?msg=salvo');
+                    exit;
                 }
-                $stmt = $pdo->prepare("INSERT INTO clientes (admin_id, tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, email2, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$adminIdC, $tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $email2, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);
-                header('Location: cadastro.php?msg=salvo');
-                exit;
             }
         } catch (PDOException $e) {
             $mensagem = 'Erro: ' . ($e->getCode() == 23000 ? 'CPF/CNPJ já cadastrado.' : $e->getMessage());

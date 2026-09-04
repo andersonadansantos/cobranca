@@ -422,6 +422,11 @@ CREATE TABLE `planos` (
   `preco` decimal(10,2) DEFAULT 0.00,
   `descricao` varchar(500) DEFAULT NULL,
   `beneficios` text DEFAULT NULL,
+  `max_clientes` int(11) DEFAULT NULL,
+  `max_usuarios` int(11) DEFAULT NULL,
+  `max_faturas_mensais` int(11) DEFAULT NULL,
+  `whatsapp_cobranca` tinyint(1) DEFAULT 1,
+  `email_cobranca` tinyint(1) DEFAULT 1,
   `cor` varchar(20) DEFAULT 'secondary',
   `icon` varchar(100) DEFAULT NULL,
   `ativo` tinyint(1) DEFAULT 1,
@@ -651,10 +656,10 @@ OBRIGADO!
 --
 -- Planos
 --
-INSERT INTO `planos` (`id`,`nome`,`slug`,`preco`,`descricao`,`cor`,`icon`,`ordem`,`ativo`) VALUES
-(1,'Bronze','bronze',49.9,'Plano inicial para pequenos negócios','bronze','fa-medal',1,1),
-(2,'Prata','prata',99.9,'Plano intermediário com mais recursos','secondary','fa-circle-half-stroke',2,1),
-(3,'Ouro','ouro',199.9,'Plano premium com todos os recursos','warning','fa-crown',3,1),
-(1502,'Diamante','diamante',250,'Tudo incluso','primary','fa-crown',10,1);
+INSERT INTO `planos` (`id`,`nome`,`slug`,`preco`,`descricao`,`cor`,`icon`,`ordem`,`ativo`,`beneficios`,`max_clientes`,`max_usuarios`,`max_faturas_mensais`) VALUES
+(1,'Bronze','bronze',49.00,'Autônomos/pequenos','bronze','fa-medal',1,1,'até 100 clientes\n1 usuário\n500 faturas/mês\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual',100,1,500),
+(2,'Prata','prata',99.90,'PMEs/microempresas','secondary','fa-circle-half-stroke',2,1,'até 500 clientes\n3 usuários\nFaturas ilimitadas\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual',500,3,NULL),
+(3,'Ouro','ouro',199.90,'Empresas / recuperadoras','warning','fa-crown',3,1,'Clientes ilimitados\n10 usuários\nFaturas ilimitadas\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual',NULL,10,NULL),
+(1502,'Diamante','diamante',250,'Tudo incluso','primary','fa-crown',10,1,NULL,NULL,NULL,NULL);
 
 COMMIT;

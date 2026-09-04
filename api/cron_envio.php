@@ -188,6 +188,12 @@ foreach ($recorrentes as $rec) {
     $stmtEx->execute([$rec['id'], $proximaVenc]);
     if ($stmtEx->fetchColumn() > 0) continue;
 
+    $limiteFat = verificarLimitePlano('faturas', $rec['admin_id']);
+    if (!$limiteFat['ok']) {
+        $log[] = "[limite_plano] admin {$rec['admin_id']} sem cota de faturas no mês ({$limiteFat['atual']}/{$limiteFat['max']}) - pulando";
+        continue;
+    }
+
     $numero = generateInvoiceNumber();
     $acessoToken = function_exists('generateAcessoToken') ? generateAcessoToken() : bin2hex(random_bytes(32));
 

@@ -15,16 +15,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $icon = trim($_POST['icon'] ?? 'fa-circle');
     $ordem = intval($_POST['ordem'] ?? 0);
     $ativo = isset($_POST['ativo']) ? 1 : 0;
+    $limparInt = function ($v) { return ($v === '' || $v === null) ? null : (int)$v; };
+    $max_clientes = $limparInt($_POST['max_clientes'] ?? null);
+    $max_usuarios = $limparInt($_POST['max_usuarios'] ?? null);
+    $max_faturas_mensais = $limparInt($_POST['max_faturas_mensais'] ?? null);
+    $whatsapp_cobranca = isset($_POST['whatsapp_cobranca']) ? 1 : 0;
+    $email_cobranca = isset($_POST['email_cobranca']) ? 1 : 0;
 
     if (!empty($nome) && is_numeric($preco)) {
         try {
             if ($id > 0) {
-                $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, cor=?, icon=?, ordem=?, ativo=?, beneficios=? WHERE id=?")
-                    ->execute([$nome, $preco, $descricao, $cor, $icon, $ordem, $ativo, $_POST['beneficios'] ?? '', $id]);
+                $pdo->prepare("UPDATE planos SET nome=?, preco=?, descricao=?, cor=?, icon=?, ordem=?, ativo=?, beneficios=?, max_clientes=?, max_usuarios=?, max_faturas_mensais=?, whatsapp_cobranca=?, email_cobranca=? WHERE id=?")
+                    ->execute([$nome, $preco, $descricao, $cor, $icon, $ordem, $ativo, $_POST['beneficios'] ?? '', $max_clientes, $max_usuarios, $max_faturas_mensais, $whatsapp_cobranca, $email_cobranca, $id]);
             } else {
                 $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $nome));
-                $pdo->prepare("INSERT INTO planos (nome, slug, preco, descricao, beneficios, cor, icon, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                    ->execute([$nome, $slug, $preco, $descricao, $_POST['beneficios'] ?? '', $cor, $icon, $ativo, $ordem]);
+                $pdo->prepare("INSERT INTO planos (nome, slug, preco, descricao, beneficios, cor, icon, ativo, ordem, max_clientes, max_usuarios, max_faturas_mensais, whatsapp_cobranca, email_cobranca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                    ->execute([$nome, $slug, $preco, $descricao, $_POST['beneficios'] ?? '', $cor, $icon, $ativo, $ordem, $max_clientes, $max_usuarios, $max_faturas_mensais, $whatsapp_cobranca, $email_cobranca]);
             }
             header('Location: planos.php?msg=salvo');
             exit;
@@ -128,6 +134,26 @@ include __DIR__ . '/includes/sidebar.php';
                                 <label class="form-label">Ordem</label>
                                 <input type="number" name="ordem" class="form-control" value="10">
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">Limite de clientes (vazio = ilimitado)</label>
+                                <input type="number" min="0" name="max_clientes" class="form-control" placeholder="Ex: 100">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Limite de usuários (vazio = ilimitado)</label>
+                                <input type="number" min="0" name="max_usuarios" class="form-control" placeholder="Ex: 3">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Limite de faturas/mês (vazio = ilimitado)</label>
+                                <input type="number" min="0" name="max_faturas_mensais" class="form-control" placeholder="Ex: 500">
+                            </div>
+                            <div class="mb-3 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="whatsapp_cobranca" id="planoWhats" checked>
+                                <label class="form-check-label" for="planoWhats">Cobranças por WhatsApp</label>
+                            </div>
+                            <div class="mb-3 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="email_cobranca" id="planoEmail" checked>
+                                <label class="form-check-label" for="planoEmail">Cobranças por e-mail</label>
+                            </div>
                             <div class="mb-3 form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="ativo" id="planoAtivo" checked>
                                 <label class="form-check-label" for="planoAtivo">Plano ativo</label>
@@ -157,13 +183,23 @@ include __DIR__ . '/includes/sidebar.php';
                             <tbody>
                                 <?php if (empty($planos)): ?>
                                     <tr><td colspan="5" class="text-center text-muted py-4">Nenhum plano cadastrado</td></tr>
-                                <?php else: foreach ($planos as $pl): ?>
+                                <?php else: foreach ($planos as $pl):
+                                    $corHex = planoCorHex($pl['cor'] ?? 'secondary');
+                                    $iconCls = planoIconClass($pl['icon'] ?: 'fa-circle');
+                                    $tinta = $corHex . '1f';
+                                ?>
                                     <tr>
                                         <td>
                                             <div class="d-flex align-items-center gap-2">
-                                                <span class="badge" style="background:<?= $pl['cor'] ?: 'secondary' ?>;color:#fff;">
-                                                    <i class="fas <?= htmlspecialchars($pl['icon'] ?: 'fa-circle') ?> me-1"></i><?= htmlspecialchars($pl['nome']) ?>
+                                                <span class="plano-ico-tile" style="background:<?= $tinta ?>;color:<?= $corHex ?>;" title="<?= htmlspecialchars($pl['icon'] ?: '') ?>">
+                                                    <i class="<?= $iconCls ?>"></i>
                                                 </span>
+                                                <div>
+                                                    <strong><?= htmlspecialchars($pl['nome']) ?></strong>
+                                                    <?php if (!empty($pl['descricao'])): ?>
+                                                        <small class="text-muted d-block"><?= htmlspecialchars($pl['descricao']) ?></small>
+                                                    <?php endif; ?>
+                                                </div>
                                             </div>
                                         </td>
                                         <td>R$ <?= number_format($pl['preco'], 2, ',', '.') ?></td>

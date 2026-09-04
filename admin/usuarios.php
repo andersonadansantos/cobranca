@@ -31,10 +31,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $check = $pdo->prepare("SELECT COUNT(*) FROM usuarios_admin WHERE admin_id = ? AND (usuario = ? OR email = ?)");
                 $check->execute([$adminId, $usuario, $email]);
                 if ($check->fetchColumn() == 0) {
-                    $stmt = $pdo->prepare("INSERT INTO usuarios_admin (admin_id, nome, email, usuario, senha, perfil) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$adminId, $nome, $email, $usuario, password_hash($senha, PASSWORD_BCRYPT), $perfil]);
-                    $tipo = 'success';
-                    $msg = 'Usuário criado com sucesso!';
+                    $limiteUsr = verificarLimitePlano('usuarios', $adminId);
+                    if ($limiteUsr['ok']) {
+                        $stmt = $pdo->prepare("INSERT INTO usuarios_admin (admin_id, nome, email, usuario, senha, perfil) VALUES (?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$adminId, $nome, $email, $usuario, password_hash($senha, PASSWORD_BCRYPT), $perfil]);
+                        $tipo = 'success';
+                        $msg = 'Usuário criado com sucesso!';
+                    } else {
+                        $tipo = 'danger';
+                        $msg = $limiteUsr['mensagem'];
+                    }
                 } else {
                     $tipo = 'danger';
                     $msg = 'Usuário ou e-mail já cadastrado.';

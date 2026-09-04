@@ -332,8 +332,8 @@ function ativarPlanoAdmin($adminId, $planoId) {
     $stmt->execute([$adminId]);
     if ($stmt->fetchColumn() == 0) return false;
 
-    $pdo->prepare("INSERT INTO admin_planos (admin_id, plano_id, data_inicio) VALUES (?, ?, CURDATE())
-        ON DUPLICATE KEY UPDATE plano_id=VALUES(plano_id), data_inicio=VALUES(data_inicio), data_fim=NULL")
+    $pdo->prepare("INSERT INTO admin_planos (admin_id, plano_id, data_inicio, data_fim) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY))
+        ON DUPLICATE KEY UPDATE plano_id=VALUES(plano_id), data_inicio=VALUES(data_inicio), data_fim=VALUES(data_fim)")
         ->execute([$adminId, $planoId]);
     return true;
 }
