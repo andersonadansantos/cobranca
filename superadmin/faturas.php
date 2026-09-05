@@ -1,22 +1,43 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../config/inter_pix.php';
 requireSuper();
 $pdo = getConnection();
 
 if (isset($_GET['excluir'])) {
     $id = intval($_GET['excluir']);
     if ($id > 0) {
-        $pdo->prepare("DELETE FROM planos_pagamentos WHERE id = ?")->execute([$id]);
-        header('Location: faturas.php?msg=excluido');
-        exit;
+        $stmt = $pdo->prepare("SELECT status, codigo_solicitacao FROM planos_pagamentos WHERE id = ?");
+        $stmt->execute([$id]);
+        $fatura = $stmt->fetch();
+        if ($fatura) {
+            $status = strtolower($fatura['status'] ?? '');
+            $codigo = $fatura['codigo_solicitacao'] ?? '';
+            $cancelErro = '';
+            if (!empty($codigo) && $status === 'pendente') {
+                $cancel = cancelarCobrancaInterSuper($codigo);
+                if (isset($cancel['erro'])) {
+                    $cancelErro = $cancel['erro'];
+                    error_log("[SUPER-FATURAS] Exclusão #{$id} prossegue apesar de falha ao cancelar no Inter: " . $cancel['erro']);
+                }
+            }
+            $pdo->prepare("DELETE FROM planos_pagamentos WHERE id = ?")->execute([$id]);
+            header('Location: faturas.php?msg=' . ($cancelErro === '' ? 'excluido' : 'excluido_sem_cancelar'));
+            exit;
+        }
     }
 }
 
 $mensagem = '';
 $tipo = '';
-if (isset($_GET['msg']) && $_GET['msg'] === 'excluido') {
-    $mensagem = 'Fatura excluída com sucesso!';
-    $tipo = 'success';
+if (isset($_GET['msg'])) {
+    if ($_GET['msg'] === 'excluido') {
+        $mensagem = 'Fatura excluída com sucesso! Cobrança cancelada no Banco Inter.';
+        $tipo = 'success';
+    } elseif ($_GET['msg'] === 'excluido_sem_cancelar') {
+        $mensagem = 'Fatura excluída, mas não foi possível cancelar a cobrança no Banco Inter.';
+        $tipo = 'warning';
+    }
 }
 
 $statusFiltro = trim($_GET['status'] ?? '');
@@ -24,6 +45,7 @@ $busca = trim($_GET['busca'] ?? '');
 
 $sql = "
     SELECT pp.id, pp.valor, pp.status, pp.criado_em, pp.pago_em, pp.qr_code, pp.pix_copia_cola,
+           pp.descricao, pp.duracao_meses,
            a.nome AS admin_nome, a.usuario AS admin_usuario, a.email AS admin_email,
            p.nome AS plano_nome
     FROM planos_pagamentos pp
@@ -56,6 +78,7 @@ foreach ($faturas as $f) {
     if ($f['status'] === 'pendente') $totalPendente++;
 }
 $totalPlanoPagamentos = (int)$pdo->query("SELECT COUNT(*) FROM planos_pagamentos")->fetchColumn();
+$periodoLabelSuper = [1 => 'Mensal', 3 => 'Trimestral', 6 => 'Semestral', 12 => 'Anual'];
 
 $pageTitle = 'Faturas';
 include __DIR__ . '/includes/header.php';
@@ -154,6 +177,7 @@ include __DIR__ . '/includes/sidebar.php';
                             <th>Nº</th>
                             <th>Admin</th>
                             <th>Plano</th>
+                            <th>Período</th>
                             <th>Valor</th>
                             <th>Status</th>
                             <th>Gerada em</th>
@@ -163,7 +187,7 @@ include __DIR__ . '/includes/sidebar.php';
                     </thead>
                     <tbody>
                         <?php if (empty($faturas)): ?>
-                            <tr><td colspan="8" class="text-center text-muted py-4">Nenhuma fatura encontrada</td></tr>
+                            <tr><td colspan="9" class="text-center text-muted py-4">Nenhuma fatura encontrada</td></tr>
                         <?php else: foreach ($faturas as $f): ?>
                             <?php
                             $classeStatus = '';
@@ -182,6 +206,16 @@ include __DIR__ . '/includes/sidebar.php';
                                     <br><small class="text-muted">@<?= htmlspecialchars($f['admin_usuario'] ?: '?') ?></small>
                                 </td>
                                 <td><?= htmlspecialchars($f['plano_nome'] ?: '—') ?></td>
+                                <td>
+                                    <?php
+                                    $durS = (int)($f['duracao_meses'] ?? 1);
+                                    $periodoStr = $periodoLabelSuper[$durS] ?? ($durS . ' meses');
+                                    ?>
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis"><?= htmlspecialchars($periodoStr) ?></span>
+                                    <?php if (!empty($f['descricao'])): ?>
+                                        <br><small class="text-muted"><?= htmlspecialchars($f['descricao']) ?></small>
+                                    <?php endif; ?>
+                                </td>
                                 <td><strong>R$ <?= number_format($f['valor'], 2, ',', '.') ?></strong></td>
                                 <td><span class="badge-status <?= $classeStatus ?>"><?= ucfirst(htmlspecialchars($f['status'])) ?></span></td>
                                 <td><?= $f['criado_em'] ? date('d/m/Y H:i', strtotime($f['criado_em'])) : '—' ?></td>

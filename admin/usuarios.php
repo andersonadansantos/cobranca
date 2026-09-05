@@ -80,14 +80,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acao === 'excluir') {
         $id = intval($_POST['id'] ?? 0);
-        if ($id && $id != $_SESSION['admin_id']) {
+        // Protege apenas a conta principal (mesmo usuário do administrador logado),
+        // permitindo excluir qualquer usuário auxiliar.
+        $stmtU = $pdo->prepare("SELECT usuario FROM usuarios_admin WHERE id = ? AND admin_id = ?");
+        $stmtU->execute([$id, $adminId]);
+        $usuarioAux = $stmtU->fetchColumn();
+        $stmtPri = $pdo->prepare("SELECT usuario FROM administradores WHERE id = ?");
+        $stmtPri->execute([$adminId]);
+        $usuarioPrincipal = $stmtPri->fetchColumn();
+        if ($usuarioAux && $usuarioAux !== $usuarioPrincipal) {
             $stmt = $pdo->prepare("DELETE FROM usuarios_admin WHERE id = ? AND admin_id = ?");
             $stmt->execute([$id, $adminId]);
             $tipo = 'success';
             $msg = 'Usuário removido!';
         } else {
             $tipo = 'danger';
-            $msg = 'Não é possível excluir seu próprio usuário.';
+            $msg = 'Não é possível excluir este usuário.';
         }
     }
 }
@@ -183,11 +191,9 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                         <span class="badge bg-secondary">Inativo</span>
                                     <?php endif; ?>
                                 </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar<?= $u['id'] ?>"><i class="fas fa-edit"></i></button>
-                                    <?php if ($u['id'] != $_SESSION['admin_id']): ?>
-                                        <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalExcluir<?= $u['id'] ?>"><i class="fas fa-trash"></i></button>
-                                    <?php endif; ?>
+<td>
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar<?= $u['id'] ?>" title="Editar"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalExcluir<?= $u['id'] ?>" title="Excluir"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>
@@ -269,7 +275,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 <?php endforeach; ?>
 
 <?php foreach ($usuarios as $u): ?>
-<?php if ($u['id'] != $_SESSION['admin_id']): ?>
 <div class="modal fade" id="modalExcluir<?= $u['id'] ?>" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
@@ -289,7 +294,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         </div>
     </div>
 </div>
-<?php endif; ?>
 <?php endforeach; ?>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

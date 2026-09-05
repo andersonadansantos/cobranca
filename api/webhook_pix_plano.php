@@ -45,7 +45,7 @@ if (!empty($codigoSolicitacao)) {
         $pdo->prepare("UPDATE planos_pagamentos SET status='pago', pago_em=? WHERE id=?")
             ->execute([$pagoEm ?: $dataPagamento, $pg['id']]);
 
-        ativarPlanoAdmin($pg['admin_id'], $pg['plano_id']);
+        ativarPlanoAdmin($pg['admin_id'], $pg['plano_id'], (int)($pg['duracao_meses'] ?? 1));
     }
 
     if ($pg && in_array($situacao, ['EXPIRADO', 'EXPIRADA', 'CANCELADO', 'CANCELADA', 'VENCIDO', 'VENCIDA'])) {

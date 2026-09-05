@@ -142,18 +142,22 @@ if ($meuPlanoInfo && !empty($meuPlanoInfo['data_fim'])) {
             <h5>Painel Geral</h5>
         </div>
         <?php if (!empty($meuPlanoInfo)): ?>
-        <span class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px solid #dee2e6;<?= ($diasRestantes !== null && $diasRestantes <= 5) ? 'background:#fff3cd;color:#856404;border-color:#ffc107;' : 'background:#e8f5ee;color:#0f7b5c;' ?>">
+        <span class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px solid #dee2e6;<?= ($diasRestantes !== null && $diasRestantes <= 7) ? 'background:#fff3cd;color:#856404;border-color:#ffc107;' : 'background:#e8f5ee;color:#0f7b5c;' ?>">
             <i class="fas fa-hourglass-half me-1"></i>
             <?php if ($diasRestantes === null): ?>
                 Plano: <strong class="ms-1"><?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></strong>
             <?php elseif ($diasRestantes <= 0): ?>
-                <strong class="ms-1">Plano vencido</strong> · <a href="/cobranca/admin/meu_plano.php" class="fw-bold" style="text-decoration:underline;">Renovar</a>
+                <strong class="ms-1">Plano vencido</strong> · <a href="/cobranca/admin/minhas_faturas.php" class="fw-bold" style="text-decoration:underline;">Renovar</a>
             <?php elseif ($diasRestantes === 1): ?>
                 <strong class="ms-1">Vence hoje</strong>
                 <span class="text-muted">· <?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></span>
+                <a href="/cobranca/admin/minhas_faturas.php" class="btn btn-sm btn-warning fw-bold ms-1" style="font-size:0.7rem;">Renovar</a>
             <?php else: ?>
                 <strong class="ms-1"><?= $diasRestantes ?> dia<?= $diasRestantes > 1 ? 's' : '' ?></strong> restantes
                 <span class="text-muted">· <?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></span>
+                <?php if ($diasRestantes <= 7): ?>
+                    <a href="/cobranca/admin/minhas_faturas.php" class="btn btn-sm btn-warning fw-bold ms-1" style="font-size:0.7rem;">Renovar</a>
+                <?php endif; ?>
             <?php endif; ?>
         </span>
         <?php endif; ?>

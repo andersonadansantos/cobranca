@@ -83,6 +83,9 @@ $acessoRestrito = $planoExpirado || $adminDesativado;
         <a href="<?= $basePath ?>/meu_plano.php" class="nav-link <?= $currentPage === 'meu_plano' ? 'active' : '' ?>">
             <i class="fas fa-tags"></i> Meu Plano
         </a>
+        <a href="<?= $basePath ?>/minhas_faturas.php" class="nav-link <?= $currentPage === 'minhas_faturas' ? 'active' : '' ?>">
+            <i class="fas fa-file-invoice-dollar"></i> Minhas Faturas
+        </a>
         <?php if (!$acessoRestrito): ?>
         <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
             <i class="fas fa-users-cog"></i> Usuários Admin

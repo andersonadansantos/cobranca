@@ -29,6 +29,11 @@ if ($planoId <= 0) {
     apiResponder(['erro' => 'Plano inválido.']);
 }
 
+$duracao = (int)($_POST['duracao_meses'] ?? 1);
+if (!in_array($duracao, [1, 3, 6, 12])) {
+    $duracao = 1;
+}
+
 $pdo = getConnection();
 
 $stmt = $pdo->prepare("SELECT * FROM planos WHERE id = ? AND ativo = 1");
@@ -46,7 +51,15 @@ if (!$admin) {
     apiResponder(['erro' => 'Administrador não encontrado.']);
 }
 
-$descricao = 'Plano ' . $plano['nome'] . ' - Assinatura';
-$resultado = criarPixPlano($adminId, $planoId, $plano['preco'], $descricao, $admin);
+// Valor com desconto de 10% para períodos maiores que o mensal
+$valorBase = (float)$plano['preco'];
+if ($duracao > 1) {
+    $valor = round($valorBase * $duracao * 0.90, 2);
+} else {
+    $valor = $valorBase;
+}
+$tituloPeriodo = [1 => 'Mensal', 3 => 'Trimestral', 6 => 'Semestral', 12 => 'Anual'][$duracao];
+$descricao = 'Plano ' . $plano['nome'] . ' - ' . $tituloPeriodo;
+$resultado = criarPixPlano($adminId, $planoId, $valor, $descricao, $admin, $duracao);
 
 apiResponder($resultado);

@@ -16,6 +16,11 @@ $stmtPlano = $pdo->prepare("
 $stmtPlano->execute([$adminId]);
 $meuPlano = $stmtPlano->fetch();
 
+$diasRestantes = null;
+if ($meuPlano && !empty($meuPlano['data_fim'])) {
+    $diasRestantes = (int)floor((strtotime($meuPlano['data_fim']) - strtotime(date('Y-m-d'))) / 86400);
+}
+
 $planos = $pdo->query("SELECT * FROM planos WHERE ativo = 1 AND COALESCE(slug,'') <> 'diamante' ORDER BY ordem ASC")->fetchAll();
 
 $pageTitle = 'Meu Plano';
@@ -72,9 +77,21 @@ function corPlano($cor) {
 .plan-feat li.plan-gw { align-items:flex-start; }
 .plan-feat li.plan-gw .plan-gw-body { display:flex; flex-direction:column; align-items:flex-start; gap:.15rem; }
 .plan-feat li.plan-gw .plan-gw-logos { display:flex; justify-content:flex-start; align-items:center; gap:.4rem; }
-.plan-feat li.plan-gw .plan-gw-logo { height:14px; max-width:64px; object-fit:contain; opacity:.85; }
+.plan-feat li.plan-gw .plan-gw-logo { height:17px; max-width:76px; object-fit:contain; opacity:.9; }
 .plan-feat li.plan-gw .plan-gw-text { font-size:.75rem; color:#8b7f72; }
 .current-tag { position:absolute; top:.9rem; right:.9rem; background:#fff; color:#0f7b5c; font-size:.68rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; box-shadow:0 2px 6px rgba(0,0,0,.1); }
+
+.periodo-pill {
+    background:#faf6f2; border:1px solid #eadfd6; color:#4b3f35; font-size:.78rem; font-weight:600;
+    padding:.5rem .3rem; border-radius:.6rem; transition:all .18s ease;
+}
+.periodo-pill:hover { border-color:#cd7f32; color:#a04a00; }
+.periodo-pill.active {
+    background:linear-gradient(135deg,#c7852c,#f59e0b); border-color:#c7852c; color:#fff;
+    box-shadow:0 4px 10px rgba(245,158,11,.30);
+}
+.periodo-pill .periodo-preco { font-size:.68rem; font-weight:700; }
+.periodo-pill.active .periodo-preco { opacity:.95; }
 
 #pixModal .qr-box {
     width: 210px; height: 210px; margin:0 auto; border:1px solid #eee; border-radius:.75rem;
@@ -125,6 +142,14 @@ function corPlano($cor) {
                 <br><small>O acesso ao painel foi restrito. Escolha um plano abaixo e efetue o pagamento para reativar o acesso.</small>
             </div>
         </div>
+        <?php elseif ($diasRestantes !== null && $diasRestantes <= 7 && $diasRestantes >= 0): ?>
+        <div class="alert alert-warning d-flex align-items-center mx-md-4 mt-3 mb-0" role="alert" style="border-left:4px solid #ffc107;">
+            <i class="fas fa-bell me-3" style="font-size:1.2rem;"></i>
+            <div>
+                <strong>Seu plano encerra em <?= $diasRestantes === 0 ? 'hoje' : $diasRestantes . ' dia(s)' ?>.</strong>
+                <br><small>Renove agora para não perder o acesso. Ganhe 10% de desconto em planos Trimestral, Semestral ou Anual.</small>
+            </div>
+        </div>
         <?php endif; ?>
         <div class="text-center pt-4 pb-2">
             <div class="d-inline-flex align-items-center gap-2 text-uppercase fw-bold mb-2" style="letter-spacing:.18em; font-size:.75rem; color:#cd7f32;">
@@ -140,16 +165,29 @@ function corPlano($cor) {
             <?php if (empty($planos)): ?>
                 <div class="col-12 text-center text-muted py-5">Nenhum plano disponível no momento. Entre em contato com o suporte.</div>
             <?php else:
-                $total = count($planos);
-                $i = 0;
-                foreach ($planos as $p): $i++;
+                $gwLogos = [
+                    'mercado pago' => '/cobranca/assets/img/mercado-pago-logo.png',
+                    'banco inter'  => '/cobranca/assets/img/banco-inter-logo-0-1.png',
+                    'inter'        => '/cobranca/assets/img/banco-inter-logo-0-1.png',
+                    'asaas'        => '/cobranca/assets/img/asaas-logo.svg',
+                    'pix'          => '/cobranca/assets/img/pix-logo.svg',
+                    'pix manual'   => '/cobranca/assets/img/pix-logo.svg',
+                ];
+                foreach ($planos as $p):
                     $isCurrent = ($meuPlano && $p['id'] == $meuPlano['id']);
                     // Bronze é o plano em destaque ("Mais Popular")
                     $feat = ($p['slug'] ?? '') === 'bronze';
                     $c = corPlano($p['cor'] ?? '');
                     $benef = array_filter(array_map('trim', explode("\n", $p['beneficios'] ?? '')));
+                    $precoMensal = (float)$p['preco'];
+                    $periodos = [
+                        1  => ['Mensal',      'fa-calendar-day', $precoMensal],
+                        3  => ['Trimestral',  'fa-calendar-alt', round($precoMensal * 3 * 0.90, 2)],
+                        6  => ['Semestral',   'fa-calendar-week', round($precoMensal * 6 * 0.90, 2)],
+                        12 => ['Anual',       'fa-calendar-check', round($precoMensal * 12 * 0.90, 2)],
+                    ];
             ?>
-                <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+                <div class="col-12 col-sm-6 col-lg-4 col-xl-4">
                     <div class="plan-card position-relative h-100 <?= $feat ? 'featured' : '' ?> <?= $isCurrent ? 'border-success' : '' ?>">
                         <?php if ($isCurrent): ?>
                             <span class="current-tag"><i class="fas fa-check me-1"></i>Plano Atual</span>
@@ -161,21 +199,13 @@ function corPlano($cor) {
                             <div class="plan-name"><?= htmlspecialchars($p['nome']) ?></div>
                             <div class="plan-tagline"><?= htmlspecialchars($p['descricao'] ?? '') ?></div>
                             <div class="mt-3">
-                                <span class="plan-preco-num">R$ <?= number_format($p['preco'], 2, ',', '.') ?></span>
+                                <span class="plan-preco-num">R$ <?= number_format($precoMensal, 2, ',', '.') ?></span>
                                 <span class="plan-preco-period">/mês</span>
                             </div>
                         </div>
                         <div class="plan-body">
                             <ul class="plan-feat">
                                 <?php
-                                $gwLogos = [
-                                    'mercado pago' => '/cobranca/assets/img/mercado-pago-logo.png',
-                                    'banco inter'  => '/cobranca/assets/img/banco-inter-logo-0-1.png',
-                                    'inter'        => '/cobranca/assets/img/banco-inter-logo-0-1.png',
-                                    'asaas'        => '/cobranca/assets/img/asaas-logo.svg',
-                                    'pix'          => '/cobranca/assets/img/pix-logo.svg',
-                                    'pix manual'   => '/cobranca/assets/img/pix-logo.svg',
-                                ];
                                 if ($benef):
                                     foreach ($benef as $b):
                                         if (stripos($b, 'Gateways:') === 0):
@@ -205,11 +235,33 @@ function corPlano($cor) {
                                     <li><i class="fas fa-check-circle"></i><span>Recursos inclusos</span></li>
                                 <?php endif; ?>
                             </ul>
+
+                            <div class="plan-periodos mb-3">
+                                <div class="small text-muted mb-2 fw-semibold"><i class="fas fa-clock me-1"></i>Escolha a duração</div>
+                                <div class="row g-2">
+                                    <?php foreach ($periodos as $dur => $info): ?>
+                                        <div class="col-6">
+                                            <button type="button" class="btn btn-sm w-100 periodo-pill <?= $dur === 1 ? 'active' : '' ?>" data-plano="<?= (int)$p['id'] ?>" data-duracao="<?= $dur ?>" onclick="selPeriodo(<?= (int)$p['id'] ?>, <?= $dur ?>, <?= $info[2] ?>)">
+                                                <span class="d-flex flex-column align-items-center lh-sm">
+                                                    <span><?= $info[0] ?></span>
+                                                    <span class="periodo-preco">R$ <?= number_format($info[2], 2, ',', '.') ?></span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="d-flex align-items-center gap-1 mt-2">
+                                    <span class="badge" style="background:rgba(220,53,69,.1);color:#dc3545;font-size:.68rem;">
+                                        <i class="fas fa-bolt me-1"></i>10% OFF em Trimestral, Semestral e Anual
+                                    </span>
+                                </div>
+                            </div>
+
                             <?php if ($isCurrent): ?>
                                 <button class="btn current-plan-btn w-100" disabled><i class="fas fa-check me-1"></i>Plano Atual</button>
                             <?php else: ?>
-                                <button class="btn btn-contratar w-100" onclick="abrirPagamento(<?= (int)$p['id'] ?>, '<?= htmlspecialchars(addslashes($p['nome'])) ?>', <?= $p['preco'] ?>)">
-                                    <i class="fas fa-shopping-cart me-1"></i> Assinar Agora
+                                <button class="btn btn-contratar w-100" onclick="abrirPagamento(<?= (int)$p['id'] ?>, '<?= htmlspecialchars(addslashes($p['nome'])) ?>')">
+                                    <i class="fas fa-shopping-cart me-1"></i> Contratar / Renovar
                                 </button>
                             <?php endif; ?>
                         </div>
@@ -287,6 +339,20 @@ let pixPagamentoId = null;
 let pixPlanoId = null;
 let pixQrJsInstance = null;
 
+// Período selecionado por plano: { planoId: {duracao, preco} }
+const planoSelecao = {};
+
+function selPeriodo(planoId, duracao, preco) {
+    planoSelecao[planoId] = { duracao: duracao, preco: preco };
+    document.querySelectorAll('[data-plano="' + planoId + '"]').forEach(function (el) {
+        el.classList.toggle('active', parseInt(el.dataset.duracao, 10) === duracao);
+    });
+}
+
+function getSelecao(planoId, precoPadrao) {
+    return planoSelecao[planoId] || { duracao: 1, preco: precoPadrao };
+}
+
 function carregarQrJs(callback) {
     if (typeof QRCode !== 'undefined') { callback(); return; }
     let s = document.createElement('script');
@@ -328,9 +394,13 @@ function mostrarQr(res) {
     }
 }
 
-function abrirPagamento(planoId, nome, preco) {
+function abrirPagamento(planoId, nome) {
+    const s = getSelecao(planoId, 0);
+    const duracao = s.duracao;
+    const preco = s.preco;
     pixPlanoId = planoId;
-    document.getElementById('pixModalTitle').textContent = 'Pagamento - ' + nome;
+    const nomePeriodo = { 1: 'Mensal', 3: 'Trimestral', 6: 'Semestral', 12: 'Anual' }[duracao] || 'Mensal';
+    document.getElementById('pixModalTitle').textContent = 'Pagamento - ' + nome + ' (' + nomePeriodo + ')';
     document.getElementById('pixLoading').style.display = 'block';
     document.getElementById('pixContent').style.display = 'none';
     document.getElementById('pixErro').style.display = 'none';
@@ -340,6 +410,8 @@ function abrirPagamento(planoId, nome, preco) {
 
     const fd = new FormData();
     fd.append('plano_id', planoId);
+    fd.append('duracao_meses', duracao);
+    fd.append('preco', preco);
     fetch('/cobranca/api/criar_pix_plano.php', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(res => {

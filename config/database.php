@@ -262,6 +262,9 @@ function getConnection() {
             ) ENGINE=InnoDB");
         } catch (PDOException $e) {}
 
+        try { $pdo->exec("ALTER TABLE `planos_pagamentos` ADD COLUMN `duracao_meses` INT DEFAULT 1 AFTER `valor`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `planos_pagamentos` ADD COLUMN `descricao` VARCHAR(200) DEFAULT NULL AFTER `duracao_meses`"); } catch (PDOException $e) {}
+
         try {
             $pdo->exec("INSERT IGNORE INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `icon`, `ordem`, `ativo`, `beneficios`, `max_clientes`, `max_usuarios`, `max_faturas_mensais`) VALUES
                 ('Bronze', 'bronze', 49.00, 'Autônomos/pequenos', 'bronze', 'fa-medal', 1, 1, 'até 100 clientes\n1 usuário\n500 faturas/mês\nCobranças por WhatsApp: Liberado\nCobranças por e-mail: Liberado\nGateways: Mercado Pago · Inter · Asaas · PIX Manual', 100, 1, 500),

@@ -449,6 +449,8 @@ CREATE TABLE `planos_pagamentos` (
   `admin_id` int(11) NOT NULL,
   `plano_id` int(11) NOT NULL,
   `valor` decimal(10,2) NOT NULL,
+  `duracao_meses` int(11) DEFAULT 1,
+  `descricao` varchar(200) DEFAULT NULL,
   `codigo_solicitacao` varchar(100) DEFAULT NULL,
   `qr_code` longtext DEFAULT NULL,
   `pix_copia_cola` text DEFAULT NULL,

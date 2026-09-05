@@ -44,10 +44,10 @@ function requireAdmin() {
         header('Location: /cobranca/admin/login.php');
         exit;
     }
-    // Admin desativado manualmente OU plano vencido: acesso apenas à página de planos.
+    // Admin desativado manualmente OU plano vencido: acesso apenas à página de planos e faturas.
     if (!adminEstaAtivo() || adminPlanoExpirado()) {
         $pagina = basename($_SERVER['PHP_SELF'] ?? '');
-        if ($pagina !== 'meu_plano.php') {
+        if (!in_array($pagina, ['meu_plano.php', 'minhas_faturas.php'])) {
             header('Location: /cobranca/admin/meu_plano.php');
             exit;
         }
