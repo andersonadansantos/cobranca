@@ -1,8 +1,6 @@
 config/database.php
 config/inter_certs/
 config/inter_certs_super/
-assets/img/avatars/
-assets/img/banners/
 assets/boletos_inter/
 assets/boletos_pagbank/
 api/cron_log.txt
