@@ -543,6 +543,9 @@ if (!function_exists('enviarEmailComAnexo')) {
 
 if (!function_exists('enviarEmailFatura')) {
     function enviarEmailFatura($fatura, $tipo = 'antes') {
+        if (!planoPermiteEnvio('email', (int)($fatura['admin_id'] ?? 0))) {
+            return false;
+        }
         $smtpHost = getConfig('smtp_host', '');
         $smtpPort = getConfig('smtp_port', '587');
         $smtpUser = getConfig('smtp_usuario', '');
@@ -678,6 +681,9 @@ if (!function_exists('montarMensagemPagamentoTxt')) {
 
 if (!function_exists('enviarEmailPagamento')) {
     function enviarEmailPagamento($fatura) {
+        if (!planoPermiteEnvio('email', (int)($fatura['admin_id'] ?? 0))) {
+            return false;
+        }
         $smtpHost = getConfig('smtp_host', '');
         $smtpPort = getConfig('smtp_port', '587');
         $smtpUser = getConfig('smtp_usuario', '');

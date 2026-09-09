@@ -21,12 +21,20 @@ if ($adminId > 0) {
 // Sem instância configurada -> bloqueio, não processa ações
 $semInstancia = empty($evoConfig) || empty($evoConfig['url_api']) || empty($evoConfig['instance']);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $semInstancia) {
+// Plano restrito (demo) -> API de WhatsApp bloqueada
+$demoBloqueado = !planoPermiteEnvio('whatsapp');
+
+if (($_SERVER['REQUEST_METHOD'] === 'POST' && $semInstancia)) {
     $mensagem = 'Seu WhatsApp ainda não está configurado. Entre em contato com o suporte.';
     $tipo = 'danger';
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$semInstancia) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $demoBloqueado) {
+    $mensagem = 'A configuração do WhatsApp está bloqueada na conta de demonstração. Assine um plano para liberar.';
+    $tipo = 'warning';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$semInstancia && !$demoBloqueado) {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_config') {
@@ -214,6 +222,14 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <?= $mensagem ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
+        <?php endif; ?>
+
+        <?php if ($demoBloqueado): ?>
+        <div class="alert alert-warning d-flex align-items-center">
+            <i class="fas fa-flask me-2 fa-lg"></i>
+            <div><strong>WhatsApp bloqueado na conta de demonstração.</strong><br>
+            <small>O envio e a configuração da API de WhatsApp estão bloqueados nesta versão demo. <a href="/cobranca/planos.php">Assine um plano</a> para liberar.</small></div>
+        </div>
         <?php endif; ?>
 
         <?php if ($semInstancia): ?>

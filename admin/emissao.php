@@ -331,7 +331,7 @@ if (isset($_GET['fatura_pix'])) {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_delete']) && !empty($_POST['ids'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['bulk_delete']) || !empty($_POST['ids']))) {
     $ids = array_map('intval', $_POST['ids']);
     $ph = implode(',', array_fill(0, count($ids), '?'));
     $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id IN ($ph) AND admin_id = ?");
@@ -476,7 +476,9 @@ $sql = "
         SELECT fr.*, c.nome_razao, c.cpf_cnpj, c.celular, c.telefone,
         (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_link,
         (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_numero,
-        (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_status
+        (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_status,
+        (SELECT f.data_vencimento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento ASC, f.id ASC LIMIT 1) AS proximo_vencimento,
+        (SELECT f.data_vencimento FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_vencimento
         FROM faturas_recorrentes fr 
         JOIN clientes c ON fr.cliente_id = c.id 
         WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?
@@ -665,85 +667,88 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <div class="p-3">
                     <?php foreach ($faturasRecorrentes as $fr): ?>
                         <?php
-                        $statusClasses = [
+$statusClasses = [
                             'pendente' => 'bg-warning text-dark',
                             'pago' => 'bg-success',
                             'vencido' => 'bg-danger',
                             'atrasado' => 'bg-danger',
                             'cancelado' => 'bg-secondary'
                         ];
-                        $statusAtual = $fr['ultimo_status'] ?? 'pendente';
-                        $statusClass = $statusClasses[$statusAtual] ?? 'bg-secondary';
                         ?>
-                        <div class="fr-row mb-2 <?= ($fr['status'] ?? 'ativa') === 'cancelado' ? 'opacity-50' : '' ?>">
-                            <div class="form-check mb-0" style="min-width:60px;">
-                                <input class="form-check-input bulk-check" type="checkbox" name="ids[]" value="<?= $fr['id'] ?>" id="ck<?= $fr['id'] ?>">
-                                <label class="small text-muted" for="ck<?= $fr['id'] ?>" style="cursor:pointer;"><strong><?= htmlspecialchars($fr['ultimo_numero'] ?? '#'.$fr['id']) ?></strong></label>
+<div class="fr-item mb-2 <?= ($fr['status'] ?? 'ativa') === 'cancelado' ? 'opacity-50' : '' ?>">
+                            <div class="fr-row collapsed" data-bs-toggle="collapse" data-bs-target="#hist<?= (int)$fr['id'] ?>" aria-expanded="false" aria-controls="hist<?= (int)$fr['id'] ?>" title="Clique para ver as faturas geradas">
+                                <div class="form-check mb-0" style="min-width:22px;padding-left:1.4em;" onclick="event.stopPropagation();">
+                                    <input class="form-check-input bulk-check" type="checkbox" name="ids[]" value="<?= (int)$fr['id'] ?>" id="ck<?= (int)$fr['id'] ?>">
+                                    <label class="form-check-label" for="ck<?= (int)$fr['id'] ?>"></label>
+                                </div>
+                                <?php
+                                $proxVenc = $fr['proximo_vencimento'] ?? null;
+                                $ultVenc  = $fr['ultimo_vencimento'] ?? null;
+                                $vencData = $proxVenc ? date('d/m/Y', strtotime($proxVenc)) : ($ultVenc ? date('d/m/Y', strtotime($ultVenc)) : 'Dia ' . (int)$fr['dia_vencimento']);
+                                ?>
+                                <div class="fr-cliente">
+                                    <strong><?= htmlspecialchars($fr['nome_razao']) ?></strong>
+                                    <small class="d-block text-muted"><?= htmlspecialchars($fr['descricao']) ?></small>
+                                </div>
+                                <div class="fr-dado">
+                                    <span class="fr-dado-label">Frequência</span>
+                                    <span class="badge bg-info"><?= ucfirst($fr['frequencia']) ?></span>
+                                </div>
+                                <div class="fr-dado">
+                                    <span class="fr-dado-label">Vencimento</span>
+                                    <strong><?= htmlspecialchars($vencData) ?></strong>
+                                </div>
+                                <div class="fr-acoes">
+                                    <span class="fr-chevron text-muted"><i class="bi bi-chevron-down"></i></span>
+                                    <?php if (($fr['status'] ?? 'ativa') !== 'cancelado'): ?>
+                                    <a href="#" class="acao-btn acao-btn-danger ms-2" title="Excluir recorrência" onclick="event.preventDefault(); event.stopPropagation(); showConfirm('Excluir Recorrência','Excluir permanentemente a recorrência de <?= htmlspecialchars(addslashes($fr['nome_razao'])) ?> e todas as suas faturas? Esta ação não pode ser desfeita.','?excluir=<?= (int)$fr['id'] ?>'); return false;"><i class="bi bi-trash3"></i></a>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                            <div class="fr-cliente">
-                                <strong><?= htmlspecialchars($fr['nome_razao']) ?></strong>
-                                <small class="d-block text-muted"><?= htmlspecialchars($fr['descricao']) ?></small>
-                            </div>
-                            <div class="fr-dado">
-                                <span class="fr-dado-label">Valor</span>
-                                <strong>R$ <?= number_format($fr['valor'], 2, ',', '.') ?></strong>
-                            </div>
-                            <div class="fr-dado">
-                                <span class="fr-dado-label">Frequência</span>
-                                <span class="badge bg-info"><?= ucfirst($fr['frequencia']) ?></span>
-                            </div>
-                            <div class="fr-dado">
-                                <span class="fr-dado-label">Venc.</span>
-                                <strong><?= $fr['dia_vencimento'] ?></strong>
-                            </div>
-                            <span class="badge <?= $statusClass ?> fr-badge"><?= ucfirst($statusAtual) ?></span>
-                            <div class="fr-acoes">
-                                <button type="button" class="acao-btn acao-btn-secondary" title="Ver todas as faturas geradas" data-bs-toggle="collapse" data-bs-target="#hist<?= $fr['id'] ?>" aria-expanded="false"><i class="bi bi-layers"></i> <span class="small"><?= count($faturasPorRecorrencia[$fr['id']] ?? []) ?></span></button>
-                            </div>
-                        </div>
-                        <div class="collapse fr-hist" id="hist<?= $fr['id'] ?>">
-                            <div class="fr-hist-inner">
-                                <?php $faturasFr = $faturasPorRecorrencia[$fr['id']] ?? []; ?>
-                                <?php if (empty($faturasFr)): ?>
-                                    <span class="text-muted small">Nenhuma fatura gerada ainda para esta recorrência.</span>
-                                <?php else: ?>
-                                <table class="table table-sm mb-0 align-middle">
-                                    <thead>
-                                        <tr>
-                                            <th>Fatura</th>
-                                            <th>Emissão</th>
-                                            <th>Vencimento</th>
-                                            <th>Valor</th>
-                                            <th>Status</th>
-                                            <th>Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($faturasFr as $fh): ?>
-                                        <tr class="<?= in_array($fh['status'], ['pendente','vencido','atrasado']) && $fh['data_vencimento'] < date('Y-m-d') ? 'table-danger' : '' ?>">
-                                            <td><strong><?= htmlspecialchars($fh['numero']) ?></strong></td>
-                                            <td><?= date('d/m/Y', strtotime($fh['data_emissao'])) ?></td>
-                                            <td><?= date('d/m/Y', strtotime($fh['data_vencimento'])) ?></td>
-                                            <td>R$ <?= number_format($fh['valor_final'], 2, ',', '.') ?></td>
-                                            <td><span class="badge <?= $statusClasses[$fh['status']] ?? 'bg-secondary' ?>"><?= ucfirst($fh['status']) ?></span></td>
-                                            <td>
-                                                <div class="d-inline-flex gap-1 align-items-center">
-                                                    <?php if (!in_array($fh['status'], ['pago', 'cancelado'])): ?>
-                                                    <a href="#" class="acao-btn acao-btn-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-url="?fatura_whatsapp=<?= $fh['id'] ?>"><i class="bi bi-whatsapp"></i></a>
-                                                    <a href="#" class="acao-btn acao-btn-primary" title="Enviar e-mail de cobrança" data-bs-toggle="modal" data-bs-target="#modalEnviarEmail" data-url="?fatura_enviar=<?= $fh['id'] ?>"><i class="bi bi-envelope-fill"></i></a>
-                                                    <a href="?fatura_boleto=<?= $fh['id'] ?>" target="_blank" class="acao-btn acao-btn-secondary" title="Gerar boleto em PDF"><i class="bi bi-upc-scan"></i></a>
-                                                    <button type="button" class="acao-btn acao-btn-dark" title="Copiar código PIX copia e cola" data-fatura="<?= $fh['id'] ?>" onclick="copiarPixFatura(this)"><i class="bi bi-qr-code"></i></button>
-                                                    <a href="#" class="acao-btn acao-btn-success" title="Pago" data-bs-toggle="modal" data-bs-target="#modalMarcarPago" data-url="?fatura_pago=<?= $fh['id'] ?>"><i class="bi bi-check-circle-fill"></i></a>
-                                                    <a href="#" class="acao-btn acao-btn-warning" title="Cancelar" onclick="event.preventDefault(); showConfirm('Cancelar Fatura','Deseja cancelar esta fatura?','?fatura_cancelar=<?= $fh['id'] ?>','primary')"><i class="bi bi-x-circle-fill"></i></a>
-                                                    <?php endif; ?>
-                                                    <a href="#" class="acao-btn acao-btn-danger" title="Excluir" data-bs-toggle="modal" data-bs-target="#modalExcluir" data-url="?fatura_excluir=<?= $fh['id'] ?>"><i class="bi bi-trash3"></i></a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                                <?php endif; ?>
+                            <div class="collapse fr-hist" id="hist<?= (int)$fr['id'] ?>">
+                                <div class="fr-hist-inner">
+                                    <?php $faturasFr = $faturasPorRecorrencia[$fr['id']] ?? []; ?>
+                                    <?php if (empty($faturasFr)): ?>
+                                        <span class="text-muted small">Nenhuma fatura gerada ainda para esta recorrência.</span>
+                                    <?php else: ?>
+                                    <table class="table table-sm mb-0 align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Fatura</th>
+                                                <th>Emissão</th>
+                                                <th>Vencimento</th>
+                                                <th>Valor</th>
+                                                <th>Status</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($faturasFr as $fh): ?>
+                                            <tr class="<?= in_array($fh['status'], ['pendente','vencido','atrasado']) && $fh['data_vencimento'] < date('Y-m-d') ? 'table-danger' : '' ?>">
+                                                <td><strong><?= htmlspecialchars($fh['numero']) ?></strong></td>
+                                                <td><?= date('d/m/Y', strtotime($fh['data_emissao'])) ?></td>
+                                                <td><?= date('d/m/Y', strtotime($fh['data_vencimento'])) ?></td>
+                                                <td>R$ <?= number_format($fh['valor_final'], 2, ',', '.') ?></td>
+                                                <td><span class="badge <?= $statusClasses[$fh['status']] ?? 'bg-secondary' ?>"><?= ucfirst($fh['status']) ?></span></td>
+                                                <td>
+                                                    <div class="d-inline-flex gap-1 align-items-center">
+                                                        <?php if (!in_array($fh['status'], ['pago', 'cancelado'])): ?>
+                                                        <a href="#" class="acao-btn acao-btn-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-url="?fatura_whatsapp=<?= $fh['id'] ?>"><i class="bi bi-whatsapp"></i></a>
+                                                        <a href="#" class="acao-btn acao-btn-primary" title="Enviar e-mail de cobrança" data-bs-toggle="modal" data-bs-target="#modalEnviarEmail" data-url="?fatura_enviar=<?= $fh['id'] ?>"><i class="bi bi-envelope-fill"></i></a>
+                                                        <a href="?fatura_boleto=<?= $fh['id'] ?>" target="_blank" class="acao-btn acao-btn-secondary" title="Gerar boleto em PDF"><i class="bi bi-upc-scan"></i></a>
+                                                        <button type="button" class="acao-btn acao-btn-dark" title="Copiar código PIX copia e cola" data-fatura="<?= $fh['id'] ?>" onclick="copiarPixFatura(this)"><i class="bi bi-qr-code"></i></button>
+                                                        <a href="#" class="acao-btn acao-btn-success" title="Pago" data-bs-toggle="modal" data-bs-target="#modalMarcarPago" data-url="?fatura_pago=<?= $fh['id'] ?>"><i class="bi bi-check-circle-fill"></i></a>
+                                                        <a href="#" class="acao-btn acao-btn-warning" title="Cancelar" onclick="event.preventDefault(); showConfirm('Cancelar Fatura','Deseja cancelar esta fatura?','?fatura_cancelar=<?= $fh['id'] ?>','primary')"><i class="bi bi-x-circle-fill"></i></a>
+                                                        <?php endif; ?>
+                                                        <a href="#" class="acao-btn acao-btn-danger" title="Excluir" data-bs-toggle="modal" data-bs-target="#modalExcluir" data-url="?fatura_excluir=<?= $fh['id'] ?>"><i class="bi bi-trash3"></i></a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                         </div>
                     <?php endforeach; ?>

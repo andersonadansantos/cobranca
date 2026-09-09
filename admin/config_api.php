@@ -4,6 +4,7 @@ requireAdmin();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/mercadopago.php';
+require_once __DIR__ . '/../config/tutoriais.php';
 
 $mensagem = '';
 $tipo = '';
@@ -13,7 +14,7 @@ $configAdminId = $adminId > 0 ? $adminId : null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
 
-    if ($acao === 'salvar_mp') {
+if ($acao === 'salvar_mp') {
         $accessToken = trim($_POST['mp_access_token'] ?? '');
         $publicKey = trim($_POST['mp_public_key'] ?? '');
         $webhookUrl = trim($_POST['mp_webhook_url'] ?? '');
@@ -24,6 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mensagem = 'Erro ao salvar configurações.';
             $tipo = 'danger';
         }
+        $cartao = isset($_POST['mp_cartao_credito']) && $_POST['mp_cartao_credito'] === '1' ? '1' : '0';
+        saveConfig('mp_cartao_credito', $cartao);
+        $maxParcelas = min(max((int) ($_POST['mp_max_parcelas'] ?? 12), 1), 12);
+        saveConfig('mp_max_parcelas', (string) $maxParcelas);
     }
 
     if ($acao === 'salvar_inter') {
@@ -160,15 +165,15 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <div class="d-flex align-items-center">
                     <span class="me-2 text-muted">API Ativa:</span>
                     <?php if ($apiAtiva === 'mercadopago'): ?>
-                        <span class="badge bg-success fs-6"><i class="fab fa-pix me-1"></i> Mercado Pago</span>
+                        <span class="badge badge-api-ativa bg-success"><i class="fab fa-pix me-1"></i> Mercado Pago</span>
                     <?php elseif ($apiAtiva === 'inter'): ?>
-                        <span class="badge bg-info fs-6"><i class="fas fa-university me-1"></i> Banco Inter</span>
+                        <span class="badge badge-api-ativa bg-info"><i class="fas fa-university me-1"></i> Banco Inter</span>
                     <?php elseif ($apiAtiva === 'pix_manual'): ?>
-                        <span class="badge bg-warning text-dark fs-6"><i class="fas fa-qrcode me-1"></i> PIX Manual</span>
+                        <span class="badge badge-api-ativa bg-warning text-dark"><i class="fas fa-qrcode me-1"></i> PIX Manual</span>
                     <?php elseif ($apiAtiva === 'asaas'): ?>
-                        <span class="badge fs-6" style="background:#1CC3F2;"><span style="font-weight:800;">asaas</span></span>
+                        <span class="badge badge-api-ativa" style="background:#1CC3F2;"><span style="font-weight:800;">asaas</span></span>
                     <?php else: ?>
-                        <span class="badge bg-secondary fs-6">Nenhuma</span>
+                        <span class="badge badge-api-ativa bg-secondary">Nenhuma</span>
                     <?php endif; ?>
                 </div>
             </div>
@@ -237,12 +242,30 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                         value="<?= htmlspecialchars($mpConfig['mp_public_key'] ?? '') ?>">
                                     <small class="text-muted">Chave pública para o frontend</small>
                                 </div>
-                                <div class="col-12">
+<div class="col-12">
                                     <label class="form-label">URL do Webhook</label>
                                     <input type="url" name="mp_webhook_url" class="form-control"
                                         placeholder="https://seudominio.com/cobranca/api/webhook.php"
                                         value="<?= htmlspecialchars($mpConfig['mp_webhook_url'] ?? '') ?>">
                                     <small class="text-muted">URL para receber notificações de pagamento</small>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="mp_cartao_credito" value="1" id="mpCartaoCredito" <?= ($config['mp_cartao_credito'] ?? '0') === '1' ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="mpCartaoCredito">
+                                            <i class="fas fa-credit-card me-1"></i> Aceitar pagamento com <strong>Cartão de Crédito / Débito</strong>
+                                        </label>
+                                        <small class="d-block text-muted">O cliente poderá pagar a fatura com cartão de crédito (parcelado) ou débito (à vista) direto na tela de pagamento.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Parcelamento máximo</label>
+                                    <select name="mp_max_parcelas" class="form-select">
+                                        <?php for ($i = 1; $i <= 12; $i++): ?>
+                                            <option value="<?= $i ?>" <?= (int) ($config['mp_max_parcelas'] ?? 12) === $i ? 'selected' : '' ?>>Até <?= $i ?>x</option>
+                                        <?php endfor; ?>
+                                    </select>
+                                    <small class="text-muted">Limite de parcelas no cartão de crédito (débito é sempre à vista)</small>
                                 </div>
                             </div>
                             <div class="mt-4 d-flex gap-2">
@@ -273,7 +296,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <li class="mb-2">Salve e clique em <strong>Ativar</strong></li>
                             </ol>
                         </div>
-                        <div class="form-card mt-3">
+<div class="form-card mt-3">
                             <h6 class="mb-3"><i class="fas fa-server me-2"></i>Status</h6>
                             <?php if (!empty($mpConfig['mp_access_token'])): ?>
                                 <div class="d-flex align-items-center">
@@ -288,6 +311,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <?php renderTutorialVideo('mercadopago', 'Tutorial: Como configurar o Mercado Pago'); ?>
                     </div>
                 </div>
             </div>
@@ -395,7 +419,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <li class="mb-2">Salve e clique em <strong>Ativar</strong></li>
                             </ol>
                         </div>
-                        <div class="form-card mt-3">
+<div class="form-card mt-3">
                             <h6 class="mb-3"><i class="fas fa-server me-2"></i>Status</h6>
                             <?php if (!empty($config['inter_client_id'])): ?>
                                 <div class="d-flex align-items-center">
@@ -410,6 +434,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <?php renderTutorialVideo('inter', 'Tutorial: Como configurar o Banco Inter'); ?>
                     </div>
                 </div>
             </div>
@@ -487,7 +512,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <li class="mb-2">O cliente escaneia o QR Code ou copia o código e paga pelo app do banco</li>
                             </ol>
                         </div>
-                        <div class="form-card mt-3">
+<div class="form-card mt-3">
                             <h6 class="mb-3"><i class="fas fa-server me-2"></i>Status</h6>
                             <?php if (!empty($pmConfig['pix_manual_chave'])): ?>
                                 <div class="d-flex align-items-center">
@@ -505,6 +530,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <?php renderTutorialVideo('pix_manual', 'Tutorial: Como configurar o PIX Manual'); ?>
                     </div>
                 </div>
             </div>
@@ -602,6 +628,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <?php renderTutorialVideo('asaas', 'Tutorial: Como configurar o ASAAS'); ?>
                     </div>
                 </div>
             </div>

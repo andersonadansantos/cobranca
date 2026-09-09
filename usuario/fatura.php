@@ -32,7 +32,22 @@ if (!$fatura) {
     exit;
 }
 
+// Contexto de tenant para resolver as configurações do admin dono da fatura.
+if (!empty($fatura['admin_id'])) {
+    $_SESSION['tenant_admin_id'] = (int) $fatura['admin_id'];
+}
+
+// CPF/CNPJ do cadastro do cliente (fonte oficial para o pagamento com cartão).
+$stmtCpf = $pdo->prepare("SELECT cpf_cnpj FROM clientes WHERE id = ?");
+$stmtCpf->execute([$userId]);
+$clienteCpfCnpj = (string) ($stmtCpf->fetchColumn() ?: '');
+
 $apiDaFatura = $fatura['api_pagamento'] ?: getApiAtiva();
+$mpConfig = getMPConfig();
+$cartaoPermitido = ($apiDaFatura === 'mercadopago')
+    && aceitaCartaoCredito()
+    && !empty($mpConfig['mp_public_key'])
+    && $fatura['status'] !== 'pago';
 
 // Gerar boleto
 if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
@@ -72,7 +87,7 @@ if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
         exit;
     } else {
         $erroMsg = $result['erro'] ?? 'Erro ao gerar boleto.';
-        header('Location: fatura.php?id=' . $faturaId . '&erro=boleto');
+        header('Location: fatura.php?id=' . $faturaId . '&erro=boleto&msg=' . urlencode($erroMsg));
         exit;
     }
 }
@@ -142,8 +157,12 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
         <?php endif; ?>
 
         <?php if (isset($_GET['erro']) && $_GET['erro'] === 'boleto'): ?>
+            <?php $msgBoleto = trim((string) ($_GET['msg'] ?? '')); ?>
             <div class="alert alert-warning alert-dismissible fade show">
-                <i class="fas fa-exclamation-triangle me-1"></i> <?= htmlspecialchars($erroMsg ?: 'Erro ao gerar boleto. Verifique seus dados cadastrais.') ?>
+                <i class="fas fa-exclamation-triangle me-1"></i> <?= htmlspecialchars($msgBoleto !== '' ? $msgBoleto : 'Erro ao gerar boleto. Verifique seus dados cadastrais.') ?>
+                <?php if (stripos($msgBoleto, 'perfil') !== false): ?>
+                    <a href="/cobranca/usuario/perfil.php" class="alert-link ms-1">Completar meu cadastro</a>
+                <?php endif; ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
@@ -223,107 +242,194 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
                         <i class="fas fa-qrcode me-2"></i>Pagamento
                     </div>
                     <div class="fatura-pag-body">
-                        <div class="fatura-pag-strip">
+                        <?php
+                        $pmCfgPag = ($apiDaFatura === 'pix_manual') ? getConfigPixManual() : [];
+                        $temPix = ($apiDaFatura === 'pix_manual')
+                            ? (!empty($pmCfgPag['pix_manual_chave']) || !empty($pmCfgPag['pix_manual_favorecido']))
+                            : !empty($fatura['pix_copia_cola']);
+                        $temBoleto = ($apiDaFatura !== 'pix_manual');
+                        $temCartao = (bool) $cartaoPermitido;
+                        $metodoAtivo = $temPix ? 'pix' : ($temBoleto ? 'boleto' : 'cartao');
+                        ?>
 
-                            <!-- Coluna 1: QR Code -->
-                            <div class="fatura-pag-col">
-                                <?php if ($apiDaFatura === 'pix_manual'): ?>
-                                    <?php $pmCfgCol1 = getConfigPixManual(); ?>
-                                    <?php if (!empty($pmCfgCol1['pix_manual_chave'])): ?>
+                        <?php if ($temPix || $temBoleto || $temCartao): ?>
+                        <div class="fatura-metodos" role="tablist" aria-label="Formas de pagamento">
+                            <?php if ($temPix): ?>
+                            <button type="button" class="fatura-metodo<?= $metodoAtivo === 'pix' ? ' active' : '' ?>" data-metodo="pix" role="tab" aria-selected="<?= $metodoAtivo === 'pix' ? 'true' : 'false' ?>">
+                                <i class="fas fa-qrcode"></i><span>PIX</span>
+                            </button>
+                            <?php endif; ?>
+                            <?php if ($temBoleto): ?>
+                            <button type="button" class="fatura-metodo<?= $metodoAtivo === 'boleto' ? ' active' : '' ?>" data-metodo="boleto" role="tab" aria-selected="<?= $metodoAtivo === 'boleto' ? 'true' : 'false' ?>">
+                                <i class="fas fa-barcode"></i><span>Boleto</span>
+                            </button>
+                            <?php endif; ?>
+                            <?php if ($temCartao): ?>
+                            <button type="button" class="fatura-metodo<?= $metodoAtivo === 'cartao' ? ' active' : '' ?>" data-metodo="cartao" role="tab" aria-selected="<?= $metodoAtivo === 'cartao' ? 'true' : 'false' ?>">
+                                <i class="fas fa-credit-card"></i><span>Cartão</span>
+                            </button>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if ($temPix): ?>
+                        <div class="fatura-metodo-panel<?= $metodoAtivo === 'pix' ? ' active' : '' ?>" data-panel="pix" role="tabpanel">
+                            <?php if ($apiDaFatura === 'pix_manual'): ?>
+                                <div class="fatura-pix-layout">
+                                    <div class="fatura-pix-qr">
+                                        <div class="fatura-pix-qr-titulo">PIX manual</div>
                                         <div id="qrImageWrap">
-                                            <div id="pmQrContainer" style="display:inline-block;"></div>
+                                            <?php if (!empty($pmCfgPag['pix_manual_chave'])): ?>
+                                                <div id="pmQrContainer" style="display:inline-block;"></div>
+                                            <?php else: ?>
+                                                <div class="fatura-pag-empty"><i class="fas fa-qrcode"></i></div>
+                                            <?php endif; ?>
                                         </div>
-                                    <?php else: ?>
-                                        <div class="fatura-pag-empty">
-                                            <i class="fas fa-qrcode"></i>
-                                        </div>
-                                    <?php endif; ?>
-                                <?php elseif ($fatura['pix_copia_cola']): ?>
-                                    <?php if ($fatura['pix_qrcode']): ?>
-                                        <div id="qrImageWrap">
-                                            <img src="data:image/png;base64,<?= htmlspecialchars($fatura['pix_qrcode']) ?>" alt="QR Code PIX" style="max-width:140px; border:1px solid #dee2e6; border-radius:8px;">
-                                        </div>
-                                    <?php else: ?>
-                                        <div id="qrImageWrap">
-                                            <div id="qrCodeContainer" style="display:inline-block;"></div>
-                                        </div>
-                                    <?php endif; ?>
-                                <?php else: ?>
-                                    <div class="fatura-pag-empty">
-                                        <i class="fas fa-qrcode"></i>
+                                        <div class="fatura-pix-qr-note"><i class="fas fa-mobile-alt me-1"></i>Aponte a câmera do app do seu banco</div>
                                     </div>
-                                <?php endif; ?>
-                            </div>
-
-                            <!-- Coluna 2: PIX + Pagar -->
-                            <div class="fatura-pag-col fatura-pag-col-pix">
-                                <?php if ($apiDaFatura === 'pix_manual'): ?>
-                                    <?php $pmCfg = getConfigPixManual(); ?>
-                                    <?php if (!empty($pmCfg['pix_manual_chave']) || !empty($pmCfg['pix_manual_favorecido'])): ?>
-                                        <div class="fatura-pix-label text-start">Dados do Recebedor</div>
-                                        <div class="text-start">
-                                        <?php if (!empty($pmCfg['pix_manual_chave'])): ?>
-                                            <div class="small mb-1">
-                                                <span class="text-muted">Chave PIX:</span> <strong><?= htmlspecialchars($pmCfg['pix_manual_chave']) ?></strong>
-                                                <button type="button" class="btn btn-outline-secondary btn-sm ms-1" style="padding:1px 6px; font-size:0.7rem;" onclick="copiarPix('<?= htmlspecialchars($pmCfg['pix_manual_chave']) ?>')"><i class="fas fa-copy"></i></button>
+                                    <div class="fatura-pix-cola">
+                                        <div class="fatura-pix-label">Dados do Recebedor</div>
+                                        <?php if (!empty($pmCfgPag['pix_manual_chave'])): ?>
+                                            <div class="fatura-pix-row">
+                                                <span class="text-muted">Chave PIX:</span>
+                                                <strong class="break-all"><?= htmlspecialchars($pmCfgPag['pix_manual_chave']) ?></strong>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm flex-none" onclick="copiarPix('<?= htmlspecialchars($pmCfgPag['pix_manual_chave']) ?>')"><i class="fas fa-copy"></i></button>
                                             </div>
                                         <?php endif; ?>
-                                        <?php if (!empty($pmCfg['pix_manual_banco'])): ?>
-                                            <div class="small mb-1"><span class="text-muted">Banco:</span> <strong><?= htmlspecialchars($pmCfg['pix_manual_banco']) ?></strong></div>
+                                        <?php if (!empty($pmCfgPag['pix_manual_banco'])): ?>
+                                            <div class="fatura-pix-row"><span class="text-muted">Banco:</span> <strong><?= htmlspecialchars($pmCfgPag['pix_manual_banco']) ?></strong></div>
                                         <?php endif; ?>
-                                        <?php if (!empty($pmCfg['pix_manual_favorecido'])): ?>
-                                            <div class="small mb-1"><span class="text-muted">Favorecido:</span> <strong><?= htmlspecialchars($pmCfg['pix_manual_favorecido']) ?></strong></div>
+                                        <?php if (!empty($pmCfgPag['pix_manual_favorecido'])): ?>
+                                            <div class="fatura-pix-row"><span class="text-muted">Favorecido:</span> <strong><?= htmlspecialchars($pmCfgPag['pix_manual_favorecido']) ?></strong></div>
                                         <?php endif; ?>
-                                        <?php if (!empty($pmCfg['pix_manual_whatsapp'])): ?>
-                                            <?php $pmWaLink = 'https://wa.me/' . preg_replace('/[^0-9]/', '', $pmCfg['pix_manual_whatsapp']) . '?text=' . urlencode('Oi, tenho uma dúvida sobre pagamento.'); ?>
-                                            <a href="<?= htmlspecialchars($pmWaLink) ?>" target="_blank" class="btn btn-success btn-sm w-100 mt-2">
+                                        <?php if (!empty($pmCfgPag['pix_manual_whatsapp'])): ?>
+                                            <?php $pmWaLink = 'https://wa.me/' . preg_replace('/[^0-9]/', '', $pmCfgPag['pix_manual_whatsapp']) . '?text=' . urlencode('Oi, tenho uma dúvida sobre pagamento.'); ?>
+                                            <a href="<?= htmlspecialchars($pmWaLink) ?>" target="_blank" class="btn btn-success w-100 mt-2">
                                                 <i class="fab fa-whatsapp me-1"></i> Enviar Comprovante
                                             </a>
                                         <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div class="fatura-pix-layout">
+                                    <div class="fatura-pix-qr">
+                                        <div class="fatura-pix-qr-titulo">Escaneie para pagar</div>
+                                        <div id="qrImageWrap">
+                                            <?php if ($fatura['pix_qrcode']): ?>
+                                                <img src="data:image/png;base64,<?= htmlspecialchars($fatura['pix_qrcode']) ?>" alt="QR Code PIX" class="fatura-pix-qr-img">
+                                            <?php else: ?>
+                                                <div id="qrCodeContainer" style="display:inline-block;"></div>
+                                            <?php endif; ?>
                                         </div>
-                                    <?php endif; ?>
-                                <?php else: ?>
-                                    <?php if ($fatura['pix_copia_cola']): ?>
-                                        <div class="fatura-pix-label">Código PIX</div>
-                                        <div class="pix-copia-cola mb-2" id="pixCode">
+                                        <div class="fatura-pix-qr-note"><i class="fas fa-mobile-alt me-1"></i>Aponte a câmera do app do seu banco</div>
+                                    </div>
+                                    <div class="fatura-pix-cola">
+                                        <div class="fatura-pix-label">Código PIX (copia e cola)</div>
+                                        <div class="pix-copia-cola" id="pixCode">
                                             <?= htmlspecialchars($fatura['pix_copia_cola']) ?>
                                         </div>
-                                        <button class="btn btn-success btn-sm w-100 mb-2" onclick="copiarPix(document.getElementById('pixCode').textContent.trim())">
-                                            <i class="fas fa-copy me-1"></i> Copiar
+                                        <button class="btn btn-success w-100 mt-2" onclick="copiarPix(document.getElementById('pixCode').textContent.trim())">
+                                            <i class="fas fa-copy me-1"></i> Copiar código PIX
                                         </button>
                                         <?php if ($fatura['link_pagamento']): ?>
-                                            <a href="<?= htmlspecialchars($fatura['link_pagamento']) ?>" target="_blank" class="btn btn-primary btn-sm w-100">
+                                            <a href="<?= htmlspecialchars($fatura['link_pagamento']) ?>" target="_blank" class="btn btn-primary w-100 mt-2">
                                                 <i class="fas fa-external-link-alt me-1"></i> Pagar Agora
                                             </a>
                                         <?php endif; ?>
-                                    <?php else: ?>
-                                        <span class="text-muted small">Sem dados PIX</span>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            </div>
-
-                            <!-- Coluna 3: Boleto -->
-                            <?php if ($apiDaFatura !== 'pix_manual'): ?>
-                            <div class="fatura-pag-col fatura-pag-col-boleto">
-                                <div class="fatura-boleto-icon">
-                                    <i class="fas fa-barcode"></i>
+                                    </div>
                                 </div>
-                                <?php if (!empty($fatura['boleto_url'])): ?>
-                                    <a href="<?= htmlspecialchars($fatura['boleto_url']) ?>" target="_blank" class="btn btn-outline-primary btn-sm w-100">
-                                        <i class="fas fa-file-invoice me-1"></i> Boleto
-                                    </a>
-                                <?php elseif ($fatura['status'] !== 'pago'): ?>
-                                    <a href="?id=<?= $faturaId ?>&gerar_boleto=1" class="btn btn-outline-primary btn-sm w-100" onclick="showConfirm('Gerar Boleto','Deseja gerar o boleto para pagamento?','?id=<?= $faturaId ?>&gerar_boleto=1','primary'); return false;">
-                                        <i class="fas fa-barcode me-1"></i> Boleto
-                                    </a>
-                                <?php endif; ?>
-                            </div>
                             <?php endif; ?>
-
                         </div>
+                        <?php endif; ?>
 
+                        <?php if ($temBoleto): ?>
+                        <div class="fatura-metodo-panel<?= $metodoAtivo === 'boleto' ? ' active' : '' ?>" data-panel="boleto" role="tabpanel">
+                            <div class="fatura-boleto-panel">
+                                <div class="fatura-boleto-icone-grande"><i class="fas fa-barcode"></i></div>
+                                <div class="fatura-boleto-info">
+                                    <div class="fatura-boleto-titulo">Boleto Bancário</div>
+                                    <div class="fatura-boleto-desc">Pague pelo código de barras em qualquer banco, caixa eletrônico ou app.</div>
+                                    <?php if (!empty($fatura['boleto_url'])): ?>
+                                        <a href="<?= htmlspecialchars($fatura['boleto_url']) ?>" target="_blank" class="btn btn-outline-primary w-100">
+                                            <i class="fas fa-file-invoice me-1"></i> Ver meu Boleto
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="?id=<?= $faturaId ?>&gerar_boleto=1" class="btn btn-outline-primary w-100" onclick="showConfirm('Gerar Boleto','Deseja gerar o boleto para pagamento?','?id=<?= $faturaId ?>&gerar_boleto=1','primary'); return false;">
+                                            <i class="fas fa-barcode me-1"></i> Gerar Boleto
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if ($temCartao): ?>
+                        <div class="fatura-metodo-panel<?= $metodoAtivo === 'cartao' ? ' active' : '' ?>" data-panel="cartao" role="tabpanel">
+                            <div class="fatura-pag-cartao" id="ccBox">
+                                <div class="fatura-cartao-tabs" role="group" aria-label="Tipo de cartão">
+                                    <button type="button" class="fatura-cartao-tab active" id="tabCredito" data-tipo="credito">
+                                        <i class="fas fa-credit-card"></i> Crédito
+                                    </button>
+                                    <button type="button" class="fatura-cartao-tab" id="tabDebito" data-tipo="debito">
+                                        <i class="fas fa-money-check-alt"></i> Débito
+                                    </button>
+                                </div>
+                                <form id="ccForm" autocomplete="off">
+                                    <div class="mb-2">
+                                        <div class="fatura-cc-top">
+                                            <label class="fatura-info-label">Número do cartão</label>
+                                            <span class="fatura-cc-badge" id="ccBrand"></span>
+                                        </div>
+                                        <input type="text" id="ccNumero" class="form-control form-control-sm" inputmode="numeric" maxlength="19" placeholder="0000 0000 0000 0000" autocomplete="cc-number" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="fatura-info-label">Nome impresso no cartão</label>
+                                        <input type="text" id="ccNome" class="form-control form-control-sm" maxlength="40" placeholder="NOME COMO ESTÁ NO CARTÃO" autocomplete="cc-name" required>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-5">
+                                            <label class="fatura-info-label">Validade</label>
+                                            <input type="text" id="ccValidade" class="form-control form-control-sm" inputmode="numeric" maxlength="5" placeholder="MM/AA" autocomplete="cc-exp" required>
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="fatura-info-label">CVV</label>
+                                            <input type="text" id="ccCvv" class="form-control form-control-sm" inputmode="numeric" maxlength="4" placeholder="123" autocomplete="cc-csc" required>
+                                        </div>
+                                        <div class="col-3" id="ccParcelasWrap">
+                                            <label class="fatura-info-label">Parcelas</label>
+                                            <select id="ccParcelas" class="form-select form-select-sm"></select>
+                                        </div>
+                                    </div>
+                                    <div id="ccMsg" class="small mb-2"></div>
+                                    <button type="submit" id="ccBtn" class="btn btn-primary btn-sm w-100">
+                                        <i class="fas fa-credit-card me-1"></i> Pagar
+                                    </button>
+                                    <p class="fatura-cartao-seguro"><i class="fas fa-lock"></i> Pagamento processado com segurança pelo Mercado Pago</p>
+                                </form>
+                            </div>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var metodos = document.querySelectorAll('.fatura-metodo');
+                    var paineis = document.querySelectorAll('.fatura-metodo-panel');
+                    metodos.forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            var alvo = btn.getAttribute('data-metodo');
+                            metodos.forEach(function(b) {
+                                var ativo = b === btn;
+                                b.classList.toggle('active', ativo);
+                                b.setAttribute('aria-selected', ativo ? 'true' : 'false');
+                            });
+                            paineis.forEach(function(p) {
+                                p.classList.toggle('active', p.getAttribute('data-panel') === alvo);
+                            });
+                        });
+                    });
+                });
+                </script>
             <?php endif; ?>
         </div>
     </div>
@@ -454,6 +560,281 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <?php endif; ?>
+<?php endif; ?>
+<?php if ($cartaoPermitido): ?>
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+<script>
+(function() {
+    var faturaId = <?= (int) $faturaId ?>;
+    var faturaValor = <?= (float) $fatura['valor_final'] ?>;
+    var maxParcelas = <?= (int) getMaxParcelasCartao() ?>;
+    var cpfCliente = <?= json_encode(preg_replace('/[^0-9]/', '', $clienteCpfCnpj)) ?>;
+
+    var mp = new MercadoPago(<?= json_encode($mpConfig['mp_public_key']) ?>, { locale: 'pt-BR' });
+
+    var btn = document.getElementById('ccBtn');
+    var msg = document.getElementById('ccMsg');
+    var selParcelas = document.getElementById('ccParcelas');
+    var wrapParcelas = document.getElementById('ccParcelasWrap');
+    var inputNumero = document.getElementById('ccNumero');
+    var inputNome = document.getElementById('ccNome');
+    var inputValidade = document.getElementById('ccValidade');
+    var inputCvv = document.getElementById('ccCvv');
+    var brandEl = document.getElementById('ccBrand');
+    var tabCredito = document.getElementById('tabCredito');
+    var tabDebito = document.getElementById('tabDebito');
+    var tipoAtual = 'credito';
+    var numero = '';
+    var nome = '';
+    var validade = '';
+    var cvv = '';
+    var parcelas = 1;
+
+    function txtMoeda(v) {
+        return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    for (var i = 1; i <= maxParcelas; i++) {
+        var opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = i === 1 ? 'À vista (1x)' : i + 'x';
+        selParcelas.appendChild(opt);
+    }
+
+    function mostrarMsg(texto, tipo) {
+        msg.className = 'small mb-2 text-' + (tipo || 'danger');
+        msg.innerHTML = texto || '';
+    }
+
+    function detectarBandeira(num) {
+        num = num.replace(/\s+/g, '');
+        if (!/^\d{6,}$/.test(num)) return null;
+        var p = parseInt(num.slice(0, 6), 10);
+        if (/^4/.test(num)) return { b: 'visa', label: 'Visa' };
+        if (/^3[47]/.test(num)) return { b: 'amex', label: 'Amex' };
+        if (/(^5[1-5]|^2[2-7])/.test(num)) return { b: 'master', label: 'Mastercard' };
+        if (/^(4011|4312|4389|4514|4573|4576|5041|5066|5090|6277|6362|6363|6504|6505|6507|6509|6516|6550)/.test(num)) return { b: 'elo', label: 'Elo' };
+        if (/^(6062|3841)/.test(num)) return { b: 'hipercard', label: 'Hipercard' };
+        if (/^(637095|637599|637609|637612)/.test(num)) return { b: 'hiper', label: 'Hiper' };
+        if (/^50/.test(num)) return { b: 'aura', label: 'Aura' };
+        if (/^(30[0-5]|36|38|39)/.test(num)) return { b: 'diners', label: 'Diners' };
+        if (/^(6011|644|645|646|647|648|649|65)/.test(num) || (p >= 622126 && p <= 622925)) return { b: 'discover', label: 'Discover' };
+        return { b: 'outros', label: 'Cartão' };
+    }
+
+    function formatarNumero(val) {
+        var d = val.replace(/\D+/g, '');
+        var b = detectarBandeira(d);
+        if (b && b.b === 'amex') return d.slice(0, 15).replace(/(\d{4})(\d{6})(\d+)/, '$1 $2 $3');
+        return d.slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
+    }
+
+    function atualizarBandeira() {
+        var b = detectarBandeira(inputNumero.value);
+        if (b) {
+            brandEl.className = 'fatura-cc-badge show b-' + (b.b === 'outros' ? 'other' : b.b);
+            brandEl.textContent = b.label;
+        } else {
+            brandEl.className = 'fatura-cc-badge';
+            brandEl.textContent = '';
+        }
+    }
+
+    inputNumero.addEventListener('input', function() {
+        inputNumero.value = formatarNumero(inputNumero.value);
+        atualizarBandeira();
+    });
+
+    function parcelasAtuais() {
+        if (tipoAtual === 'debito') return 1;
+        return parseInt(selParcelas.value, 10) || 1;
+    }
+
+    function atualizarBtn() {
+        var p = parcelasAtuais();
+        var icone = tipoAtual === 'debito'
+            ? '<i class="fas fa-money-check-alt me-1"></i>'
+            : '<i class="fas fa-credit-card me-1"></i>';
+        if (tipoAtual === 'debito') {
+            btn.innerHTML = icone + ' Pagar no Débito ' + txtMoeda(faturaValor);
+        } else if (p <= 1) {
+            btn.innerHTML = icone + ' Pagar ' + txtMoeda(faturaValor) + ' à vista';
+        } else {
+            btn.innerHTML = icone + ' Pagar em ' + p + 'x de ' + txtMoeda(faturaValor / p);
+        }
+    }
+
+    function setarTipo(tipo) {
+        tipoAtual = tipo === 'debito' ? 'debito' : 'credito';
+        tabCredito.classList.toggle('active', tipoAtual === 'credito');
+        tabDebito.classList.toggle('active', tipoAtual === 'debito');
+        if (tipoAtual === 'debito') {
+            wrapParcelas.style.opacity = '0.35';
+            wrapParcelas.style.pointerEvents = 'none';
+        } else {
+            wrapParcelas.style.opacity = '1';
+            wrapParcelas.style.pointerEvents = 'auto';
+        }
+        atualizarBtn();
+    }
+
+    tabCredito.addEventListener('click', function() { setarTipo('credito'); });
+    tabDebito.addEventListener('click', function() { setarTipo('debito'); });
+    selParcelas.addEventListener('change', atualizarBtn);
+
+    function metodoDebito(numero) {
+        var b = detectarBandeira(numero.replace(/\s+/g, ''));
+        if (!b) return '';
+        switch (b.b) {
+            case 'visa': return 'debvisa';
+            case 'master': return 'debmaster';
+            case 'elo': return 'debelo';
+            case 'hipercard': return 'debhipercard';
+            default: return '';
+        }
+    }
+
+    function montarMensagensErro(err) {
+        var msgs = [];
+        function adicionar(m) {
+            if (m && typeof m === 'string' && msgs.indexOf(m) === -1) msgs.push(m);
+        }
+        if (Array.isArray(err)) {
+            err.forEach(function(item) { adicionar(item && (item.message || item.description)); });
+        } else if (err && typeof err === 'object') {
+            adicionar(err.message);
+            adicionar(err.error);
+            if (Array.isArray(err.cause)) {
+                err.cause.forEach(function(c) { adicionar(c && c.description); });
+            }
+        } else {
+            adicionar(err);
+        }
+        return msgs.join(' | ') || 'Não foi possível validar o cartão. Verifique os dados e tente novamente.';
+    }
+
+    function tokenErro(err) {
+        btn.disabled = false;
+        atualizarBtn();
+        mostrarMsg(montarMensagensErro(err), 'danger');
+    }
+
+    function tokenSucesso(resp) {
+        if (!resp || typeof resp.id !== 'string' || resp.id === '') {
+            tokenErro(resp);
+            return;
+        }
+
+        btn.innerHTML = '<i class="fas fa-credit-card me-1"></i> Aguardando confirmação...';
+        mostrarMsg('', 'muted');
+
+        var method = tipoAtual === 'debito' ? metodoDebito(numero) : '';
+        var body = 'fatura_id=' + encodeURIComponent(faturaId) +
+            '&card_token=' + encodeURIComponent(resp.id) +
+            '&installments=' + encodeURIComponent(parcelas) +
+            '&tipo=' + encodeURIComponent(tipoAtual) +
+            '&method=' + encodeURIComponent(method);
+
+        fetch('/cobranca/api/cartao_pagamento.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.sucesso) {
+                if (d.status === 'pago') {
+                    mostrarMsg('<span class="text-success"><i class="fas fa-check-circle"></i> Pagamento aprovado!</span>', 'success');
+                    if (typeof bootstrap !== 'undefined') {
+                        var modal = new bootstrap.Modal(document.getElementById('modalPagamentoSucesso'));
+                        modal.show();
+                    }
+                    var box = document.getElementById('pagamentoBox');
+                    if (box) {
+                        box.innerHTML = '<div class="form-card text-center" id="pagoBox"><div class="fatura-pago-check"><i class="fas fa-check"></i></div><h5 class="fatura-pago-texto">Pagamento Confirmado</h5><p class="fatura-pago-sub">Esta fatura já foi quitada.</p></div>';
+                    }
+                } else {
+                    btn.disabled = false;
+                    atualizarBtn();
+                    mostrarMsg('<i class="fas fa-clock"></i> Pagamento em análise. Acompanhe a confirmação aqui.', 'warning');
+                }
+            } else {
+                btn.disabled = false;
+                atualizarBtn();
+                mostrarMsg(d.erro || 'Não foi possível processar o pagamento.', 'danger');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            atualizarBtn();
+            mostrarMsg('Erro de conexão. Tente novamente.', 'danger');
+        });
+    }
+
+    document.getElementById('ccForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        numero = inputNumero.value.replace(/\s+/g, '');
+        nome = inputNome.value.trim();
+        validade = inputValidade.value.trim();
+        cvv = inputCvv.value.trim();
+        parcelas = parcelasAtuais();
+
+        if (!cpfCliente) {
+            mostrarMsg('Cadastre o seu CPF no seu perfil para pagar com cartão.', 'danger');
+            return;
+        }
+        if (!/^\d{13,16}$/.test(numero)) { mostrarMsg('Número de cartão inválido.', 'danger'); return; }
+        var m = validade.match(/^(\d{2})\s*\/\s*(\d{2})$/);
+        if (!m) { mostrarMsg('Validade inválida. Use o formato MM/AA.', 'danger'); return; }
+        var mes = parseInt(m[1], 10), ano = 2000 + parseInt(m[2], 10);
+        if (mes < 1 || mes > 12) { mostrarMsg('Mês da validade inválido.', 'danger'); return; }
+        if (cvv.length < 3) { mostrarMsg('CVV inválido.', 'danger'); return; }
+        if (!nome) { mostrarMsg('Informe o nome impresso no cartão.', 'danger'); return; }
+
+        var hoje = new Date();
+        if (ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1)) {
+            mostrarMsg('Este cartão está vencido.', 'danger');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processando...';
+        mostrarMsg('', 'muted');
+
+        var payload = {
+            cardNumber: numero,
+            cardholderName: nome,
+            cardExpirationMonth: (mes < 10 ? '0' : '') + mes,
+            cardExpirationYear: String(ano),
+            securityCode: cvv,
+            installments: parcelas,
+            identificationType: 'CPF',
+            identificationNumber: cpfCliente,
+            locale: 'pt-BR'
+        };
+
+        // SDK v2 do Mercado Pago: createCardToken retorna uma Promise e ignora
+        // callbacks. Tratamos as duas formas para garantir compatibilidade.
+        var prom = null;
+        try {
+            prom = mp.createCardToken(payload);
+        } catch (ex) {
+            tokenErro(ex);
+            return;
+        }
+        if (prom && typeof prom.then === 'function') {
+            prom.then(tokenSucesso).catch(function(err) { tokenErro(err); });
+        } else {
+            mp.createCardToken(payload, function(resp, err) {
+                if (err && (err.length || err.message)) tokenErro(err);
+                else tokenSucesso(resp);
+            });
+        }
+    });
+
+    setarTipo('credito');
+})();
+</script>
 <?php endif; ?>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

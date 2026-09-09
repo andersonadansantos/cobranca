@@ -9,8 +9,9 @@ $tipo = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
+    $bloqueado = !planoPermiteEnvio('email') || !planoPermiteEnvio('whatsapp');
 
-    if ($acao === 'smtp') {
+    if ($acao === 'smtp' && !$bloqueado) {
         $campos = ['smtp_host', 'smtp_port', 'smtp_usuario', 'smtp_senha', 'smtp_from_email', 'smtp_from_nome', 'smtp_ssl'];
         foreach ($campos as $campo) {
             saveConfig($campo, trim($_POST[$campo] ?? ''));
@@ -19,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipo = 'success';
     }
 
-    if ($acao === 'testar_smtp') {
+    if ($acao === 'testar_smtp' && !$bloqueado) {
         $smtpHost = trim($_POST['smtp_host'] ?? '');
         $smtpPort = intval($_POST['smtp_port'] ?? 587);
         $smtpUser = trim($_POST['smtp_usuario'] ?? '');
@@ -39,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($acao === 'envio') {
+    if ($acao === 'envio' && !$bloqueado) {
         $envioHora = trim($_POST['envio_hora'] ?? '08:00');
         $cronAtivo = isset($_POST['cron_envio_ativo']) ? '1' : '0';
 
@@ -61,6 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensagem = 'Régua de cobrança salva com sucesso!';
         $tipo = 'success';
     }
+}
+
+// Plano restrito (demo) -> e-mail e WhatsApp bloqueados
+$demoBloqueado = !planoPermiteEnvio('email') || !planoPermiteEnvio('whatsapp');
+if ($demoBloqueado) {
+    $mensagem = 'As configurações de e-mail e WhatsApp estão bloqueadas na conta de demonstração. Assine um plano para liberar.';
+    $tipo = 'warning';
 }
 
 $config = getAllConfig();

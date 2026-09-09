@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 if (!headers_sent()) {
+    header('Content-Type: text/html; charset=UTF-8');
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('X-XSS-Protection: 1; mode=block');
@@ -11,6 +12,7 @@ if (!headers_sent()) {
 }
 require_once __DIR__ . '/../../config/settings.php';
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../../includes/lang_painel.php';
 
 $corPrimaria = getCorPrimaria();
 $corSecundaria = getCorSecundaria();
@@ -18,9 +20,10 @@ $corFundo = getCorFundo();
 $logo = getLogo();
 $nomeSistema = getNomeSistema();
 $pageTitle = isset($pageTitle) ? $pageTitle : 'Super Admin';
+$painelIdioma = painelIdiomaAtual();
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="<?= $painelIdioma ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -37,6 +40,14 @@ $pageTitle = isset($pageTitle) ? $pageTitle : 'Super Admin';
         var d = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.setAttribute('data-bs-theme', d ? 'dark' : 'light');
     })();
+    </script>
+    <script>
+    window.PAINEL_LANG = <?= json_encode([
+        'CUR' => $painelIdioma,
+        'CODES' => array_keys(painelIdiomas()),
+        'LABELS' => painelIdiomas(),
+        'FLAGS' => array_map('painelBandeira', array_keys(painelIdiomas())),
+    ], JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <style>
         :root {

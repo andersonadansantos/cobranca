@@ -211,7 +211,7 @@ CREATE TABLE `clientes` (
   `senha` varchar(255) DEFAULT NULL,
   `token_recuperacao` varchar(64) DEFAULT NULL,
   `token_recuperacao_expira` datetime DEFAULT NULL,
-  `ativo` tinyint(1) DEFAULT NULL,
+  `ativo` tinyint(1) NOT NULL DEFAULT 1,
   `criado_em` timestamp NOT NULL DEFAULT current_timestamp(),
   `atualizado_em` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
@@ -641,6 +641,11 @@ CREATE TABLE `planos_pagamentos` (
   `codigo_solicitacao` varchar(100) DEFAULT NULL,
   `qr_code` longtext DEFAULT NULL,
   `pix_copia_cola` text DEFAULT NULL,
+  `metodo` varchar(20) DEFAULT 'pix',
+  `boleto_url` varchar(500) DEFAULT NULL,
+  `boleto_codigo_barras` varchar(200) DEFAULT NULL,
+  `boleto_linha_digitavel` varchar(200) DEFAULT NULL,
+  `mp_status` varchar(50) DEFAULT NULL,
   `status` varchar(30) DEFAULT 'pendente',
   `criado_em` timestamp NOT NULL DEFAULT current_timestamp(),
   `pago_em` timestamp NULL DEFAULT NULL,
@@ -656,7 +661,7 @@ CREATE TABLE `planos_pagamentos` (
 
 LOCK TABLES `planos_pagamentos` WRITE;
 /*!40000 ALTER TABLE `planos_pagamentos` DISABLE KEYS */;
-INSERT INTO `planos_pagamentos` VALUES (1,1,2,99.90,1,NULL,'f07c95e6-95b7-4f11-9885-39bcbf31eac0','','','pendente','2026-08-28 22:12:18',NULL),(2,1,2,99.90,1,NULL,'3b819822-90f5-43fb-ae04-0777456a0898','','','pendente','2026-08-28 23:07:06',NULL),(3,2,1502,250.00,1,NULL,'54b42a13-3097-4eac-98e1-525fb7eb10e5','','','pendente','2026-08-29 13:58:26',NULL),(4,2,2,99.90,1,NULL,'483be3fc-8c8a-498f-8f26-1513dfce8900','','','pendente','2026-09-03 22:38:47',NULL),(5,2,1,49.90,1,NULL,'6311e75c-949a-4e84-b881-add3e0fac1b2','','','pendente','2026-09-03 22:43:32',NULL),(6,2,1,49.90,1,NULL,'d4977767-1dcf-4a76-bfd5-0418fd90e53b','','','pendente','2026-09-03 22:44:13',NULL),(7,2,2,99.90,1,NULL,'478921d6-ae74-46fa-8930-2ecfed89d615','','','pendente','2026-09-03 22:47:07',NULL),(8,2,1,49.90,1,NULL,'24c5c65e-86fd-479b-8e8a-14f5bba2d9e7','','','pendente','2026-09-03 22:48:30',NULL),(9,2,1,49.90,1,NULL,'e406ff28-9bc0-4165-8b6c-375b757fbb8c','','','pendente','2026-09-03 22:50:06',NULL),(10,2,2,99.90,1,NULL,'9919b32c-1ee5-4b28-9fcb-6ceac9076ca9','','','pendente','2026-09-03 22:51:12',NULL),(11,2,1,49.90,1,NULL,'3b2d9fca-e536-4855-9eef-a524d4a43f81','','','pendente','2026-09-03 22:53:25',NULL),(12,2,1,49.90,1,NULL,'104cfd1d-fa4a-41a0-b33c-011833d1e629','','','pendente','2026-09-03 22:54:02',NULL),(13,2,1,49.90,1,NULL,'184b1ee5-8f6e-42d8-9aec-a31facbd827f','','','pendente','2026-09-03 22:55:51',NULL);
+INSERT INTO `planos_pagamentos` VALUES (1,1,2,99.90,1,NULL,'f07c95e6-95b7-4f11-9885-39bcbf31eac0','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-08-28 22:12:18',NULL),(2,1,2,99.90,1,NULL,'3b819822-90f5-43fb-ae04-0777456a0898','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-08-28 23:07:06',NULL),(3,2,1502,250.00,1,NULL,'54b42a13-3097-4eac-98e1-525fb7eb10e5','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-08-29 13:58:26',NULL),(4,2,2,99.90,1,NULL,'483be3fc-8c8a-498f-8f26-1513dfce8900','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:38:47',NULL),(5,2,1,49.90,1,NULL,'6311e75c-949a-4e84-b881-add3e0fac1b2','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:43:32',NULL),(6,2,1,49.90,1,NULL,'d4977767-1dcf-4a76-bfd5-0418fd90e53b','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:44:13',NULL),(7,2,2,99.90,1,NULL,'478921d6-ae74-46fa-8930-2ecfed89d615','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:47:07',NULL),(8,2,1,49.90,1,NULL,'24c5c65e-86fd-479b-8e8a-14f5bba2d9e7','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:48:30',NULL),(9,2,1,49.90,1,NULL,'e406ff28-9bc0-4165-8b6c-375b757fbb8c','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:50:06',NULL),(10,2,2,99.90,1,NULL,'9919b32c-1ee5-4b28-9fcb-6ceac9076ca9','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:51:12',NULL),(11,2,1,49.90,1,NULL,'3b2d9fca-e536-4855-9eef-a524d4a43f81','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:53:25',NULL),(12,2,1,49.90,1,NULL,'104cfd1d-fa4a-41a0-b33c-011833d1e629','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:54:02',NULL),(13,2,1,49.90,1,NULL,'184b1ee5-8f6e-42d8-9aec-a31facbd827f','','','pix',NULL,NULL,NULL,NULL,'pendente','2026-09-03 22:55:51',NULL);
 /*!40000 ALTER TABLE `planos_pagamentos` ENABLE KEYS */;
 UNLOCK TABLES;
 

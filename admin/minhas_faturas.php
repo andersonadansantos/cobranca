@@ -55,14 +55,24 @@ $badgeStatus = [
 $faturasJs = [];
 foreach ($faturas as $f) {
     $faturasJs[$f['id']] = [
-        'descricao' => $f['descricao'] ?: ('Fatura de plano'),
-        'plano'     => $f['plano_nome'],
-        'valor'     => 'R$ ' . number_format((float)$f['valor'], 2, ',', '.'),
-        'qr'        => $f['qr_code'] ?: '',
-        'pix'       => $f['pix_copia_cola'] ?: '',
-        'status'    => $f['status'],
+        'descricao'   => $f['descricao'] ?: ('Fatura de plano'),
+        'plano'       => $f['plano_nome'],
+        'valor'       => 'R$ ' . number_format((float)$f['valor'], 2, ',', '.'),
+        'qr'          => $f['qr_code'] ?: '',
+        'pix'         => $f['pix_copia_cola'] ?: '',
+        'status'      => $f['status'],
+        'metodo'      => $f['metodo'] ?: 'pix',
+        'boleto_url'  => $f['boleto_url'] ?: '',
+        'boleto_linha' => $f['boleto_linha_digitavel'] ?: ($f['boleto_codigo_barras'] ?: ''),
     ];
 }
+
+$metodoLabel = ['pix' => 'PIX', 'boleto' => 'Boleto', 'cartao' => 'Cartão'];
+$metodoBadge = [
+    'pix'    => 'badge-api-ativa bg-success',
+    'boleto' => 'badge-api-ativa bg-warning text-dark',
+    'cartao' => 'badge-api-ativa bg-primary',
+];
 
 $pageTitle = 'Minhas Faturas';
 include __DIR__ . '/../includes/header.php';
@@ -181,6 +191,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <th>Fatura</th>
                             <th>Plano</th>
                             <th>Período</th>
+                            <th>Método</th>
                             <th>Emissão</th>
                             <th>Valor</th>
                             <th>Status</th>
@@ -189,7 +200,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </thead>
                     <tbody>
                         <?php if (empty($faturas)): ?>
-                            <tr><td colspan="7" class="text-center text-muted py-4">Nenhuma fatura encontrada.</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted py-4">Nenhuma fatura encontrada.</td></tr>
                         <?php else: foreach ($faturas as $f): ?>
                             <?php
                                 $st = $f['status'];
@@ -204,11 +215,20 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </td>
                                 <td><?= htmlspecialchars($f['plano_nome'] ?? '—') ?></td>
                                 <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?= htmlspecialchars($periodo) ?></span></td>
+                                <td><span class="badge <?= $metodoBadge[$f['metodo'] ?? 'pix'] ?? 'badge-api-ativa bg-secondary' ?>"><?= htmlspecialchars($metodoLabel[$f['metodo'] ?? 'pix'] ?? 'PIX') ?></span></td>
                                 <td><?= date('d/m/Y H:i', strtotime($f['criado_em'])) ?></td>
                                 <td><strong>R$ <?= number_format((float)$f['valor'], 2, ',', '.') ?></strong></td>
                                 <td><span class="badge-status <?= $badge[0] ?>"><?= $badge[1] ?></span></td>
                                 <td class="text-end">
-                                    <?php if ($isPendente): ?>
+                                    <?php if ($isPendente && ($f['metodo'] ?? 'pix') === 'boleto'): ?>
+                                        <button class="btn btn-sm btn-warning fw-bold" onclick="abrirFatura(<?= (int)$f['id'] ?>)">
+                                            <i class="fas fa-barcode me-1"></i>Pagar boleto
+                                        </button>
+                                    <?php elseif ($isPendente && ($f['metodo'] ?? 'pix') === 'cartao'): ?>
+                                        <button class="btn btn-sm btn-outline-primary fw-semibold" onclick="verificarCartaoFatura(<?= (int)$f['id'] ?>, this)">
+                                            <i class="fas fa-sync-alt me-1"></i>Verificar pagamento
+                                        </button>
+                                    <?php elseif ($isPendente): ?>
                                         <button class="btn btn-sm btn-warning fw-bold" onclick="abrirFatura(<?= (int)$f['id'] ?>)">
                                             <i class="fas fa-qrcode me-1"></i>Pagar com PIX
                                         </button>
@@ -263,9 +283,32 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             </button>
                         </div>
                     </div>
-                    <div class="alert alert-success mt-3 py-2 mb-0" id="pixFaturaConfirmado" style="display:none;">
-                        <i class="fas fa-check-circle me-1"></i> <strong>Pagamento confirmado!</strong> Seu plano foi renovado. Atualizando...
+                </div>
+                <div id="boletoFaturaContent" style="display:none;">
+                    <div class="text-center mb-3">
+                        <div class="d-inline-flex align-items-center gap-2">
+                            <span class="pulse-dot"></span>
+                            <span class="text-muted small">Aguardando pagamento do boleto</span>
+                        </div>
                     </div>
+                    <div class="text-center">
+                        <a id="boletoFaturaLink" href="#" target="_blank" rel="noopener" class="btn btn-lg btn-warning fw-bold" style="border-radius:.7rem;">
+                            <i class="fas fa-external-link-alt me-2"></i> Abrir boleto bancário
+                        </a>
+                        <div class="text-muted small mt-2">Ou pague pela linha digitável no app do seu banco</div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label small fw-semibold">Linha digitável / Código de barras</label>
+                        <div class="pix-copia d-flex align-items-center justify-content-between gap-2">
+                            <span id="boletoFaturaLinha" style="flex:1;" class="small"></span>
+                            <button class="btn btn-sm btn-outline-warning" id="btnCopiarBoletoFatura" title="Copiar">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-success mt-3 py-2 mb-0" id="faturaConfirmado" style="display:none;">
+                    <i class="fas fa-check-circle me-1"></i> <strong>Pagamento confirmado!</strong> Seu plano foi renovado. Atualizando...
                 </div>
                 <div id="pixFaturaErro" class="alert alert-danger py-2 mb-0" style="display:none;"></div>
             </div>
@@ -329,10 +372,27 @@ function abrirFatura(id) {
     document.getElementById('pixModalFaturaTitle').textContent = f.descricao + ' · ' + f.plano;
     document.getElementById('pixFaturaLoading').style.display = 'block';
     document.getElementById('pixFaturaContent').style.display = 'none';
+    document.getElementById('boletoFaturaContent').style.display = 'none';
+    document.getElementById('faturaConfirmado').style.display = 'none';
     document.getElementById('pixFaturaErro').style.display = 'none';
-    document.getElementById('pixFaturaConfirmado').style.display = 'none';
     let modal = new bootstrap.Modal(document.getElementById('pixModalFatura'));
     modal.show();
+
+    if (f.metodo === 'boleto') {
+        // Boleto já foi gerado: exibe link e linha digitável e monitora o status
+        document.getElementById('boletoFaturaLinha').textContent = f.boleto_linha;
+        const link = document.getElementById('boletoFaturaLink');
+        if (f.boleto_url) {
+            link.href = f.boleto_url;
+            link.classList.remove('disabled');
+        } else {
+            link.classList.add('disabled');
+        }
+        document.getElementById('pixFaturaLoading').style.display = 'none';
+        document.getElementById('boletoFaturaContent').style.display = 'block';
+        iniciarPolling();
+        return;
+    }
 
     if (f.qr || f.pix) {
         // Já existe cobrança gerada: apenas exibe e inicia o monitoramento
@@ -365,6 +425,34 @@ function abrirFatura(id) {
         .catch(() => mostrarErroFatura('Erro de conexão ao gerar o PIX. Tente novamente.'));
 }
 
+function verificarCartaoFatura(id, btn) {
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Verificando...';
+    }
+    const fd = new FormData();
+    fd.append('pagamento_id', id);
+    fetch('/cobranca/api/verificar_pix_plano.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(res => {
+            if (res.erro) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Verificar pagamento'; }
+                alert(res.erro);
+                return;
+            }
+            if (res.status === 'pago') { window.location.reload(); return; }
+            if (res.status === 'pendente') {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Verificar pagamento'; }
+                alert('Pagamento ainda em processamento. Verifique novamente em instantes.');
+            } else {
+                window.location.reload();
+            }
+        })
+        .catch(() => {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Verificar pagamento'; }
+        });
+}
+
 function iniciarPolling() {
     pararPolling();
     pixPolling = setInterval(verificarPagamento, 5000);
@@ -383,7 +471,7 @@ function verificarPagamento() {
             if (res.erro) return;
             if (res.status === 'pago') {
                 pararPolling();
-                document.getElementById('pixFaturaConfirmado').style.display = 'block';
+                document.getElementById('faturaConfirmado').style.display = 'block';
                 setTimeout(() => window.location.reload(), 1800);
             } else if (res.status === 'expirado' || res.status === 'cancelado' || res.status === 'vencido') {
                 pararPolling();
@@ -396,6 +484,8 @@ function mostrarErroFatura(msg) {
     pararPolling();
     document.getElementById('pixFaturaLoading').style.display = 'none';
     document.getElementById('pixFaturaContent').style.display = 'none';
+    document.getElementById('boletoFaturaContent').style.display = 'none';
+    document.getElementById('faturaConfirmado').style.display = 'none';
     const el = document.getElementById('pixFaturaErro');
     el.textContent = msg;
     el.style.display = 'block';
@@ -413,6 +503,24 @@ document.getElementById('btnCopiarFatura').addEventListener('click', function ()
 });
 function feedbackCopiarFatura() {
     const btn = document.getElementById('btnCopiarFatura');
+    const old = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i>';
+    btn.classList.remove('btn-outline-warning'); btn.classList.add('btn-success');
+    setTimeout(() => { btn.innerHTML = old; btn.classList.add('btn-outline-warning'); btn.classList.remove('btn-success'); }, 1500);
+}
+
+document.getElementById('btnCopiarBoletoFatura').addEventListener('click', function () {
+    const texto = document.getElementById('boletoFaturaLinha').textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(() => feedbackCopiarBoletoFatura());
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = texto; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta); feedbackCopiarBoletoFatura();
+    }
+});
+function feedbackCopiarBoletoFatura() {
+    const btn = document.getElementById('btnCopiarBoletoFatura');
     const old = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-check"></i>';
     btn.classList.remove('btn-outline-warning'); btn.classList.add('btn-success');

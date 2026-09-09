@@ -6,6 +6,11 @@
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/tenant.php';
 
+// === UTF-8 global ===
+if (function_exists('mb_internal_encoding')) { mb_internal_encoding('UTF-8'); }
+if (function_exists('mb_http_output')) { mb_http_output('UTF-8'); }
+ini_set('default_charset', 'UTF-8');
+
 // Contexto de admin usado para ler/gravar configurações por admin.
 // Painel admin -> admin logado. Demais contextos (portal, login, webhook) -> tenant do subdomínio.
 function getConfigAdminId() {
@@ -57,11 +62,22 @@ function getConfigGlobal($chave, $padrao = '') {
 }
 
 // Grava uma configuração global (admin_id NULL), independente da sessão.
+// Obs.: a UNIQUE(admin_id, chave) não vale para admin_id NULL no MySQL (NULLs
+// não colidem), então o ON DUPLICATE nunca atualiza. Garantimos uma única
+// linha deletando as existentes antes de inserir.
 function salvarConfigGlobal($chave, $valor) {
     $pdo = getConnection();
     if (!$pdo) return false;
-    $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (NULL, ?, ?)
-        ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+    $chave = (string) $chave;
+    $stmt = $pdo->prepare("DELETE FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
+    if (!$stmt->execute([$chave])) return false;
+
+    // Valor vazio = remove a configuração (comportamento equivalente de "não exibir").
+    if (trim((string) $valor) === '') {
+        return true;
+    }
+
+    $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (NULL, ?, ?)");
     return $stmt->execute([$chave, $valor]);
 }
 
@@ -190,6 +206,41 @@ function planoAtivoAdmin($adminId = null) {
 // Verifica se o plano do admin atingiu o limite para $tipo ('clientes'|'usuarios'|'faturas').
 // Retorna ['ok'=>bool, 'atual'=>int, 'max'=>int|null, 'nome'=>string, 'mensagem'=>string].
 // Limite vazio (NULL) = ilimitado.
+// Verifica se o plano do admin permite envio de cobrança via WhatsApp ou e-mail.
+// Usado para bloquear envios em planos restritos (ex.: conta demo).
+function planoPermiteEnvio($rotulo = 'whatsapp', $adminId = null) {
+    if ($adminId === null) {
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+    }
+    $adminId = (int)$adminId;
+    if ($adminId <= 0) return true;
+
+    $plano = planoAtivoAdmin($adminId);
+    if (!$plano) return true;
+
+    if ($rotulo === 'whatsapp') {
+        return (int)($plano['whatsapp_cobranca'] ?? 1) === 1;
+    }
+    if ($rotulo === 'email') {
+        return (int)($plano['email_cobranca'] ?? 1) === 1;
+    }
+    return true;
+}
+
+// Retorna bool informando se o admin logado é a conta de demonstração.
+function adminEhDemo($adminId = null) {
+    if ($adminId === null) {
+        return (($_SESSION['admin_origem'] ?? '') === 'demo');
+    }
+    $adminId = (int)$adminId;
+    if ($adminId <= 0) return false;
+    $pdo = getConnection();
+    if (!$pdo) return false;
+    $stmt = $pdo->prepare("SELECT origem FROM administradores WHERE id = ? LIMIT 1");
+    $stmt->execute([$adminId]);
+    return $stmt->fetchColumn() === 'demo';
+}
+
 function verificarLimitePlano($tipo, $adminId = null) {
     if ($adminId === null) {
         $adminId = (int)($_SESSION['admin_id'] ?? 0);

@@ -8,7 +8,14 @@ require_once __DIR__ . '/../config/email_helpers.php';
 $mensagem = '';
 $tipo = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Plano restrito (demo) -> e-mail bloqueado
+$demoBloqueado = !planoPermiteEnvio('email');
+if ($demoBloqueado) {
+    $mensagem = 'A configuração de e-mail está bloqueada na conta de demonstração. Assine um plano para liberar.';
+    $tipo = 'warning';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$demoBloqueado) {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_antes') {

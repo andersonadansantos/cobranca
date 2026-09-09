@@ -908,6 +908,298 @@ body {
     width: 100%;
 }
 
+/* Cartão de crédito */
+.fatura-pag-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 12px;
+    color: var(--app-text-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.fatura-pag-divider::before,
+.fatura-pag-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #f1f5f9;
+}
+
+.fatura-pag-cartao {
+    max-width: 400px;
+    margin: 0 auto;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: var(--radius);
+    padding: 16px;
+}
+
+.fatura-cartao-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.fatura-cartao-tab {
+    flex: 1;
+    padding: 9px 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all .15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.fatura-cartao-tab i {
+    font-size: 0.85rem;
+}
+
+.fatura-cartao-tab:hover {
+    border-color: #c7d2fe;
+    color: #4f46e5;
+}
+
+.fatura-cartao-tab.active {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, .25);
+}
+
+.fatura-cc-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.fatura-cc-badge {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: .5px;
+    color: #fff;
+    background: #94a3b8;
+    border-radius: 5px;
+    padding: 2px 7px;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+
+.fatura-cc-badge.show {
+    opacity: 1;
+}
+
+.fatura-cc-badge.b-visa { background: #1a1f71; }
+.fatura-cc-badge.b-master { background: #eb001b; }
+.fatura-cc-badge.b-amex { background: #2e77bc; }
+.fatura-cc-badge.b-elo { background: #00a4e0; }
+.fatura-cc-badge.b-hipercard { background: #b3131b; }
+.fatura-cc-badge.b-hiper { background: #7a0c11; }
+.fatura-cc-badge.b-aura { background: #d8670d; }
+.fatura-cc-badge.b-diners { background: #0868ac; }
+.fatura-cc-badge.b-discover { background: #ef6a00; }
+.fatura-cc-badge.b-other { background: #64748b; }
+
+#ccParcelasWrap {
+    transition: opacity .15s ease;
+}
+
+.fatura-cartao-seguro {
+    margin: 10px 0 0;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    text-align: center;
+}
+
+.fatura-cartao-seguro i {
+    color: #22c55e;
+}
+
+/* =============================================
+   MÉTODOS DE PAGAMENTO (abas)
+   ============================================= */
+
+.fatura-metodos {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 22px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.fatura-metodo {
+    flex: 1;
+    max-width: 190px;
+    min-width: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    transition: all .15s ease;
+    letter-spacing: .3px;
+}
+
+.fatura-metodo i {
+    font-size: 1.05rem;
+}
+
+.fatura-metodo:hover {
+    border-color: #c7d2fe;
+    color: #4f46e5;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, .08);
+}
+
+.fatura-metodo.active {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(79, 70, 229, .28);
+}
+
+.fatura-metodo-panel {
+    display: none;
+}
+
+.fatura-metodo-panel.active {
+    display: block;
+    animation: faturaFade .22s ease;
+}
+
+@keyframes faturaFade {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* Painel PIX */
+.fatura-pix-layout {
+    display: flex;
+    gap: 28px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 6px 0;
+}
+
+.fatura-pix-qr {
+    text-align: center;
+    flex: none;
+}
+
+.fatura-pix-qr-titulo {
+    font-size: 0.66rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--app-text-muted);
+    margin-bottom: 10px;
+}
+
+#qrImageWrap {
+    display: inline-block;
+}
+
+#qrImageWrap img,
+#qrImageWrap canvas {
+    width: 172px !important;
+    height: 172px !important;
+    max-width: 172px !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 10px;
+    background: #fff;
+}
+
+.fatura-pix-qr-note {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-top: 10px;
+}
+
+.fatura-pix-cola {
+    flex: 1;
+    max-width: 430px;
+    min-width: 270px;
+    text-align: left;
+}
+
+.fatura-pix-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+}
+
+.break-all {
+    word-break: break-all;
+}
+
+.flex-none {
+    flex: none;
+}
+
+/* Painel Boleto */
+.fatura-boleto-panel {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0;
+    flex-wrap: wrap;
+}
+
+.fatura-boleto-icone-grande {
+    width: 64px;
+    height: 64px;
+    flex: none;
+    border-radius: 14px;
+    background: #f1f5f9;
+    color: var(--cor-primaria);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+}
+
+.fatura-boleto-info {
+    max-width: 360px;
+    text-align: left;
+    flex: 1;
+    min-width: 240px;
+}
+
+.fatura-boleto-titulo {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--app-text);
+}
+
+.fatura-boleto-desc {
+    font-size: 0.78rem;
+    color: var(--app-text-muted);
+    margin: 3px 0 12px;
+}
+
 /* =============================================
    PAGO
    ============================================= */
@@ -971,6 +1263,13 @@ body {
 /* =============================================
    FATURAS RECORRENTES
    ============================================= */
+.fr-item {
+    border: 1px solid #f1f5f9;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: #fff;
+}
+
 .fr-row {
     display: flex;
     align-items: center;
@@ -979,11 +1278,27 @@ body {
     background: #f8fafc;
     border-radius: var(--radius-sm);
     border: 1px solid #f1f5f9;
+    cursor: pointer;
     transition: background var(--transition);
 }
 
 .fr-row:hover {
-    background: #f1f5f9;
+    background: #eef2f7;
+}
+
+.fr-row:not(.collapsed) {
+    background: #eef2f7;
+    border-radius: 0;
+}
+
+.fr-chevron {
+    display: inline-flex;
+    align-items: center;
+    transition: transform .25s ease;
+}
+
+.fr-row:not(.collapsed) .fr-chevron {
+    transform: rotate(180deg);
 }
 
 .fr-cliente {
@@ -1035,15 +1350,15 @@ body {
 }
 
 .fr-hist {
-    flex-basis: 100%;
+    flex-basis: auto;
 }
 
 .fr-hist-inner {
     background: var(--app-card);
-    border: 1px dashed #cbd5e1;
-    border-radius: var(--radius-sm);
-    padding: 8px 14px;
-    margin-top: -6px;
+    border: 0;
+    border-top: 1px dashed #cbd5e1;
+    border-radius: 0;
+    padding: 8px 16px 12px;
 }
 
 .fr-hist-inner table {
@@ -1121,13 +1436,37 @@ body {
     .fatura-strip-item:nth-child(2n) { border-right: none; }
     .fatura-strip-item:first-child { padding-left: 18px; }
     .fatura-strip-item:last-child { padding-right: 18px; }
-    .fatura-pag-strip {
+.fatura-pag-strip {
         flex-direction: column;
         gap: 10px;
     }
     .fatura-pag-col { flex: none; padding: 14px; }
     .fatura-pag-col-pix { flex: none; }
     .fatura-pag-col-boleto { flex: none; }
+    .fatura-metodos {
+        gap: 8px;
+        margin-bottom: 18px;
+    }
+    .fatura-metodo {
+        min-width: 0;
+        max-width: none;
+        flex: 1 1 30%;
+        padding: 10px 6px;
+        font-size: 0.75rem;
+    }
+    .fatura-metodo i { font-size: 0.9rem; }
+    .fatura-pix-layout {
+        gap: 16px;
+    }
+    #qrImageWrap img,
+    #qrImageWrap canvas {
+        width: 148px !important;
+        height: 148px !important;
+        max-width: 148px !important;
+    }
+    .fatura-pix-cola {
+        min-width: 0;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -1517,6 +1856,18 @@ h1, h2, h3, h4, h5, h6 {
     color: #6c757d;
     background: rgba(108,117,125,0.12);
     border-color: rgba(108,117,125,0.25);
+}
+
+.acao-btn-info {
+    color: #0d6efd;
+    background: rgba(13,110,253,0.12);
+    border-color: rgba(13,110,253,0.25);
+}
+
+.acao-btn-info:hover {
+    background: #0d6efd;
+    color: #fff;
+    border-color: #0d6efd;
 }
 
 .acao-btn-secondary:hover {
@@ -2145,6 +2496,18 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 0.7rem;
 }
 
+.form-card .badge-api-ativa {
+    width: auto;
+    height: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 14px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
 /* --- Content Area Transitions --- */
 .content-area > * {
     animation: fadeIn 0.2s ease;
@@ -2159,4 +2522,15 @@ a {
 
 a:hover {
     color: #0b5c44;
+}
+
+/* --- Banner da conta de demonstra��o --- */
+.demo-banner {
+    background: linear-gradient(135deg,#b45309,#f59e0b);
+    color: #fff;
+    font-size: .82rem;
+    padding: .55rem 1rem;
+    text-align: center;
+    position: relative;
+    z-index: 1050;
 }

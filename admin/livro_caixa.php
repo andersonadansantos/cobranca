@@ -556,7 +556,7 @@ function downloadPDF() {
     var mes = <?= $mesFiltro ?>;
     var mesNome = '<?= $meses[$mesFiltro] ?>';
     var w = window.open('', '_blank');
-    var html = '<!DOCTYPE html><html><head><title>Livro Caixa - ' + mesNome + ' ' + ano + '</title>';
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Livro Caixa - ' + mesNome + ' ' + ano + '</title>';
     html += '<style>body{font-family:Arial,sans-serif;padding:20px;color:#333;}';
     html += 'h1{font-size:18px;text-align:center;margin-bottom:5px;}';
     html += 'h2{font-size:14px;text-align:center;color:#666;margin-top:0;}';

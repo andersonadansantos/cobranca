@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/lang_painel.php';
 
 if (isLoggedInAdmin()) {
     header('Location: index.php');
@@ -10,7 +11,7 @@ $erro = '';
 
 $rateLimit = checkLoginRateLimit('admin', 'all');
 if ($rateLimit['blocked']) {
-    $erro = 'Muitas tentativas. Tente novamente em ' . $rateLimit['minutes'] . ' minuto(s).';
+    $erro = t('login.erro_rate', [$rateLimit['minutes']]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
@@ -23,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
     if (empty($turnstileSecret)) {
         error_log('Turnstile secret não configurado (env TURNSTILE_SECRET_KEY ou config turnstile_secret_key). Verificação desativada.');
     } elseif (empty($turnstile)) {
-        $erro = 'Confirme que você não é um robô.';
+        $erro = t('login.erro_turnstile');
     } else {
         $verify = @file_get_contents('https://challenges.cloudflare.com/turnstile/v0/siteverify', false, stream_context_create([
             'http' => [
@@ -34,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
         ]));
         $result = json_decode($verify ?? '', true);
         if (!$result || empty($result['success'])) {
-            $erro = 'Falha na verificação. Tente novamente.';
+            $erro = t('login.erro_falha');
         }
     }
 
@@ -43,13 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
         $senha = trim($_POST['senha'] ?? '');
         
         if (empty($usuario) || empty($senha)) {
-            $erro = 'Preencha todos os campos.';
+            $erro = t('login.erro_vazio');
         } elseif (loginAdmin($usuario, $senha)) {
             header('Location: index.php');
             exit;
         } else {
             recordLoginAttempt('admin', 'all');
-            $erro = 'Usuário ou senha inválidos.';
+            $erro = t('login.erro_invalido');
         }
     }
 }
@@ -59,11 +60,11 @@ $logo = getLogoLogin();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="<?= painelIdiomaAtual() ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Admin - <?= htmlspecialchars($nomeSistema) ?></title>
+    <title><?= t('login.titulo') ?> - <?= htmlspecialchars($nomeSistema) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="/cobranca/assets/css/style.css" rel="stylesheet">
@@ -78,8 +79,8 @@ $nomeSistema = getNomeSistema();
                 <?php else: ?>
                     <i class="fas fa-shield-halved fa-3x mb-3"></i>
                 <?php endif; ?>
-                <h3>Acesse sua conta no painel <?= htmlspecialchars($nomeSistema) ?></h3>
-                <p>Entre com suas credenciais e acesse seu painel <?= htmlspecialchars($nomeSistema) ?>.</p>
+                <h3><?= t('login.acesse', [htmlspecialchars($nomeSistema)]) ?></h3>
+                <p><?= t('login.entre', [htmlspecialchars($nomeSistema)]) ?></p>
             </div>
             <div class="login-right">
                 <div class="login-form">
@@ -95,38 +96,38 @@ $nomeSistema = getNomeSistema();
 
                     <form method="POST">
                         <div class="mb-3">
-                            <label class="form-label">Usuário</label>
+                            <label class="form-label"><?= t('login.usuario') ?></label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="fas fa-user"></i></span>
-                                <input type="text" name="usuario" class="form-control" placeholder="Digite seu usuário" required autofocus value="<?= htmlspecialchars($_POST['usuario'] ?? '') ?>">
+                                <input type="text" name="usuario" class="form-control" placeholder="<?= t('login.ph_usuario') ?>" required autofocus value="<?= htmlspecialchars($_POST['usuario'] ?? '') ?>">
                             </div>
                         </div>
                         <div class="mb-4">
-                            <label class="form-label">Senha</label>
+                            <label class="form-label"><?= t('login.senha') ?></label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                <input type="password" name="senha" id="senhaAdmin" class="form-control" placeholder="Digite sua senha" required>
-                                <button type="button" class="btn btn-outline-secondary" onclick="alternarSenha('senhaAdmin', this)" tabindex="-1" title="Mostrar ou ocultar senha" aria-label="Mostrar ou ocultar senha"><i class="fas fa-eye"></i></button>
+                                <input type="password" name="senha" id="senhaAdmin" class="form-control" placeholder="<?= t('login.ph_senha') ?>" required>
+                                <button type="button" class="btn btn-outline-secondary" onclick="alternarSenha('senhaAdmin', this)" tabindex="-1" title="<?= htmlspecialchars(t('login.mostrar')) ?>" aria-label="<?= htmlspecialchars(t('login.mostrar')) ?>"><i class="fas fa-eye"></i></button>
                             </div>
                         </div>
                         <div class="mb-4">
                             <div class="cf-turnstile" data-sitekey="0x4AAAAAAEACAqDXrIelvjeK" data-theme="light"></div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 mb-2">
-                            <i class="fas fa-sign-in-alt me-1"></i> Entrar
+                            <i class="fas fa-sign-in-alt me-1"></i> <?= t('login.entrar') ?>
                         </button>
                         <div class="text-center mb-2">
                             <a href="/cobranca/admin/recuperar_senha.php" class="text-decoration-none">
-                                <small><i class="fas fa-key me-1"></i> Esqueceu sua senha?</small>
+                                <small><i class="fas fa-key me-1"></i> <?= t('login.lembrar') ?></small>
                             </a>
                         </div>
                     </form>
 
-                    <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
+                    <div class="text-center"><small class="text-muted" style="font-size:0.65rem;"><?= t('login.dev') ?></small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
 
                     <div class="text-center mt-3">
                         <a href="/cobranca/usuario/login.php" class="text-decoration-none">
-                            <small><i class="fas fa-arrow-left me-1"></i> Voltar para Login do Cliente</small>
+                            <small><i class="fas fa-arrow-left me-1"></i> <?= t('login.voltar_cliente') ?></small>
                         </a>
                     </div>
                 </div>

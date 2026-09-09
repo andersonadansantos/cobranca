@@ -141,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['msg'])) {
     $msgs = [
         'salvo' => ['Admin salvo com sucesso!', 'success'],
+        'nao_encontrado' => ['Admin não encontrado.', 'danger'],
     ];
     if (isset($msgs[$_GET['msg']])) {
         $mensagem = $msgs[$_GET['msg']][0];
@@ -329,7 +330,13 @@ include __DIR__ . '/includes/sidebar.php';
                                     <tr><td colspan="6" class="text-center text-muted py-4">Nenhum admin cadastrado</td></tr>
                                 <?php else: foreach ($admins as $adm): ?>
                                     <tr>
-                                        <td><strong><?= htmlspecialchars($adm['nome']) ?></strong><br><small class="text-muted"><?= htmlspecialchars($adm['email']) ?></small></td>
+                                        <td><strong><?= htmlspecialchars($adm['nome']) ?></strong>
+                                            <?php if (($adm['origem'] ?? 'painel') === 'site'): ?>
+                                                <span class="badge bg-info ms-1"><i class="bi bi-globe me-1"></i>Site</span>
+                                            <?php elseif (($adm['origem'] ?? 'painel') === 'demo'): ?>
+                                                <span class="badge bg-warning text-dark ms-1"><i class="fas fa-flask me-1"></i>Demo</span>
+                                            <?php endif; ?>
+                                            <br><small class="text-muted"><?= htmlspecialchars($adm['email']) ?></small></td>
                                         <td><?= htmlspecialchars($adm['usuario']) ?></td>
                                         <td>
                                             <?php if (!empty($adm['plano'])): ?>
@@ -354,6 +361,7 @@ include __DIR__ . '/includes/sidebar.php';
                                         </td>
                                         <td>
                                             <div class="d-inline-flex gap-1">
+                                                <a href="logar_como.php?admin=<?= (int)$adm['id'] ?>" class="acao-btn acao-btn-info" title="Logar como este admin"><i class="bi bi-person-bounding-box"></i></a>
                                                 <a href="javascript:void(0)" class="acao-btn acao-btn-primary" title="Editar" data-admin='<?= htmlspecialchars(json_encode(['id'=>$adm['id'],'usuario'=>$adm['usuario'],'nome'=>$adm['nome'],'email'=>$adm['email'],'ativo'=>(int)$adm['ativo'],'plano_id'=>(int)($adm['admin_plano_id'] ?? 0),'data_fim'=>$adm['admin_plano_fim']??'',
                                                     'razao_social'=>$adm['razao_social']??'', 'nome_fantasia'=>$adm['nome_fantasia']??'', 'cnpj'=>$adm['cnpj']??'', 'cpf'=>$adm['cpf']??'', 'inscricao_estadual'=>$adm['inscricao_estadual']??'', 'inscricao_municipal'=>$adm['inscricao_municipal']??'', 'telefone_comercial'=>$adm['telefone_comercial']??'', 'email_comercial'=>$adm['email_comercial']??'',
                                                     'cep'=>$adm['cep']??'', 'logradouro'=>$adm['logradouro']??'', 'numero'=>$adm['numero']??'', 'complemento'=>$adm['complemento']??'', 'bairro'=>$adm['bairro']??'', 'cidade'=>$adm['cidade']??'', 'estado'=>$adm['estado']??''

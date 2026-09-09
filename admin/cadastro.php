@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (empty($senha)) {
                         $senha = $cpf_cnpj;
                     }
-                    $stmt = $pdo->prepare("INSERT INTO clientes (admin_id, tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, email2, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt = $pdo->prepare("INSERT INTO clientes (admin_id, tipo_pessoa, nome_razao, cpf_cnpj, rg_ie, email, email2, telefone, celular, cep, logradouro, numero, complemento, bairro, cidade, estado, senha, ativo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
                     $stmt->execute([$adminIdC, $tipo_pessoa, $nome_razao, $cpf_cnpj, $rg_ie, $email, $email2, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, password_hash($senha, PASSWORD_BCRYPT)]);
                     header('Location: cadastro.php?msg=salvo');
                     exit;

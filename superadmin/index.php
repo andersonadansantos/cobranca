@@ -5,7 +5,7 @@ $pdo = getConnection();
 
 $totalAdmins = $pdo->query("SELECT COUNT(*) FROM administradores WHERE ativo = 1")->fetchColumn();
 $admins = $pdo->query("
-    SELECT a.id, a.usuario, a.nome, a.email, a.avatar, a.ativo, a.ultimo_login,
+    SELECT a.id, a.usuario, a.nome, a.email, a.avatar, a.ativo, a.ultimo_login, a.origem,
            ae.url_api, ae.api_key, ae.instance,
            p.nome AS plano, p.slug AS plano_slug, p.cor AS plano_cor
     FROM administradores a
@@ -143,7 +143,14 @@ include __DIR__ . '/includes/sidebar.php';
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <img src="<?= htmlspecialchars($adm['avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" class="rounded-circle" width="32" height="32" style="object-fit:cover;">
-                                        <strong><?= htmlspecialchars($adm['nome']) ?></strong>
+                                        <div class="lh-sm">
+                                            <strong><?= htmlspecialchars($adm['nome']) ?></strong>
+                                            <?php if (($adm['origem'] ?? 'painel') === 'site'): ?>
+                                                <div><span class="badge bg-info"><i class="bi bi-globe me-1"></i>Site</span></div>
+                                            <?php elseif (($adm['origem'] ?? 'painel') === 'demo'): ?>
+                                                <div><span class="badge bg-warning text-dark"><i class="fas fa-flask me-1"></i>Demo</span></div>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
                                 </td>
                                 <td><?= htmlspecialchars($adm['usuario']) ?></td>
@@ -171,6 +178,7 @@ include __DIR__ . '/includes/sidebar.php';
                                 <td><?= $adm['ultimo_login'] ? date('d/m/Y H:i', strtotime($adm['ultimo_login'])) : '—' ?></td>
                                 <td>
                                     <div class="d-inline-flex gap-1">
+                                        <a href="logar_como.php?admin=<?= (int)$adm['id'] ?>" class="acao-btn acao-btn-info" title="Logar como este admin"><i class="bi bi-person-bounding-box"></i></a>
                                         <a href="cadastros.php?editar=<?= $adm['id'] ?>" class="acao-btn acao-btn-primary" title="Editar"><i class="bi bi-pencil-square"></i></a>
                                         <a href="api_admins.php?admin=<?= $adm['id'] ?>" class="acao-btn" style="background:#25D366;color:#fff;" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
                                         <a href="#" class="acao-btn acao-btn-danger" title="Excluir" onclick="return confirmarExclusaoAdmin('<?= htmlspecialchars(addslashes($adm['nome'])) ?>', <?= (int)$adm['id'] ?>);"><i class="bi bi-trash3"></i></a>

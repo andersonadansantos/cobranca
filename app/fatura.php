@@ -30,7 +30,17 @@ if (!$fatura) {
     exit;
 }
 
+// Contexto de tenant para resolver as configurações do admin dono da fatura.
+if (!empty($fatura['admin_id'])) {
+    $_SESSION['tenant_admin_id'] = (int) $fatura['admin_id'];
+}
+
 $apiDaFatura = $fatura['api_pagamento'] ?: getApiAtiva();
+$mpConfig = getMPConfig();
+$cartaoPermitido = ($apiDaFatura === 'mercadopago')
+    && aceitaCartaoCredito()
+    && !empty($mpConfig['mp_public_key'])
+    && $fatura['status'] !== 'pago';
 
 if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
     if (!empty($fatura['boleto_url'])) {
@@ -61,7 +71,7 @@ if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
         exit;
     } else {
         $erroMsg = $result['erro'] ?? 'Erro ao gerar boleto.';
-        header('Location: fatura.php?id=' . $faturaId . '&erro=boleto');
+        header('Location: fatura.php?id=' . $faturaId . '&erro=boleto&msg=' . urlencode($erroMsg));
         exit;
     }
 }
@@ -125,6 +135,19 @@ $nomeSistema = getNomeSistema();
             <?php if ($erroMsg && empty($_GET['erro'])): ?>
                 <div class="app-alert app-alert-danger app-animate">
                     <i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($erroMsg) ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (isset($_GET['erro']) && $_GET['erro'] === 'boleto'): ?>
+                <?php $msgBoleto = trim((string) ($_GET['msg'] ?? '')); ?>
+                <div class="app-alert app-alert-danger app-animate" style="display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span style="flex:1;">
+                        <?= htmlspecialchars($msgBoleto !== '' ? $msgBoleto : 'Erro ao gerar boleto. Verifique seus dados cadastrais.') ?>
+                        <?php if (stripos($msgBoleto, 'perfil') !== false): ?>
+                            <a href="perfil.php" style="color:inherit; text-decoration:underline; font-weight:600;">Completar meu cadastro</a>
+                        <?php endif; ?>
+                    </span>
                 </div>
             <?php endif; ?>
 
@@ -279,6 +302,50 @@ $nomeSistema = getNomeSistema();
                                 </a>
                             <?php endif; ?>
 
+                        <?php endif; ?>
+
+                        <?php if ($cartaoPermitido): ?>
+                            <div class="app-divider">ou pague com Cartão</div>
+                            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                                <button type="button" id="tabCredito" data-tipo="credito" style="flex:1; padding:11px 8px; border:1px solid transparent; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; border-radius:10px; font-size:0.82rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; box-shadow:0 4px 12px rgba(79,70,229,.25);">
+                                    <i class="fas fa-credit-card"></i> Crédito
+                                </button>
+                                <button type="button" id="tabDebito" data-tipo="debito" style="flex:1; padding:11px 8px; border:1px solid #e2e8f0; background:var(--app-card); color:var(--app-text-muted); border-radius:10px; font-size:0.82rem; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+                                    <i class="fas fa-money-check-alt"></i> Débito
+                                </button>
+                            </div>
+                            <form id="ccForm" autocomplete="off">
+                                <div style="margin-bottom:8px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                                        <label style="font-size:0.7rem; font-weight:600; color:var(--app-text-muted);">Número do cartão</label>
+                                        <span id="ccBrand" style="font-size:0.6rem; font-weight:800; color:#fff; background:#94a3b8; border-radius:5px; padding:2px 7px; text-transform:uppercase; opacity:0; transition:opacity .15s ease;"></span>
+                                    </div>
+                                    <input type="text" id="ccNumero" inputmode="numeric" maxlength="19" placeholder="0000 0000 0000 0000" autocomplete="cc-number" style="width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.9rem; background:var(--app-card); color:var(--app-text); box-sizing:border-box;" required>
+                                </div>
+                                <div style="margin-bottom:8px;">
+                                    <label style="font-size:0.7rem; font-weight:600; color:var(--app-text-muted);">Nome impresso no cartão</label>
+                                    <input type="text" id="ccNome" maxlength="40" placeholder="NOME COMO ESTÁ NO CARTÃO" autocomplete="cc-name" style="width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.9rem; background:var(--app-card); color:var(--app-text); box-sizing:border-box;" required>
+                                </div>
+                                <div style="display:flex; gap:8px; margin-bottom:8px;">
+                                    <div style="flex:1;">
+                                        <label style="font-size:0.7rem; font-weight:600; color:var(--app-text-muted);">Validade</label>
+                                        <input type="text" id="ccValidade" inputmode="numeric" maxlength="5" placeholder="MM/AA" autocomplete="cc-exp" style="width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.9rem; background:var(--app-card); color:var(--app-text); box-sizing:border-box;" required>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <label style="font-size:0.7rem; font-weight:600; color:var(--app-text-muted);">CVV</label>
+                                        <input type="text" id="ccCvv" inputmode="numeric" maxlength="4" placeholder="123" autocomplete="cc-csc" style="width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.9rem; background:var(--app-card); color:var(--app-text); box-sizing:border-box;" required>
+                                    </div>
+                                    <div style="flex:1;" id="ccParcelasWrap">
+                                        <label style="font-size:0.7rem; font-weight:600; color:var(--app-text-muted);">Parcelas</label>
+                                        <select id="ccParcelas" style="width:100%; padding:10px 8px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.9rem; background:var(--app-card); color:var(--app-text); box-sizing:border-box;"></select>
+                                    </div>
+                                </div>
+                                <div id="ccMsg" style="font-size:0.82rem; margin-bottom:8px;"></div>
+                                <button type="submit" id="ccBtn" class="app-btn app-btn-primary">
+                                    <i class="fas fa-credit-card"></i> Pagar
+                                </button>
+                                <p style="margin:10px 0 0; font-size:0.66rem; color:var(--app-text-muted); text-align:center;"><i class="fas fa-lock"></i> Pagamento processado com segurança pelo Mercado Pago</p>
+                            </form>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
@@ -468,8 +535,239 @@ $nomeSistema = getNomeSistema();
             <h5 style="font-weight:700; color:#28a745; margin-bottom:8px;">Pagamento Confirmado!</h5>
             <p style="color:#6c757d; font-size:0.9rem; margin-bottom:16px;">Seu pagamento foi realizado com sucesso.</p>
             <a href="dashboard.php" class="app-btn app-btn-success" style="width:100%; text-align:center; text-decoration:none;">Voltar ao Painel</a>
-        </div>
-    </div>
+</div>
+
+    <?php if ($cartaoPermitido): ?>
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
+    <script>
+    (function() {
+        var faturaId = <?= (int) $faturaId ?>;
+        var faturaValor = <?= (float) $fatura['valor_final'] ?>;
+        var maxParcelas = <?= (int) getMaxParcelasCartao() ?>;
+        var cpfCliente = <?= json_encode(preg_replace('/[^0-9]/', '', $_SESSION['user_cpf_cnpj'] ?? '')) ?>;
+
+        var mp = new MercadoPago(<?= json_encode($mpConfig['mp_public_key']) ?>, { locale: 'pt-BR' });
+
+        var btn = document.getElementById('ccBtn');
+        var msg = document.getElementById('ccMsg');
+        var selParcelas = document.getElementById('ccParcelas');
+        var wrapParcelas = document.getElementById('ccParcelasWrap');
+        var inputNumero = document.getElementById('ccNumero');
+        var inputNome = document.getElementById('ccNome');
+        var inputValidade = document.getElementById('ccValidade');
+        var inputCvv = document.getElementById('ccCvv');
+        var brandEl = document.getElementById('ccBrand');
+        var tabCredito = document.getElementById('tabCredito');
+        var tabDebito = document.getElementById('tabDebito');
+        var tipoAtual = 'credito';
+
+        var corTabAtiva = 'linear-gradient(135deg,#4f46e5,#7c3aed)';
+        var corTabInativa = 'var(--app-card)';
+        var coresBandeira = {
+            visa: '#1a1f71', master: '#eb001b', amex: '#2e77bc', elo: '#00a4e0',
+            hipercard: '#b3131b', hiper: '#7a0c11', aura: '#d8670d', diners: '#0868ac',
+            discover: '#ef6a00', outros: '#64748b'
+        };
+
+        function txtMoeda(v) {
+            return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        for (var i = 1; i <= maxParcelas; i++) {
+            var opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i === 1 ? 'À vista (1x)' : i + 'x';
+            selParcelas.appendChild(opt);
+        }
+
+        function mostrarMsg(texto, tipo) {
+            msg.style.color = tipo === 'success' ? '#27ae60' : (tipo === 'warning' ? '#e67e22' : '#d63031');
+            msg.innerHTML = texto || '';
+        }
+
+        function detectarBandeira(num) {
+            num = num.replace(/\s+/g, '');
+            if (!/^\d{6,}$/.test(num)) return null;
+            var p = parseInt(num.slice(0, 6), 10);
+            if (/^4/.test(num)) return { b: 'visa', label: 'Visa' };
+            if (/^3[47]/.test(num)) return { b: 'amex', label: 'Amex' };
+            if (/(^5[1-5]|^2[2-7])/.test(num)) return { b: 'master', label: 'Mastercard' };
+            if (/^(4011|4312|4389|4514|4573|4576|5041|5066|5090|6277|6362|6363|6504|6505|6507|6509|6516|6550)/.test(num)) return { b: 'elo', label: 'Elo' };
+            if (/^(6062|3841)/.test(num)) return { b: 'hipercard', label: 'Hipercard' };
+            if (/^(637095|637599|637609|637612)/.test(num)) return { b: 'hiper', label: 'Hiper' };
+            if (/^50/.test(num)) return { b: 'aura', label: 'Aura' };
+            if (/^(30[0-5]|36|38|39)/.test(num)) return { b: 'diners', label: 'Diners' };
+            if (/^(6011|644|645|646|647|648|649|65)/.test(num) || (p >= 622126 && p <= 622925)) return { b: 'discover', label: 'Discover' };
+            return { b: 'outros', label: 'Cartão' };
+        }
+
+        function formatarNumero(val) {
+            var d = val.replace(/\D+/g, '');
+            var b = detectarBandeira(d);
+            if (b && b.b === 'amex') return d.slice(0, 15).replace(/(\d{4})(\d{6})(\d+)/, '$1 $2 $3');
+            return d.slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
+        }
+
+        function atualizarBandeira() {
+            var b = detectarBandeira(inputNumero.value);
+            if (b) {
+                brandEl.textContent = b.label;
+                brandEl.style.background = b.b === 'outros' ? '#64748b' : (coresBandeira[b.b] || '#64748b');
+                brandEl.style.opacity = '1';
+            } else {
+                brandEl.textContent = '';
+                brandEl.style.opacity = '0';
+            }
+        }
+
+        inputNumero.addEventListener('input', function() {
+            inputNumero.value = formatarNumero(inputNumero.value);
+            atualizarBandeira();
+        });
+
+        function parcelasAtuais() {
+            if (tipoAtual === 'debito') return 1;
+            return parseInt(selParcelas.value, 10) || 1;
+        }
+
+        function atualizarBtn() {
+            var p = parcelasAtuais();
+            var icone = tipoAtual === 'debito'
+                ? '<i class="fas fa-money-check-alt"></i>'
+                : '<i class="fas fa-credit-card"></i>';
+            if (tipoAtual === 'debito') {
+                btn.innerHTML = icone + ' Pagar no Débito ' + txtMoeda(faturaValor);
+            } else if (p <= 1) {
+                btn.innerHTML = icone + ' Pagar ' + txtMoeda(faturaValor) + ' à vista';
+            } else {
+                btn.innerHTML = icone + ' Pagar em ' + p + 'x de ' + txtMoeda(faturaValor / p);
+            }
+        }
+
+        function setarTipo(tipo) {
+            tipoAtual = tipo === 'debito' ? 'debito' : 'credito';
+            var ativa = tipoAtual === 'debito' ? tabDebito : tabCredito;
+            var inativa = tipoAtual === 'debito' ? tabCredito : tabDebito;
+            ativa.style.background = corTabAtiva;
+            ativa.style.color = '#fff';
+            ativa.style.border = '1px solid transparent';
+            ativa.style.fontWeight = '700';
+            ativa.style.boxShadow = '0 4px 12px rgba(79,70,229,.25)';
+            inativa.style.background = corTabInativa;
+            inativa.style.color = 'var(--app-text-muted)';
+            inativa.style.border = '1px solid #e2e8f0';
+            inativa.style.fontWeight = '600';
+            inativa.style.boxShadow = 'none';
+            if (wrapParcelas) {
+                wrapParcelas.style.opacity = tipoAtual === 'debito' ? '0.35' : '1';
+                wrapParcelas.style.pointerEvents = tipoAtual === 'debito' ? 'none' : 'auto';
+            }
+            atualizarBtn();
+        }
+
+        tabCredito.addEventListener('click', function() { setarTipo('credito'); });
+        tabDebito.addEventListener('click', function() { setarTipo('debito'); });
+        selParcelas.addEventListener('change', atualizarBtn);
+
+        document.getElementById('ccForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var numero = inputNumero.value.replace(/\s+/g, '');
+            var nome = inputNome.value.trim();
+            var validade = inputValidade.value.trim();
+            var cvv = inputCvv.value.trim();
+            var parcelas = parcelasAtuais();
+
+            if (!/^\d{13,16}$/.test(numero)) { mostrarMsg('Número de cartão inválido.'); return; }
+            var m = validade.match(/^(\d{2})\s*\/\s*(\d{2})$/);
+            if (!m) { mostrarMsg('Validade inválida. Use o formato MM/AA.'); return; }
+            var mes = parseInt(m[1], 10), ano = 2000 + parseInt(m[2], 10);
+            if (mes < 1 || mes > 12) { mostrarMsg('Mês da validade inválido.'); return; }
+            if (cvv.length < 3) { mostrarMsg('CVV inválido.'); return; }
+            if (!nome) { mostrarMsg('Informe o nome impresso no cartão.'); return; }
+
+            var hoje = new Date();
+            if (ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1)) {
+                mostrarMsg('Este cartão está vencido.');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+            mostrarMsg('', '');
+
+            var payload = {
+                cardNumber: numero,
+                cardholderName: nome,
+                cardExpirationMonth: (mes < 10 ? '0' : '') + mes,
+                cardExpirationYear: String(ano),
+                securityCode: cvv,
+                installments: parcelas,
+                identificationType: 'CPF',
+                identificationNumber: cpfCliente,
+                locale: 'pt-BR'
+            };
+
+            mp.createCardToken(payload, function(resp, err) {
+                if (err && err.length) {
+                    btn.disabled = false;
+                    atualizarBtn();
+                    var mensagens = [];
+                    for (var i = 0; i < err.length; i++) {
+                        if (err[i] && err[i].message) mensagens.push(err[i].message);
+                    }
+                    mostrarMsg(mensagens.join(' | ') || 'Não foi possível validar o cartão.');
+                    return;
+                }
+
+                btn.innerHTML = '<i class="fas fa-credit-card"></i> Aguardando confirmação...';
+
+                var method = (resp.payment_method && resp.payment_method.id) ? resp.payment_method.id : '';
+                var body = 'fatura_id=' + encodeURIComponent(faturaId) +
+                    '&card_token=' + encodeURIComponent(resp.id) +
+                    '&installments=' + encodeURIComponent(parcelas) +
+                    '&tipo=' + encodeURIComponent(tipoAtual) +
+                    '&method=' + encodeURIComponent(method);
+
+                fetch('/cobranca/api/cartao_pagamento.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.sucesso) {
+                        if (d.status === 'pago') {
+                            mostrarMsg('<i class="fas fa-check-circle"></i> Pagamento aprovado!', 'success');
+                            var modal = document.getElementById('appPagamentoSucesso');
+                            if (modal) modal.style.display = 'flex';
+                            var box = document.getElementById('pagamentoBox');
+                            if (box) {
+                                box.innerHTML = '<div class="app-pagamento-box app-pago-box app-animate"><div class="app-pago-icon"><i class="fas fa-check"></i></div><h5 style="color:var(--app-success); font-weight:700;">Pagamento Confirmado</h5><p style="color:var(--app-text-muted); font-size:0.88rem;">Esta fatura já foi quitada.</p></div>';
+                            }
+                        } else {
+                            btn.disabled = false;
+                            atualizarBtn();
+                            mostrarMsg('<i class="fas fa-clock"></i> Pagamento em análise. Acompanhe a confirmação aqui.', 'warning');
+                        }
+                    } else {
+                        btn.disabled = false;
+                        atualizarBtn();
+                        mostrarMsg(d.erro || 'Não foi possível processar o pagamento.');
+                    }
+                })
+                .catch(function() {
+                    btn.disabled = false;
+                    atualizarBtn();
+                    mostrarMsg('Erro de conexão. Tente novamente.');
+                });
+            });
+        });
+
+        setarTipo('credito');
+    })();
+    </script>
+    <?php endif; ?>
+
     <script src="pwa.js"></script>
 </body>
 </html>

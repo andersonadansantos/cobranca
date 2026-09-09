@@ -53,10 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $telefone = trim($_POST['telefone'] ?? '');
     $celular = trim($_POST['celular'] ?? '');
+    $cep = preg_replace('/[^0-9]/', '', $_POST['cep'] ?? '');
+    $logradouro = trim($_POST['logradouro'] ?? '');
+    $numero = trim($_POST['numero'] ?? '');
+    $complemento = trim($_POST['complemento'] ?? '');
+    $bairro = trim($_POST['bairro'] ?? '');
+    $cidade = trim($_POST['cidade'] ?? '');
+    $estado = trim($_POST['estado'] ?? '');
 
     try {
-        $stmt = $pdo->prepare("UPDATE clientes SET email=?, telefone=?, celular=? WHERE id=?");
-        $stmt->execute([$email, $telefone, $celular, $userId]);
+        $stmt = $pdo->prepare("UPDATE clientes SET email=?, telefone=?, celular=?, cep=?, logradouro=?, numero=?, complemento=?, bairro=?, cidade=?, estado=? WHERE id=?");
+        $stmt->execute([$email, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, $userId]);
 
         if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
@@ -195,22 +202,43 @@ $nomeSistema = getNomeSistema();
 
             <div class="app-perfil-card app-animate" style="margin-bottom:24px;">
                 <h6><i class="fas fa-map-marker-alt"></i> Endereço</h6>
-                <div class="app-perfil-row">
-                    <span class="label">CEP</span>
-                    <span class="value"><?= htmlspecialchars($cliente['cep'] ?? '--') ?></span>
-                </div>
-                <div class="app-perfil-row">
-                    <span class="label">Logradouro</span>
-                    <span class="value"><?= htmlspecialchars(($cliente['logradouro'] ?? '') . ', ' . ($cliente['numero'] ?? '')) ?></span>
-                </div>
-                <div class="app-perfil-row">
-                    <span class="label">Bairro</span>
-                    <span class="value"><?= htmlspecialchars($cliente['bairro'] ?? '--') ?></span>
-                </div>
-                <div class="app-perfil-row">
-                    <span class="label">Cidade/UF</span>
-                    <span class="value"><?= htmlspecialchars(($cliente['cidade'] ?? '') . '/' . ($cliente['estado'] ?? '')) ?></span>
-                </div>
+                <form method="POST">
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:0.75rem; color:var(--app-text-muted); font-weight:600; margin-bottom:4px; display:block;">CEP</label>
+                        <input type="text" name="cep" id="appCep" class="app-input" placeholder="00000-000" value="<?= htmlspecialchars($cliente['cep'] ?? '') ?>" maxlength="9" oninput="this.value=this.value.replace(/\D/g,'').slice(0,8).replace(/(\d{5})(\d)/,'$1-$2');" onblur="buscarCepApp(this.value)">
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:0.75rem; color:var(--app-text-muted); font-weight:600; margin-bottom:4px; display:block;">Logradouro (rua)</label>
+                        <input type="text" name="logradouro" id="appLogradouro" class="app-input" value="<?= htmlspecialchars($cliente['logradouro'] ?? '') ?>">
+                    </div>
+                    <div style="display:flex; gap:8px; margin-bottom:12px;">
+                        <div style="flex:1;">
+                            <label style="font-size:0.75rem; color:var(--app-text-muted); font-weight:600; margin-bottom:4px; display:block;">Número</label>
+                            <input type="text" name="numero" class="app-input" value="<?= htmlspecialchars($cliente['numero'] ?? '') ?>">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:0.75rem; color:var(--app-text-muted); font-weight:600; margin-bottom:4px; display:block;">Complemento</label>
+                            <input type="text" name="complemento" class="app-input" value="<?= htmlspecialchars($cliente['complemento'] ?? '') ?>">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:0.75rem; color:var(--app-text-muted); font-weight:600; margin-bottom:4px; display:block;">Bairro</label>
+                        <input type="text" name="bairro" id="appBairro" class="app-input" value="<?= htmlspecialchars($cliente['bairro'] ?? '') ?>">
+                    </div>
+                    <div style="display:flex; gap:8px; margin-bottom:16px;">
+                        <div style="flex:1;">
+                            <label style="font-size:0.75rem; color:var(--app-text-muted); font-weight:600; margin-bottom:4px; display:block;">Cidade</label>
+                            <input type="text" name="cidade" id="appCidade" class="app-input" value="<?= htmlspecialchars($cliente['cidade'] ?? '') ?>">
+                        </div>
+                        <div style="flex:0 0 80px;">
+                            <label style="font-size:0.75rem; color:var(--app-text-muted); font-weight:600; margin-bottom:4px; display:block;">UF</label>
+                            <input type="text" name="estado" id="appEstado" class="app-input" maxlength="2" value="<?= htmlspecialchars($cliente['estado'] ?? '') ?>">
+                        </div>
+                    </div>
+                    <button type="submit" class="app-btn app-btn-primary">
+                        <i class="fas fa-save"></i> Salvar Endereço
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -238,5 +266,23 @@ $nomeSistema = getNomeSistema();
         </a>
     </nav>
     <script src="pwa.js"></script>
+    <script>
+    function buscarCepApp(cep) {
+        cep = (cep || '').replace(/\D+/g, '');
+        if (cep.length !== 8) return;
+        var logradouro = document.getElementById('appLogradouro');
+        logradouro.value = 'Buscando...';
+        fetch('https://viacep.com.br/ws/' + cep + '/json/')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.erro || !d.logradouro) { logradouro.value = ''; return; }
+                document.getElementById('appLogradouro').value = d.logradouro || '';
+                document.getElementById('appBairro').value = d.bairro || '';
+                document.getElementById('appCidade').value = d.localidade || '';
+                document.getElementById('appEstado').value = d.uf || '';
+            })
+            .catch(function() { logradouro.value = ''; });
+    }
+    </script>
 </body>
 </html>

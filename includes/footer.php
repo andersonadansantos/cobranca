@@ -9,27 +9,70 @@
     <nav class="app-bottom-nav-mobile">
         <a href="/cobranca/usuario/index.php" class="<?= basename($_SERVER['PHP_SELF']) === 'index.php' ? 'active' : '' ?>">
             <i class="fas fa-home"></i>
-            <span>Faturas</span>
+            <span><?= t('usuario.faturas') ?></span>
         </a>
         <?php if (getConfig('financeiro_whatsapp') || getConfig('financeiro_email') || getConfig('financeiro_fone')): ?>
         <a href="/cobranca/usuario/financeiro.php" class="<?= basename($_SERVER['PHP_SELF']) === 'financeiro.php' ? 'active' : '' ?>">
             <i class="fas fa-headset"></i>
-            <span>Financeiro</span>
+            <span><?= t('usuario.financeiro') ?></span>
         </a>
         <?php endif; ?>
         <a href="/cobranca/usuario/perfil.php" class="<?= basename($_SERVER['PHP_SELF']) === 'perfil.php' ? 'active' : '' ?>">
             <i class="fas fa-user"></i>
-            <span>Perfil</span>
+            <span><?= t('usuario.perfil') ?></span>
         </a>
         <a href="/cobranca/usuario/logout.php">
             <i class="fas fa-sign-out-alt"></i>
-            <span>Sair</span>
+            <span><?= t('usuario.sair') ?></span>
         </a>
     </nav>
     <?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/cobranca/assets/js/main.js?v=<?= filemtime($_SERVER['DOCUMENT_ROOT'] . '/cobranca/assets/js/main.js') ?>"></script>
+    <script>
+    (function () {
+        // Seletor de idioma (bandeiras) injetado na topbar
+        var topbar = document.querySelector('.topbar');
+        if (!topbar || !window.PAINEL_LANG) return;
+        var L = window.PAINEL_LANG;
+        var cur = L.CUR || 'pt-BR';
+        function langHref(code) {
+            var u = new URL(window.location.href);
+            u.searchParams.set('idioma', code);
+            return u.href;
+        }
+        var box = document.createElement('div');
+        box.className = 'dropdown d-inline-block';
+        box.style.marginLeft = '4px';
+        var html = '<button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" style="border-radius:8px;padding:5px 10px;font-size:0.8rem;">' +
+            '<img src="/cobranca/assets/img/flags/' + (L.FLAGS[cur] || 'br.svg') + '" width="16" height="11" style="border-radius:2px;object-fit:cover;margin-right:5px;vertical-align:middle;" alt="">' +
+            '<span>' + (L.LABELS[cur] || cur) + '</span></button>' +
+            '<ul class="dropdown-menu dropdown-menu-end" style="min-width:230px;"></ul>';
+        box.innerHTML = html;
+        var ul = box.querySelector('ul');
+        (L.CODES || []).forEach(function (code) {
+            var li = document.createElement('li');
+            li.innerHTML = '<a class="dropdown-item d-flex align-items-center gap-2' + (code === cur ? ' active' : '') + '" href="' + langHref(code) + '">' +
+                '<img src="/cobranca/assets/img/flags/' + L.FLAGS[code] + '" width="18" height="12" style="border-radius:2px;object-fit:cover;" alt="">' +
+                '<span class="flex-1">' + (L.LABELS[code] || code) + '</span>' +
+                (code === cur ? '<i class="bi bi-check-lg ms-auto text-success"></i>' : '') + '</a>';
+            ul.appendChild(li);
+        });
+        var suporte = topbar.querySelector('a[href*="wa.me"]');
+        if (suporte) {
+            box.style.marginLeft = '4px';
+            suporte.parentNode.insertBefore(box, suporte);
+        } else {
+            var msauto = topbar.querySelector('.ms-auto');
+            if (msauto) msauto.parentNode.insertBefore(box, msauto.nextSibling);
+            else topbar.appendChild(box);
+        }
+        box.querySelectorAll('.dropdown-item[href]').forEach(function (a) {
+            a.addEventListener('click', function () { /* navegaÃ§Ã£o normal */ });
+        });
+    })();
+    </script>
     <script>
     (function(){
         var topbar = document.querySelector('.topbar');
@@ -72,7 +115,7 @@
         if (!code) return;
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(code).then(function() {
-                showToastPix('Código PIX copiado!');
+                showToastPix(<?= json_encode(t('modal.pix_copiado')) ?>);
             }).catch(function() {
                 fallbackCopy(code);
             });
@@ -87,7 +130,7 @@
         ta.style.opacity = '0';
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); showToastPix('Código PIX copiado!'); } catch(e) {}
+        try { document.execCommand('copy'); showToastPix(<?= json_encode(t('modal.pix_copiado')) ?>); } catch(e) {}
         document.body.removeChild(ta);
     }
     function showToastPix(msg) {
@@ -108,8 +151,8 @@
                 </div>
                 <div class="modal-body" id="confirmModalBody"></div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                    <a href="#" id="confirmModalBtn" class="btn btn-danger btn-sm">Confirmar</a>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= htmlspecialchars(t('btn.cancelar')) ?></button>
+                    <a href="#" id="confirmModalBtn" class="btn btn-danger btn-sm"><?= htmlspecialchars(t('btn.confirmar')) ?></a>
                 </div>
             </div>
         </div>
@@ -124,8 +167,8 @@
                 </div>
                 <div class="modal-body" id="confirmModalPrimaryBody"></div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                    <a href="#" id="confirmModalPrimaryBtn" class="btn btn-primary btn-sm">Confirmar</a>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= htmlspecialchars(t('btn.cancelar')) ?></button>
+                    <a href="#" id="confirmModalPrimaryBtn" class="btn btn-primary btn-sm"><?= htmlspecialchars(t('btn.confirmar')) ?></a>
                 </div>
             </div>
         </div>
@@ -140,8 +183,8 @@
                 </div>
                 <div class="modal-body" id="confirmModalSuccessBody"></div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                    <a href="#" id="confirmModalSuccessBtn" class="btn btn-success btn-sm">Confirmar</a>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= htmlspecialchars(t('btn.cancelar')) ?></button>
+                    <a href="#" id="confirmModalSuccessBtn" class="btn btn-success btn-sm"><?= htmlspecialchars(t('btn.confirmar')) ?></a>
                 </div>
             </div>
         </div>
@@ -156,8 +199,8 @@
                 </div>
                 <div class="modal-body" id="confirmModalFormBody"></div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" id="confirmModalFormBtn" class="btn btn-danger btn-sm">Confirmar</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= htmlspecialchars(t('btn.cancelar')) ?></button>
+                    <button type="button" id="confirmModalFormBtn" class="btn btn-danger btn-sm"><?= htmlspecialchars(t('btn.confirmar')) ?></button>
                 </div>
             </div>
         </div>
@@ -172,7 +215,7 @@
                 </div>
                 <div class="modal-body" id="alertModalBody"></div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">OK</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal"><?= htmlspecialchars(t('btn.ok')) ?></button>
                 </div>
             </div>
         </div>
@@ -180,7 +223,7 @@
 
     <?php if(isset($extraScripts)) echo $extraScripts; ?>
     <div style="text-align:center; padding:16px 16px 8px; font-size:0.65rem; color:#94a3b8;">
-        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none; display:block; text-align:center;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</a><span style="float:right;font-size:0.7rem;color:#475569;">Versão: 1.0</span>
+        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none; display:block; text-align:center;">Todos os Direitos Reservados - WD SoluÃ§Ãµes Digitais LTDA - 2010 - 2026</a><span style="float:right;font-size:0.7rem;color:#475569;">VersÃ£o: 1.0</span>
     </div>
 </body>
 </html>

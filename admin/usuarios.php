@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
+require_once __DIR__ . '/../includes/lang_painel.php';
 
 $pdo = getConnection();
 $tipo = '';
@@ -104,10 +105,10 @@ $stmtUsuarios = $pdo->prepare("SELECT * FROM usuarios_admin WHERE admin_id = ? O
 $stmtUsuarios->execute([$adminId]);
 $usuarios = $stmtUsuarios->fetchAll();
 $totalUsuarios = count($usuarios);
-$perfis = ['admin' => 'Administrador', 'financeiro' => 'Financeiro', 'atendimento' => 'Atendimento'];
+$perfis = ['admin' => t('uso.perfil_admin'), 'financeiro' => t('uso.perfil_financeiro'), 'atendimento' => t('uso.perfil_atendimento')];
 $corPerfil = ['admin' => 'primary', 'financeiro' => 'warning', 'atendimento' => 'info'];
 
-$pageTitle = 'Usuários Admin';
+$pageTitle = t('uso.titulo');
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/sidebar_admin.php';
 ?>
@@ -116,18 +117,18 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     <div class="topbar">
         <div>
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
-            <h5>Usuários Admin</h5>
+            <h5><?= t('uso.titulo') ?></h5>
         </div>
-        <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> Suporte</a>
+        <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> <?= t('tb.suporte') ?></a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
                 <img src="<?= htmlspecialchars($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;">
                 <span class="text-muted d-none d-md-inline"><?= htmlspecialchars($_SESSION['admin_nome']) ?></span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" href="/cobranca/admin/perfil.php"><i class="fas fa-user-edit me-2"></i>Editar Perfil</a></li>
+                <li><a class="dropdown-item" href="/cobranca/admin/perfil.php"><i class="fas fa-user-edit me-2"></i><?= t('tb.editar_perfil') ?></a></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-danger" href="/cobranca/admin/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
+                <li><a class="dropdown-item text-danger" href="/cobranca/admin/logout.php"><i class="fas fa-sign-out-alt me-2"></i><?= t('tb.sair') ?></a></li>
             </ul>
         </div>
     </div>
@@ -146,7 +147,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <div class="stat-value"><?= $totalUsuarios ?></div>
-                            <div class="stat-label">Usuários Cadastrados</div>
+                            <div class="stat-label"><?= t('uso.cadastrados') ?></div>
                         </div>
                         <div class="stat-icon bg-primary"><i class="fas fa-users-cog"></i></div>
                     </div>
@@ -154,30 +155,30 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             </div>
             <div class="col-md-9 d-flex align-items-center justify-content-end">
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCriar">
-                    <i class="fas fa-plus me-1"></i> Novo Usuário
+<i class="fas fa-plus me-1"></i> <?= t('btn.novo_usuario') ?>
                 </button>
             </div>
         </div>
 
         <div class="table-card">
             <div class="p-3 border-bottom">
-                <h6 class="mb-0"><i class="fas fa-users-cog me-2"></i>Usuários Cadastrados</h6>
+                <h6 class="mb-0"><i class="fas fa-users-cog me-2"></i><?= t('uso.lista') ?></h6>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>Nome</th>
-                            <th>Usuário</th>
-                            <th>E-mail</th>
-                            <th>Perfil</th>
-                            <th>Status</th>
-                            <th>Ações</th>
+                            <th><?= t('th.nome') ?></th>
+                            <th><?= t('th.usuario') ?></th>
+                            <th><?= t('th.email') ?></th>
+                            <th><?= t('th.perfil') ?></th>
+                            <th><?= t('th.status') ?></th>
+                            <th><?= t('th.acoes') ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($usuarios)): ?>
-                            <tr><td colspan="6" class="text-center text-muted py-4">Nenhum usuário cadastrado</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-4"><?= t('txt.nenhum_usuario') ?></td></tr>
                         <?php else: foreach ($usuarios as $u): ?>
                             <tr style="<?= $u['ativo'] ? '' : 'opacity:0.5;' ?>">
                                 <td><strong><?= htmlspecialchars($u['nome']) ?></strong></td>
@@ -186,14 +187,14 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <td><span class="badge bg-<?= $corPerfil[$u['perfil']] ?? 'secondary' ?>"><?= $perfis[$u['perfil']] ?? $u['perfil'] ?></span></td>
                                 <td>
                                     <?php if ($u['ativo']): ?>
-                                        <span class="badge bg-success">Ativo</span>
+                                        <span class="badge bg-success"><?= t('uso.ativo') ?></span>
                                     <?php else: ?>
-                                        <span class="badge bg-secondary">Inativo</span>
+                                        <span class="badge bg-secondary"><?= t('uso.inativo') ?></span>
                                     <?php endif; ?>
                                 </td>
 <td>
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar<?= $u['id'] ?>" title="Editar"><i class="fas fa-edit"></i></button>
-                                    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalExcluir<?= $u['id'] ?>" title="Excluir"><i class="fas fa-trash"></i></button>
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar<?= $u['id'] ?>" title="<?= t('uso.editar') ?>"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalExcluir<?= $u['id'] ?>" title="<?= t('uso.excluir') ?>"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>
                         <?php endforeach; endif; ?>
@@ -209,27 +210,27 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <div class="modal-content">
             <form method="POST">
                 <div class="modal-header">
-                    <h6 class="modal-title"><i class="fas fa-user-plus me-2"></i>Novo Usuário</h6>
+                    <h6 class="modal-title"><i class="fas fa-user-plus me-2"></i><?= t('btn.novo_usuario') ?></h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="acao" value="criar">
-                    <div class="mb-3"><label class="form-label small">Nome</label><input type="text" name="nome" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label small">E-mail</label><input type="email" name="email" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label small">Usuário</label><input type="text" name="usuario" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label small">Senha</label><input type="password" name="senha" class="form-control" required minlength="6"></div>
+                    <div class="mb-3"><label class="form-label small"><?= t('th.nome') ?></label><input type="text" name="nome" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label small"><?= t('th.email') ?></label><input type="email" name="email" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label small"><?= t('th.usuario') ?></label><input type="text" name="usuario" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label small"><?= t('uso.senha') ?></label><input type="password" name="senha" class="form-control" required minlength="6"></div>
                     <div class="mb-3">
-                        <label class="form-label small">Perfil</label>
+                        <label class="form-label small"><?= t('th.perfil') ?></label>
                         <select name="perfil" class="form-select">
-                            <option value="atendimento">Atendimento</option>
-                            <option value="financeiro">Financeiro</option>
-                            <option value="admin">Administrador</option>
+                            <option value="atendimento"><?= t('uso.perfil_atendimento') ?></option>
+                            <option value="financeiro"><?= t('uso.perfil_financeiro') ?></option>
+                            <option value="admin"><?= t('uso.perfil_admin') ?></option>
                         </select>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Criar Usuário</button>
+<button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= t('btn.cancelar') ?></button>
+                    <button type="submit" class="btn btn-primary btn-sm"><?= t('btn.criar_usuario') ?></button>
                 </div>
             </form>
         </div>
@@ -242,16 +243,16 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <div class="modal-content">
             <form method="POST">
                 <div class="modal-header">
-                    <h6 class="modal-title"><i class="fas fa-user-edit me-2"></i>Editar <?= htmlspecialchars($u['nome']) ?></h6>
+                    <h6 class="modal-title"><i class="fas fa-user-edit me-2"></i><?= t('uso.editar') ?>: <?= htmlspecialchars($u['nome']) ?></h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="acao" value="editar">
                     <input type="hidden" name="id" value="<?= $u['id'] ?>">
-                    <div class="mb-3"><label class="form-label small">Nome</label><input type="text" name="nome" class="form-control" value="<?= htmlspecialchars($u['nome']) ?>" required></div>
-                    <div class="mb-3"><label class="form-label small">E-mail</label><input type="email" name="email" class="form-control" value="<?= htmlspecialchars($u['email']) ?>" required></div>
+                    <div class="mb-3"><label class="form-label small"><?= t('th.nome') ?></label><input type="text" name="nome" class="form-control" value="<?= htmlspecialchars($u['nome']) ?>" required></div>
+                    <div class="mb-3"><label class="form-label small"><?= t('th.email') ?></label><input type="email" name="email" class="form-control" value="<?= htmlspecialchars($u['email']) ?>" required></div>
                     <div class="mb-3">
-                        <label class="form-label small">Perfil</label>
+                        <label class="form-label small"><?= t('th.perfil') ?></label>
                         <select name="perfil" class="form-select">
                             <?php foreach ($perfis as $k => $v): ?>
                                 <option value="<?= $k ?>" <?= $u['perfil'] === $k ? 'selected' : '' ?>><?= $v ?></option>
@@ -260,13 +261,13 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="form-check mb-3">
                         <input type="checkbox" name="ativo" class="form-check-input" id="ativo<?= $u['id'] ?>" <?= $u['ativo'] ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="ativo<?= $u['id'] ?>">Ativo</label>
+                        <label class="form-check-label" for="ativo<?= $u['id'] ?>"><?= t('uso.ativo') ?></label>
                     </div>
-                    <div class="mb-3"><label class="form-label small">Nova senha (deixe vazio para manter)</label><input type="password" name="senha" class="form-control" minlength="6"></div>
+                    <div class="mb-3"><label class="form-label small"><?= t('uso.nova_senha') ?></label><input type="password" name="senha" class="form-control" minlength="6"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+<button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= t('btn.cancelar') ?></button>
+                    <button type="submit" class="btn btn-primary btn-sm"><?= t('btn.salvar') ?></button>
                 </div>
             </form>
         </div>
@@ -282,13 +283,13 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="id" value="<?= $u['id'] ?>">
                 <div class="modal-header">
-                    <h6 class="modal-title text-danger"><i class="fas fa-trash me-2"></i>Excluir</h6>
+                    <h6 class="modal-title text-danger"><i class="fas fa-trash me-2"></i><?= t('uso.excluir') ?></h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">Remover <strong><?= htmlspecialchars($u['nome']) ?></strong>?</div>
+                <div class="modal-body"><?= t('uso.remover', ['<strong>' . htmlspecialchars($u['nome']) . '</strong>']) ?></div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Não</button>
-                    <button type="submit" class="btn btn-danger btn-sm">Sim, excluir</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal"><?= t('uso.nao') ?></button>
+                    <button type="submit" class="btn btn-danger btn-sm"><?= t('uso.sim_excluir') ?></button>
                 </div>
             </form>
         </div>

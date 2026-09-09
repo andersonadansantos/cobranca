@@ -70,6 +70,9 @@ function renderizarTemplateWhats($template, $fatura, $dias = 0) {
 }
 
 function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
+    if (!planoPermiteEnvio('whatsapp', (int)($fatura['admin_id'] ?? 0))) {
+        return false;
+    }
     $telefone = $fatura['celular'] ?? $fatura['telefone'] ?? '';
     if (empty($telefone)) return false;
 

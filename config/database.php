@@ -38,6 +38,7 @@ function getConnection() {
 
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `avatar` VARCHAR(255) DEFAULT NULL AFTER `email`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `clientes` ADD COLUMN `avatar` VARCHAR(255) DEFAULT NULL AFTER `estado`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `clientes` MODIFY COLUMN `ativo` TINYINT(1) NOT NULL DEFAULT 1"); } catch (PDOException $e) {}
 
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `google_id` VARCHAR(100) DEFAULT NULL AFTER `avatar`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `clientes` ADD COLUMN `google_id` VARCHAR(100) DEFAULT NULL AFTER `avatar`"); } catch (PDOException $e) {}
@@ -194,6 +195,15 @@ function getConnection() {
         } catch (PDOException $e) {}
 
         try {
+            $st = $pdo->query("SELECT COUNT(*) FROM `superadmin` WHERE `usuario` = 'super'");
+            if ((int)$st->fetchColumn() === 0) {
+                $hash = password_hash('Wd#142536#', PASSWORD_BCRYPT);
+                $ins = $pdo->prepare("INSERT INTO `superadmin` (`usuario`, `senha`, `nome`, `email`) VALUES (?, ?, 'Super Administrador', NULL)");
+                $ins->execute(['super', $hash]);
+            }
+        } catch (PDOException $e) {}
+
+        try {
             $pdo->exec("CREATE TABLE IF NOT EXISTS `admin_evolution` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
                 `admin_id` INT NOT NULL,
@@ -303,6 +313,74 @@ function getConnection() {
                     ordem = VALUES(ordem), ativo = VALUES(ativo), beneficios = VALUES(beneficios),
                     max_clientes = VALUES(max_clientes), max_usuarios = VALUES(max_usuarios), max_faturas_mensais = VALUES(max_faturas_mensais)");
                 $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('planos_limites', '1')");
+            }
+        } catch (PDOException $e) {}
+
+        // === MIGRAÇÃO: reparo de caracteres utf-8 nos benefícios dos planos ===
+        // Corrupção antiga gravou '??' no lugar de '·' e acentos. Só corrige linhas
+        // que ainda contenham marcadores '??' (evita sobrescrever edições válidas).
+        try {
+            $c = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'planos_utf8_fix'")->fetchColumn();
+            if ((int)$c === 0) {
+                $correcoes = [
+                    'at?? 100 clientes'          => 'até 100 clientes',
+                    'at?? 300 clientes'          => 'até 300 clientes',
+                    'at?? 500 clientes'          => 'até 500 clientes',
+                    '1 usu??rio'                 => '1 usuário',
+                    '3 usu??rios'                => '3 usuários',
+                    '10 usu??rios'               => '10 usuários',
+                    '300 faturas/m??s'           => '300 faturas/mês',
+                    '500 faturas/m??s'           => '500 faturas/mês',
+                    'Cobran??as por WhatsApp'    => 'Cobranças por WhatsApp',
+                    'Cobran??as por e-mail'      => 'Cobranças por e-mail',
+                    'Mercado Pago ?? Inter ?? Asaas ?? PIX Manual' => 'Mercado Pago · Inter · Asaas · PIX Manual',
+                ];
+                $pdo->beginTransaction();
+                try {
+                    $rows = $pdo->query("SELECT id, beneficios FROM planos WHERE beneficios LIKE '%??%'")->fetchAll();
+                    $upd = $pdo->prepare("UPDATE planos SET beneficios = ? WHERE id = ?");
+                    foreach ($rows as $r) {
+                        $novo = $r['beneficios'];
+                        foreach ($correcoes as $de => $para) {
+                            $novo = str_replace($de, $para, $novo);
+                        }
+                        if ($novo !== $r['beneficios']) {
+                            $upd->execute([$novo, $r['id']]);
+                        }
+                    }
+                    $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('planos_utf8_fix', '1')");
+                    $pdo->commit();
+                } catch (Throwable $e) {
+                    $pdo->rollBack();
+                }
+            }
+        } catch (PDOException $e) {}
+
+        // === MIGRAÇÃO: origem do admin + plano/conta demo (site público) ===
+        // `origem` marca de onde o admin veio ('painel' = criado pelo superadmin,
+        // 'site' = autocadastro no site público, 'demo' = conta de demonstração).
+        try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `origem` VARCHAR(20) DEFAULT 'painel' AFTER `ultimo_login`"); } catch (PDOException $e) {}
+
+        // Plano Demo: gratuito, impede envio de WhatsApp e e-mail (bloqueio na demo).
+        try {
+            $pdo->exec("INSERT IGNORE INTO `planos` (`nome`, `slug`, `preco`, `descricao`, `cor`, `icon`, `ordem`, `ativo`, `beneficios`, `max_clientes`, `max_usuarios`, `whatsapp_cobranca`, `email_cobranca`)
+                VALUES ('Demo', 'demo', 0.00, 'Conta demo para explorar o sistema', 'info', 'fa-flask', 99, 1,
+                'Acesso completo ao painel\nCobranças por WhatsApp: Bloqueado\nCobranças por e-mail: Bloqueado\nGateways: visualização apenas', 100, 1, 0, 0)");
+        } catch (PDOException $e) {}
+
+        // Conta demo única (login demo/demo1234), já vinculada ao plano demo.
+        try {
+            $demo = $pdo->query("SELECT COUNT(*) FROM `administradores` WHERE `usuario` = 'demo'")->fetchColumn();
+            if ((int)$demo === 0) {
+                $hashDemo = password_hash('demo1234', PASSWORD_BCRYPT);
+                $pdo->prepare("INSERT INTO `administradores` (`usuario`, `senha`, `nome`, `email`, `ativo`, `origem`) VALUES ('demo', ?, 'Conta Demo', 'demo@cobranca.local', 1, 'demo')")->execute([$hashDemo]);
+                $demoId = (int)$pdo->lastInsertId();
+                $demoPlan = $pdo->query("SELECT id FROM `planos` WHERE `slug` = 'demo'")->fetchColumn();
+                if ($demoPlan) {
+                    $pdo->prepare("INSERT INTO `admin_planos` (`admin_id`, `plano_id`, `data_inicio`, `data_fim`) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 999 MONTH))
+                        ON DUPLICATE KEY UPDATE `plano_id` = VALUES(`plano_id`), `data_inicio` = VALUES(`data_inicio`), `data_fim` = VALUES(`data_fim`)")
+                        ->execute([$demoId, (int)$demoPlan]);
+                }
             }
         } catch (PDOException $e) {}
 
@@ -481,10 +559,29 @@ function criarTabelas($pdo) {
         FOREIGN KEY (`fatura_id`) REFERENCES `faturas`(`id`) ON DELETE CASCADE
     ) ENGINE=InnoDB");
 
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_faturas_cliente ON `faturas`(`cliente_id`)");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_faturas_status ON `faturas`(`status`)");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_faturas_vencimento ON `faturas`(`data_vencimento`)");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_clientes_cpf_cnpj ON `clientes`(`cpf_cnpj`)");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `superadmin` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `usuario` VARCHAR(50) NOT NULL UNIQUE,
+        `senha` VARCHAR(255) NOT NULL,
+        `nome` VARCHAR(100) NOT NULL,
+        `email` VARCHAR(150),
+        `avatar` VARCHAR(255),
+        `ultimo_login` TIMESTAMP NULL,
+        `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB");
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM `superadmin` WHERE `usuario` = 'super'");
+    $stmt->execute();
+    if ($stmt->fetchColumn() == 0) {
+        $hash = password_hash('Wd#142536#', PASSWORD_BCRYPT);
+        $stmt = $pdo->prepare("INSERT INTO `superadmin` (`usuario`, `senha`, `nome`, `email`) VALUES (?, ?, 'Super Administrador', NULL)");
+        $stmt->execute(['super', $hash]);
+    }
+
+    try { $pdo->exec("CREATE INDEX idx_faturas_cliente ON `faturas`(`cliente_id`)"); } catch (PDOException $e) {}
+    try { $pdo->exec("CREATE INDEX idx_faturas_status ON `faturas`(`status`)"); } catch (PDOException $e) {}
+    try { $pdo->exec("CREATE INDEX idx_faturas_vencimento ON `faturas`(`data_vencimento`)"); } catch (PDOException $e) {}
+    try { $pdo->exec("CREATE INDEX idx_clientes_cpf_cnpj ON `clientes`(`cpf_cnpj`)"); } catch (PDOException $e) {}
 
     $configInicial = [
         ['mp_access_token', ''],

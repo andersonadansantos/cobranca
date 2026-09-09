@@ -17,6 +17,12 @@ function getConfigInterSuper() {
     return $config;
 }
 
+// Retorna a API responsável pelo PIX de Planos no Super Admin: 'inter' (padrão) ou 'mercadopago'.
+function planoPagamentoAtivo() {
+    $api = getConfig('super_plano_api', 'inter');
+    return $api === 'mercadopago' ? 'mercadopago' : 'inter';
+}
+
 function resolverCaminhoCertSuper($caminho) {
     if (!empty($caminho) && !file_exists($caminho)) {
         $nome = basename(str_replace('\\', '/', $caminho));
@@ -254,6 +260,13 @@ function montarPagadorPlano($adminDados) {
 
 // Cria a cobrança PIX no Banco Inter e retorna codigoSolicitacao + QR + copia e cola
 function criarCobrancaPixPlano($descricao, $valor, $pagador) {
+    if (planoPagamentoAtivo() === 'mercadopago') {
+        if (!function_exists('criarPixPlanoMercadoPago')) {
+            require_once __DIR__ . '/mercadopago.php';
+        }
+        return criarPixPlanoMercadoPago($descricao, $valor, $pagador);
+    }
+
     $dados = [
         'seuNumero' => substr('PLAN' . date('ymd') . rand(1000, 9999), 0, 15),
         'valorNominal' => (float) $valor,
@@ -338,6 +351,169 @@ function criarPixPlano($adminId, $planoId, $valor, $descricao, $adminDados, $dur
         'qr_code' => $cobranca['qr_code'],
         'pix_copia_cola' => $cobranca['pix_copia_cola'],
         'valor' => $valor,
+    ];
+}
+
+// Garante colunas adicionais de planos_pagamentos (boleto e cartão) de forma idempotente.
+function garantirColunasPlanosPagamentos() {
+    $pdo = getConnection();
+    if (!$pdo) return;
+    $novas = [
+        'metodo'                 => "VARCHAR(20) DEFAULT NULL",
+        'boleto_url'             => "TEXT DEFAULT NULL",
+        'boleto_codigo_barras'   => "TEXT DEFAULT NULL",
+        'boleto_linha_digitavel' => "TEXT DEFAULT NULL",
+        'mp_status'              => "VARCHAR(30) DEFAULT NULL",
+    ];
+    foreach ($novas as $col => $def) {
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM planos_pagamentos LIKE '" . $col . "'");
+            if ($stmt && !$stmt->fetch()) {
+                $pdo->exec("ALTER TABLE planos_pagamentos ADD COLUMN `" . $col . "` " . $def);
+            }
+        } catch (Throwable $e) {
+            // tabela inexistente ou sem permissão: ignora
+        }
+    }
+}
+
+// Valor do plano conforme período (10% de desconto acima do mensal).
+function valorPlanoPorDuracao($valorBase, $duracaoMeses) {
+    $duracaoMeses = in_array((int)$duracaoMeses, [1, 3, 6, 12], true) ? (int)$duracaoMeses : 1;
+    if ($duracaoMeses > 1) {
+        return round((float)$valorBase * $duracaoMeses * 0.90, 2);
+    }
+    return (float)$valorBase;
+}
+
+function descricaoPeriodoPlano($planoNome, $duracaoMeses) {
+    $titulo = [1 => 'Mensal', 3 => 'Trimestral', 6 => 'Semestral', 12 => 'Anual'][(int)$duracaoMeses] ?? 'Mensal';
+    return 'Plano ' . $planoNome . ' - ' . $titulo;
+}
+
+// Gera o boleto do plano com as credenciais do Mercado Pago do Super Admin.
+function criarBoletoPlano($adminId, $planoId, $valor, $descricao, $adminDados, $duracaoMeses = 1) {
+    garantirColunasPlanosPagamentos();
+    if (!function_exists('criarBoletoMercadoPagoSuper')) {
+        require_once __DIR__ . '/mercadopago.php';
+    }
+
+    $cpfCnpj = preg_replace('/[^0-9]/', '', ($adminDados['cnpj'] ?? '') ?: ($adminDados['cpf'] ?? ''));
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        return ['erro' => 'Cadastre um CPF ou CNPJ válido no seu perfil para gerar o boleto.'];
+    }
+
+    $boleto = criarBoletoMercadoPagoSuper(
+        $descricao,
+        $valor,
+        $adminDados['nome'] ?? 'Pagador',
+        $cpfCnpj,
+        $adminDados['email'] ?? '',
+        $adminDados['cep'] ?? '',
+        $adminDados['logradouro'] ?? '',
+        $adminDados['numero'] ?? '',
+        $adminDados['bairro'] ?? '',
+        $adminDados['cidade'] ?? '',
+        $adminDados['estado'] ?? ''
+    );
+
+    if (empty($boleto['sucesso'])) {
+        return $boleto;
+    }
+
+    $pdo = getConnection();
+    $stmt = $pdo->prepare("INSERT INTO planos_pagamentos (admin_id, plano_id, valor, duracao_meses, descricao, codigo_solicitacao, metodo, boleto_url, boleto_codigo_barras, boleto_linha_digitavel, mp_status, status) VALUES (?, ?, ?, ?, ?, ?, 'boleto', ?, ?, ?, ?, 'pendente')");
+    $stmt->execute([$adminId, $planoId, $valor, $duracaoMeses, $descricao, $boleto['payment_id'], $boleto['boleto_url'], $boleto['boleto_codigo_barras'], $boleto['boleto_linha_digitavel'], $boleto['status']]);
+
+    return [
+        'sucesso' => true,
+        'pagamento_id' => (int)$pdo->lastInsertId(),
+        'codigo_solicitacao' => (string)$boleto['payment_id'],
+        'boleto_url' => $boleto['boleto_url'] ?? '',
+        'boleto_codigo_barras' => $boleto['boleto_codigo_barras'] ?? '',
+        'boleto_linha_digitavel' => $boleto['boleto_linha_digitavel'] ?? '',
+        'mp_status' => $boleto['status'] ?? '',
+        'valor' => $valor,
+    ];
+}
+
+// Cobra o plano no cartão (crédito/débito) com as credenciais do Super Admin.
+function criarCartaoPlano($adminId, $planoId, $valor, $descricao, $adminDados, $duracaoMeses, $cardToken, $installments, $paymentMethodId, $tipo) {
+    garantirColunasPlanosPagamentos();
+    if (!function_exists('criarPagamentoCartaoMercadoPagoSuper')) {
+        require_once __DIR__ . '/mercadopago.php';
+    }
+
+    $cpfCnpj = preg_replace('/[^0-9]/', '', ($adminDados['cnpj'] ?? '') ?: ($adminDados['cpf'] ?? ''));
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        return ['erro' => 'Cadastre um CPF ou CNPJ válido no seu perfil para pagar com cartão.'];
+    }
+
+    $tipo = ($tipo === 'debito') ? 'debito' : 'credito';
+    $installments = max(1, min((int)$installments, (int)getConfig('super_mp_max_parcelas', '12')));
+    if ($tipo === 'debito') {
+        $installments = 1;
+    }
+
+    $result = criarPagamentoCartaoMercadoPagoSuper(
+        $descricao,
+        $valor,
+        $adminDados['email'] ?? '',
+        $adminDados['nome'] ?? 'Pagador',
+        $cpfCnpj,
+        $cardToken,
+        $installments,
+        $paymentMethodId,
+        $tipo
+    );
+
+    $pdo = getConnection();
+    $mpStatus = $result['status'] ?? ($result['mp_status'] ?? '');
+    $statusRow = 'pendente';
+
+    if (empty($result['sucesso'])) {
+        $statusRow = in_array($mpStatus, ['rejected', 'cancelled'], true) ? 'cancelado' : 'pendente';
+        $stmt = $pdo->prepare("INSERT INTO planos_pagamentos (admin_id, plano_id, valor, duracao_meses, descricao, metodo, mp_status, status) VALUES (?, ?, ?, ?, ?, 'cartao', ?, ?)");
+        $stmt->execute([$adminId, $planoId, $valor, $duracaoMeses, $descricao, $mpStatus ?: ($result['detalhes'] ? 'erro' : 'rejected'), $statusRow]);
+        return [
+            'sucesso' => false,
+            'erro' => $result['erro'] ?? 'O pagamento com cartão foi recusado. Tente novamente.',
+            'mp_status' => $mpStatus ?: 'rejected',
+        ];
+    }
+
+    $stmt = $pdo->prepare("INSERT INTO planos_pagamentos (admin_id, plano_id, valor, duracao_meses, descricao, codigo_solicitacao, metodo, mp_status, status) VALUES (?, ?, ?, ?, ?, ?, 'cartao', ?, 'pendente')");
+    $stmt->execute([$adminId, $planoId, $valor, $duracaoMeses, $descricao, $result['payment_id'], $mpStatus]);
+    $pgId = (int)$pdo->lastInsertId();
+
+    if (in_array($mpStatus, ['rejected', 'cancelled', 'refunded'], true)) {
+        $pdo->prepare("UPDATE planos_pagamentos SET status='cancelado' WHERE id=?")->execute([$pgId]);
+        return [
+            'sucesso' => false,
+            'erro' => $result['status_detail'] !== '' && function_exists('msgErroCartaoMercadoPago')
+                ? msgErroCartaoMercadoPago($result['status_detail'])
+                : 'O pagamento com cartão foi recusado. Tente novamente.',
+            'mp_status' => $mpStatus,
+        ];
+    }
+
+    if ($mpStatus === 'approved') {
+        $pdo->prepare("UPDATE planos_pagamentos SET status='pago', pago_em=? WHERE id=?")
+            ->execute([date('Y-m-d H:i:s'), $pgId]);
+        ativarPlanoAdmin($adminId, $planoId, (int)$duracaoMeses);
+        return [
+            'sucesso' => true,
+            'status' => 'pago',
+            'pagamento_id' => $pgId,
+            'mp_status' => $mpStatus,
+        ];
+    }
+
+    return [
+        'sucesso' => true,
+        'status' => 'pendente',
+        'pagamento_id' => $pgId,
+        'mp_status' => $mpStatus,
     ];
 }
 
@@ -428,6 +604,32 @@ function verificarPixPlano($pagamentoId) {
         return ['sucesso' => true, 'status' => $pg['status']];
     }
 
+    $metodoPg = $pg['metodo'] ?? '';
+    $consultaMp = planoPagamentoAtivo() === 'mercadopago' || in_array($metodoPg, ['boleto', 'cartao'], true);
+    if ($consultaMp && !empty($pg['codigo_solicitacao'])) {
+        if (!function_exists('consultarPagamentoMPSuper')) {
+            require_once __DIR__ . '/mercadopago.php';
+        }
+        $mp = consultarPagamentoMPSuper($pg['codigo_solicitacao']);
+        if (!$mp) {
+            return ['erro' => 'Erro ao consultar pagamento no Mercado Pago.'];
+        }
+        $statusMP = strtolower($mp['status'] ?? '');
+        if ($statusMP === 'approved') {
+            $pdo->prepare("UPDATE planos_pagamentos SET status='pago', pago_em=? WHERE id=?")
+                ->execute([date('Y-m-d H:i:s'), $pg['id']]);
+            ativarPlanoAdmin($pg['admin_id'], $pg['plano_id'], (int)($pg['duracao_meses'] ?? 1));
+            return ['sucesso' => true, 'status' => 'pago', 'plano' => $pg['plano_id']];
+        }
+        if (in_array($statusMP, ['rejected', 'cancelled', 'expired'])) {
+            $novoStatus = in_array($statusMP, ['rejected', 'cancelled']) ? 'cancelado' : 'expirado';
+            $pdo->prepare("UPDATE planos_pagamentos SET status=? WHERE id=?")
+                ->execute([$novoStatus, $pg['id']]);
+            return ['sucesso' => true, 'status' => $novoStatus];
+        }
+        return ['sucesso' => true, 'status' => 'pendente'];
+    }
+
     $resultado = consultarCobrancaInterSuper($pg['codigo_solicitacao']);
     if (empty($resultado['sucesso'])) {
         return ['erro' => $resultado['erro'] ?? 'Erro ao consultar pagamento.'];
@@ -472,5 +674,10 @@ function ativarPlanoAdmin($adminId, $planoId, $duracaoMeses = 1) {
     $pdo->prepare("INSERT INTO admin_planos (admin_id, plano_id, data_inicio, data_fim) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? MONTH))
         ON DUPLICATE KEY UPDATE plano_id=VALUES(plano_id), data_inicio=VALUES(data_inicio), data_fim=VALUES(data_fim)")
         ->execute([$adminId, $planoId, $duracaoMeses]);
+
+    // Clientes cadastrados pelo site nascem inativos (aguardando pagamento);
+    // ao pagar, libera o acesso automaticamente.
+    $pdo->prepare("UPDATE administradores SET ativo = 1 WHERE id = ? AND origem = 'site'")
+        ->execute([$adminId]);
     return true;
 }

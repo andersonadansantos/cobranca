@@ -114,6 +114,7 @@ function loginAdmin($usuario, $senha) {
             $_SESSION['admin_nome'] = $admin['nome'];
             $_SESSION['admin_usuario'] = $admin['usuario'];
             $_SESSION['admin_avatar'] = $admin['avatar'] ?? null;
+            $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
             
             $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
             $stmt->execute([$admin['id']]);
@@ -232,6 +233,7 @@ function loginAdminGoogle($googleId, $email, $nome) {
         $_SESSION['admin_nome'] = $admin['nome'];
         $_SESSION['admin_usuario'] = $admin['usuario'];
         $_SESSION['admin_avatar'] = $admin['avatar'] ?? null;
+        $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
         $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
         $stmt->execute([$admin['id']]);
         return true;
@@ -306,7 +308,7 @@ function loginAdminCertificado() {
 
     $thumbprint = $cert['thumbprint'];
 
-    $stmt = $pdo->prepare("SELECT ac.*, a.id as admin_id, a.nome, a.usuario, a.avatar, a.ativo
+    $stmt = $pdo->prepare("SELECT ac.*, a.id as admin_id, a.nome, a.usuario, a.avatar, a.ativo, a.origem
         FROM admin_certificados ac
         JOIN administradores a ON ac.admin_id = a.id
         WHERE ac.thumbprint = ? AND ac.ativo = 1 AND a.ativo = 1 LIMIT 1");
@@ -314,7 +316,7 @@ function loginAdminCertificado() {
     $certRecord = $stmt->fetch();
 
     if (!$certRecord) {
-        $stmt = $pdo->prepare("SELECT ac.*, a.id as admin_id, a.nome, a.usuario, a.avatar, a.ativo
+        $stmt = $pdo->prepare("SELECT ac.*, a.id as admin_id, a.nome, a.usuario, a.avatar, a.ativo, a.origem
             FROM admin_certificados ac
             JOIN administradores a ON ac.admin_id = a.id
             WHERE ac.subject_dn = ? AND ac.ativo = 1 AND a.ativo = 1 LIMIT 1");
@@ -329,6 +331,7 @@ function loginAdminCertificado() {
     $_SESSION['admin_nome'] = $certRecord['nome'];
     $_SESSION['admin_usuario'] = $certRecord['usuario'];
     $_SESSION['admin_avatar'] = $certRecord['avatar'] ?? null;
+    $_SESSION['admin_origem'] = $certRecord['origem'] ?? 'painel';
     $_SESSION['admin_login_via'] = 'certificado';
 
     $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");

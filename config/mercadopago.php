@@ -28,6 +28,132 @@ function saveMPConfig($accessToken, $publicKey, $webhookUrl) {
     }
 }
 
+// === Mercado Pago SUPER ADMIN (PIX de Planos) ===
+// Credenciais exclusivas do Super Admin, separadas do painel admin (prefixo super_).
+// Responsáveis pelo recebimento via PIX quando os admins contratam seus planos.
+function getMPConfigSuper() {
+    $chaves = ['super_mp_access_token', 'super_mp_public_key', 'super_mp_webhook_url'];
+    $config = [];
+    foreach ($chaves as $chave) {
+        $config[$chave] = getConfig($chave, '');
+    }
+    return $config;
+}
+
+function saveMPConfigSuper($accessToken, $publicKey, $webhookUrl) {
+    $ok = true;
+    $campos = [
+        'super_mp_access_token' => $accessToken,
+        'super_mp_public_key'   => $publicKey,
+        'super_mp_webhook_url'  => $webhookUrl,
+    ];
+    foreach ($campos as $chave => $valor) {
+        if (!salvarConfigGlobal($chave, $valor)) {
+            $ok = false;
+        }
+    }
+    return $ok;
+}
+
+// Cria o PIX de plano diretamente com as credenciais do Super Admin.
+// $adminDados: array com nome/email do pagador (mesmo formato do Inter).
+// Retorna no mesmo formato do Inter para reuso no fluxo de planos_pagamentos.
+function criarPixPlanoMercadoPago($descricao, $valor, $adminDados) {
+    $config = getMPConfigSuper();
+
+    if (empty($config['super_mp_access_token'])) {
+        return ['erro' => 'Access Token do Mercado Pago não configurado no Super Admin.'];
+    }
+
+    $mpAccess = $config['super_mp_access_token'];
+    $clienteNome = $adminDados['nome'] ?? '';
+    $clienteEmail = $adminDados['email'] ?? '';
+
+    $dados = [
+        'transaction_amount' => (float) $valor,
+        'description' => $descricao,
+        'payment_method_id' => 'pix',
+        'payer' => [
+            'email' => $clienteEmail ?: 'cliente@email.com',
+            'first_name' => explode(' ', $clienteNome)[0] ?? $clienteNome,
+            'last_name' => implode(' ', array_slice(explode(' ', $clienteNome), 1)) ?: '',
+        ],
+    ];
+
+    $webhookUrl = $config['super_mp_webhook_url'] ?? '';
+    if (!empty($webhookUrl) && strpos($webhookUrl, 'localhost') === false && strpos($webhookUrl, '127.0.0.1') === false) {
+        $dados['notification_url'] = $webhookUrl;
+    }
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => 'https://api.mercadopago.com/v1/payments',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($dados),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $mpAccess,
+            'X-Idempotency-Key: ' . uniqid('', true),
+        ],
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        error_log('[MP-SUPER] Erro criar PIX plano: ' . $curlError);
+        return ['erro' => 'Erro de conexão com Mercado Pago: ' . $curlError];
+    }
+
+    $result = json_decode($response, true) ?: [];
+    error_log('[MP-SUPER] Criar PIX plano HTTP ' . $httpCode . ' | Response: ' . substr($response, 0, 400));
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        $pixData = $result['point_of_interaction']['transaction_data'] ?? [];
+        return [
+            'sucesso' => true,
+            'codigo_solicitacao' => (string)($result['id'] ?? ''),
+            'qr_code' => $pixData['qr_code_base64'] ?? '',
+            'pix_copia_cola' => $pixData['qr_code'] ?? '',
+            'mp_status' => $result['status'] ?? '',
+        ];
+    }
+
+    return ['erro' => $result['message'] ?? ('Erro ao criar pagamento no Mercado Pago (HTTP ' . $httpCode . ')')];
+}
+
+// Consulta um pagamento de plano usando o token do Super Admin.
+function consultarPagamentoMPSuper($paymentId) {
+    $config = getMPConfigSuper();
+
+    if (empty($config['super_mp_access_token'])) {
+        return null;
+    }
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => 'https://api.mercadopago.com/v1/payments/' . (int)$paymentId,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $config['super_mp_access_token'],
+        ],
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return json_decode($response, true);
+    }
+    return null;
+}
+
 function criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNome) {
     $config = getMPConfig();
     
@@ -90,8 +216,165 @@ function criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNo
     }
 }
 
-function criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
-    $config = getMPConfig();
+// === MERCADO PAGO: CARTÃO (CRÉDITO/DÉBITO) ===
+
+// O admin libera o cartão de crédito na página de configuração da API (Mercado Pago).
+function aceitaCartaoCredito() {
+    return getConfig('mp_cartao_credito', '') === '1';
+}
+
+function getMaxParcelasCartao() {
+    $max = (int) getConfig('mp_max_parcelas', '12');
+    return min(max($max, 1), 12);
+}
+
+// Traduz os status_detail de recusa do Mercado Pago em mensagens amigáveis.
+function msgErroCartaoMercadoPago($statusDetail) {
+    $mensagens = [
+        'cc_rejected_high_risk' => 'O pagamento foi recusado pela proteção do banco. Tente novamente com outro cartão.',
+        'cc_rejected_insufficient_amount' => 'O cartão foi recusado por limite insuficiente.',
+        'cc_rejected_card_disabled' => 'O cartão foi recusado (bloqueado ou inativo).',
+        'cc_rejected_bad_filled_security_code' => 'O CVV informado está incorreto. Confira e tente novamente.',
+        'cc_rejected_bad_filled_date' => 'A validade informada está incorreta.',
+        'cc_rejected_bad_filled_cardholder_name' => 'O nome impresso no cartão está incorreto.',
+        'cc_rejected_card_error' => 'Não foi possível processar o cartão no momento. Tente novamente.',
+        'cc_rejected_other_reason' => 'O pagamento foi recusado. Verifique os dados ou tente outro cartão.',
+        'cc_rejected_call_for_authorize' => 'Entre em contato com o seu banco para liberar o pagamento.',
+        'cc_rejected_max_attempts' => 'Limite de tentativas atingido. Aguarde e tente novamente.',
+        'invalid_payment_method_id' => 'Este método de pagamento não está disponível para a sua forma de pagamento. Tente crédito ou PIX.',
+        'bin_not_found' => 'Cartão não reconhecido. Tente outro cartão.',
+    ];
+    return $mensagens[$statusDetail] ?? 'O pagamento foi recusado pelo emissor do cartão. Tente novamente ou use outro cartão.';
+}
+
+// Cria cobrança no cartão (crédito ou débito) usando o token gerado no frontend (Mercado Pago Checkout API).
+// $cardToken: token de cartão criado via MercadoPago.js com a Public Key.
+// $tipo: 'credito' (parcelável) ou 'debito' (sempre à vista, com payment_method_id de débito do MP).
+// $configOverride: permite usar credenciais de outra conta (ex.: Super Admin) sem duplicar a função.
+function criarPagamentoCartaoMercadoPago($descricao, $valor, $clienteEmail, $clienteNome, $clienteCpfCnpj, $cardToken, $installments, $paymentMethodId = '', $tipo = 'credito', $configOverride = null) {
+    $config = $configOverride ?: getMPConfig();
+
+    if (empty($config['mp_access_token'])) {
+        return ['erro' => 'Token de acesso do Mercado Pago não configurado'];
+    }
+
+    $cpfCnpj = preg_replace('/[^0-9]/', '', (string) $clienteCpfCnpj);
+    if ($cpfCnpj === '') {
+        return ['erro' => 'CPF/CNPJ do cliente não informado'];
+    }
+
+    $mpAccess = $config['mp_access_token'];
+
+    $tipo = ($tipo === 'debito') ? 'debito' : 'credito';
+    $installments = max(1, min((int) $installments, 12));
+    if ($tipo === 'debito') {
+        $installments = 1;
+        // Débito exige o payment_method_id específico do Mercado Pago (ex.: debvisa).
+        $metodo = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $paymentMethodId));
+        if (preg_match('/^DEB/', $metodo)) {
+            $paymentMethodId = strtolower($metodo);
+        } else {
+            $mapaDebito = [
+                'VISA' => 'debvisa',
+                'MASTER' => 'debmaster',
+                'MASTERCARD' => 'debmaster',
+                'ELO' => 'debelo',
+                'HIPERCARD' => 'debhipercard',
+            ];
+            $paymentMethodId = $mapaDebito[$metodo] ?? '';
+        }
+    }
+
+    $dados = [
+        'transaction_amount' => (float) $valor,
+        'description' => $descricao,
+        'token' => (string) $cardToken,
+        'installments' => $installments,
+        'payer' => [
+            'email' => $clienteEmail ?: 'cliente@email.com',
+            'first_name' => explode(' ', $clienteNome)[0] ?? $clienteNome,
+            'last_name' => implode(' ', array_slice(explode(' ', $clienteNome), 1)) ?: '',
+            'identification' => [
+                'type' => strlen($cpfCnpj) === 11 ? 'CPF' : 'CNPJ',
+                'number' => $cpfCnpj,
+            ],
+        ],
+    ];
+
+    if (!empty($paymentMethodId)) {
+        $dados['payment_method_id'] = $paymentMethodId;
+    }
+
+    $webhookUrl = $config['mp_webhook_url'] ?? '';
+    if (!empty($webhookUrl) && strpos($webhookUrl, 'localhost') === false && strpos($webhookUrl, '127.0.0.1') === false) {
+        $dados['notification_url'] = $webhookUrl;
+    }
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => 'https://api.mercadopago.com/v1/payments',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($dados),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $mpAccess,
+            'X-Idempotency-Key: ' . uniqid(),
+        ],
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        error_log('[MP-CARTAO] Erro de conexão: ' . $curlError);
+        return ['erro' => 'Erro de conexão com Mercado Pago: ' . $curlError];
+    }
+
+    $result = json_decode($response, true);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        error_log('[MP-CARTAO] Pagamento criado id=' . ($result['id'] ?? '') . ' status=' . ($result['status'] ?? '') . ' detail=' . ($result['status_detail'] ?? ''));
+        return [
+            'sucesso' => true,
+            'payment_id' => $result['id'],
+            'status' => $result['status'],
+            'status_detail' => $result['status_detail'] ?? '',
+        ];
+    }
+
+    $msg = $result['message'] ?? 'Erro ao criar pagamento com cartão';
+    $detalhes = '';
+    if (!empty($result['cause']) && is_array($result['cause'])) {
+        foreach ($result['cause'] as $c) {
+            if (!empty($c['description'])) {
+                $detalhes .= ($detalhes !== '' ? ' | ' : '') . $c['description'];
+            }
+        }
+    }
+    error_log('[MP-CARTAO] Erro HTTP ' . $httpCode . ' | ' . substr($response, 0, 400));
+    return [
+        'erro' => $msg,
+        'detalhes' => $detalhes ?: $result,
+    ];
+}
+
+// Cartão de PLANO com as credenciais do Super Admin (uma conta única, todas as bandeiras internacionais).
+function criarPagamentoCartaoMercadoPagoSuper($descricao, $valor, $clienteEmail, $clienteNome, $clienteCpfCnpj, $cardToken, $installments, $paymentMethodId = '', $tipo = 'credito') {
+    $super = getMPConfigSuper();
+    $config = array_merge($super, [
+        'mp_access_token' => $super['super_mp_access_token'] ?? '',
+        'mp_public_key'   => $super['super_mp_public_key'] ?? '',
+        'mp_webhook_url'  => $super['super_mp_webhook_url'] ?? '',
+    ]);
+    return criarPagamentoCartaoMercadoPago($descricao, $valor, $clienteEmail, $clienteNome, $clienteCpfCnpj, $cardToken, $installments, $paymentMethodId, $tipo, $config);
+}
+
+function criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $configOverride = null) {
+    $config = $configOverride ?: getMPConfig();
 
     if (empty($config['mp_access_token'])) {
         return ['erro' => 'Token de acesso do Mercado Pago não configurado'];
@@ -99,6 +382,36 @@ function criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnp
 
     $mpAccess = $config['mp_access_token'];
     $cpfCnpj = preg_replace('/[^0-9]/', '', $clienteCpfCnpj);
+
+    // O boleto registrado do Mercado Pago exige o endereço completo do pagador.
+    $faltando = [];
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        $faltando[] = 'CPF/CNPJ';
+    }
+    if (strlen(preg_replace('/[^0-9]/', '', $clienteCep)) !== 8) {
+        $faltando[] = 'CEP';
+    }
+    if (trim((string) $clienteLogradouro) === '') {
+        $faltando[] = 'logradouro (rua)';
+    }
+    if (trim((string) $clienteNumero) === '') {
+        $faltando[] = 'número';
+    }
+    if (trim((string) $clienteBairro) === '') {
+        $faltando[] = 'bairro';
+    }
+    if (trim((string) $clienteCidade) === '') {
+        $faltando[] = 'cidade';
+    }
+    if (strlen(preg_replace('/[^A-Za-z]/', '', $clienteEstado)) !== 2) {
+        $faltando[] = 'UF';
+    }
+    if (!empty($faltando)) {
+        return [
+            'erro' => 'Para gerar o boleto, cadastre no seu perfil: ' . implode(', ', $faltando) . '.',
+            'faltando_endereco' => true,
+        ];
+    }
 
     $dados = [
         "transaction_amount" => (float) $valor,
@@ -157,11 +470,23 @@ function criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnp
             'boleto_linha_digitavel' => $result['transaction_details']['digitable_line'] ?? '',
         ];
     } else {
+        error_log('[MP-BOLETO] Erro HTTP ' . $httpCode . ' | ' . substr($response, 0, 400));
         return [
             'erro' => $result['message'] ?? 'Erro ao gerar boleto',
             'detalhes' => $result,
         ];
     }
+}
+
+// Boleto de PLANO com as credenciais do Super Admin.
+function criarBoletoMercadoPagoSuper($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
+    $super = getMPConfigSuper();
+    $config = array_merge($super, [
+        'mp_access_token' => $super['super_mp_access_token'] ?? '',
+        'mp_public_key'   => $super['super_mp_public_key'] ?? '',
+        'mp_webhook_url'  => $super['super_mp_webhook_url'] ?? '',
+    ]);
+    return criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $config);
 }
 
 function consultarPagamento($paymentId) {
