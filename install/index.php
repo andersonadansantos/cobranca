@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // =====================================================
 // INSTALADOR DO SISTEMA Central de faturas
 // Passo 1: ConexÃ£o com banco de dados
