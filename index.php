@@ -51,7 +51,7 @@ siteHeader();
                     <div class="text-sm font-bold text-slate-800"><?= siteT('mock_titulo') ?></div>
                     <span class="text-xs font-bold text-brand-700 bg-brand-50 rounded-full px-3 py-1"><?= siteT('mock_recebidos') ?> <span id="mock-recebidos-n">128</span></span>
                 </div>
-                <div class="mt-5" id="mock-feed">
+                <div class="mt-5 mock-feed" id="mock-feed">
                     <div class="mock-track" id="mock-track">
                         <div class="mock-slide rounded-2xl border border-slate-100 p-3.5 bg-slate-50/60">
                             <div class="flex items-center gap-3">
@@ -94,7 +94,7 @@ siteHeader();
                         </div>
                     </div>
                 </div>
-                <div class="mt-5 flex items-center justify-between rounded-2xl bg-gradient-to-r from-brand-600 to-brand-800 text-white p-4">
+                <div class="mt-5 flex items-center justify-between rounded-2xl bg-gradient-to-r from-brand-600 to-brand-800 text-white p-4 anim-flutua">
                     <span class="text-sm font-semibold"><?= siteT('mock_auto') ?></span>
                     <span class="text-xs font-bold bg-white/20 rounded-full px-3 py-1"><?= siteT('mock_wa') ?> ✓</span>
                 </div>
@@ -438,6 +438,10 @@ foreach ($mockTodos as $m) {
 
     configurar();
     window.addEventListener('resize', medir);
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function () { medir(); });
+    }
+    window.addEventListener('load', medir);
     if (rolante) {
         setInterval(passo, 3600);
     } else {

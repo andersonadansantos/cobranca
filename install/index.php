@@ -1,7 +1,7 @@
-<?php
+﻿<?php
 // =====================================================
-// INSTALADOR DO SISTEMA WD_payments
-// Passo 1: Conexão com banco de dados
+// INSTALADOR DO SISTEMA Central de faturas
+// Passo 1: ConexÃ£o com banco de dados
 // Passo 2: Criar administrador
 // Passo 3: Acessar o painel
 // =====================================================
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sucesso = 'Banco de dados conectado e tabelas importadas!';
 
         } catch (PDOException $e) {
-            $erro = 'Falha na conexão: ' . $e->getMessage();
+            $erro = 'Falha na conexÃ£o: ' . $e->getMessage();
             $etapa = 1;
         }
 
@@ -93,10 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erro = 'Preencha todos os campos.';
             $etapa = 2;
         } elseif (strlen($adminPass) < 6) {
-            $erro = 'A senha deve ter no mínimo 6 caracteres.';
+            $erro = 'A senha deve ter no mÃ­nimo 6 caracteres.';
             $etapa = 2;
         } elseif ($adminPass !== $adminPassConf) {
-            $erro = 'As senhas não conferem.';
+            $erro = 'As senhas nÃ£o conferem.';
             $etapa = 2;
         } else {
             try {
@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instalador - WD_payments</title>
+    <title>Instalador - Central de faturas</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="container py-4">
     <div class="card install-card mx-auto">
         <div class="install-header text-center">
-            <h4><i class="fas fa-cog me-2"></i>WD_payments</h4>
+            <h4><i class="fas fa-cog me-2"></i>Central de faturas</h4>
             <small>Instalador do Sistema</small>
         </div>
         <div class="card-body p-4">
@@ -160,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="d-flex align-items-center justify-content-between mb-4">
                 <div class="text-center">
                     <span class="step-num <?= $etapa >= 1 ? ($etapa > 1 ? 'step-done' : 'step-active') : 'step-pending' ?>">1</span>
-                    <div class="small text-muted mt-1">Conexão</div>
+                    <div class="small text-muted mt-1">ConexÃ£o</div>
                 </div>
                 <div class="flex-grow-1 mx-2" style="height:2px;background:#dee2e6;"></div>
                 <div class="text-center">
@@ -170,12 +170,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="flex-grow-1 mx-2" style="height:2px;background:#dee2e6;"></div>
                 <div class="text-center">
                     <span class="step-num <?= $etapa >= 3 ? 'step-done' : 'step-pending' ?>">3</span>
-                    <div class="small text-muted mt-1">Concluído</div>
+                    <div class="small text-muted mt-1">ConcluÃ­do</div>
                 </div>
             </div>
 
             <?php if ($etapa === 1): ?>
-            <h6 class="mb-3"><i class="fas fa-database me-1"></i> Passo 1 — Conexão com o Banco de Dados</h6>
+            <h6 class="mb-3"><i class="fas fa-database me-1"></i> Passo 1 â€” ConexÃ£o com o Banco de Dados</h6>
             <form method="POST">
                 <input type="hidden" name="acao" value="conectar">
                 <div class="mb-3">
@@ -194,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Usuário</label>
+                    <label class="form-label small fw-semibold">UsuÃ¡rio</label>
                     <input type="text" name="db_user" class="form-control" value="<?= htmlspecialchars($dbUser) ?>" required>
                 </div>
                 <div class="mb-3">
@@ -205,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
 
             <?php elseif ($etapa === 2): ?>
-            <h6 class="mb-3"><i class="fas fa-user-shield me-1"></i> Passo 2 — Criar Administrador</h6>
+            <h6 class="mb-3"><i class="fas fa-user-shield me-1"></i> Passo 2 â€” Criar Administrador</h6>
             <form method="POST">
                 <input type="hidden" name="acao" value="criar_admin">
                 <input type="hidden" name="db_host" value="<?= htmlspecialchars($dbHost) ?>">
@@ -214,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="hidden" name="db_user" value="<?= htmlspecialchars($dbUser) ?>">
                 <input type="hidden" name="db_pass" value="<?= htmlspecialchars($dbPass) ?>">
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Usuário</label>
+                    <label class="form-label small fw-semibold">UsuÃ¡rio</label>
                     <input type="text" name="admin_user" class="form-control" value="admin" required>
                 </div>
                 <div class="mb-3">
@@ -235,15 +235,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php elseif ($etapa === 3): ?>
             <div class="text-center py-3">
                 <div class="mb-3"><i class="fas fa-check-circle text-success" style="font-size:3rem;"></i></div>
-                <h5 class="mb-2">Instalação Concluída!</h5>
-                <p class="text-muted small mb-4">Sistema configurado com sucesso. Delete a pasta <code>/install</code> após o primeiro login.</p>
+                <h5 class="mb-2">InstalaÃ§Ã£o ConcluÃ­da!</h5>
+                <p class="text-muted small mb-4">Sistema configurado com sucesso. Delete a pasta <code>/install</code> apÃ³s o primeiro login.</p>
                 <a href="/cobranca/admin/login.php" class="btn btn-primary w-100"><i class="fas fa-sign-in-alt me-1"></i> Acessar o Painel</a>
             </div>
             <?php endif; ?>
 
         </div>
     </div>
-    <p class="text-center text-muted small mt-3">WD_payments &copy; <?= date('Y') ?></p>
+    <p class="text-center text-muted small mt-3">Central de faturas &copy; <?= date('Y') ?></p>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -100,7 +100,7 @@ if (!$jaTemCobranca && !$fatura['link_pagamento'] && !$fatura['pix_copia_cola'] 
     }
 }
 
-$logo = getConfig('logo_mobile', '') ?: getLogo();
+$logo = getLogo();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

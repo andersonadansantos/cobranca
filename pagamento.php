@@ -99,7 +99,7 @@ siteHeader();
         <!-- Estágio: escolha do método -->
         <div id="estagio-metodo" class="hidden mt-8 rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-xl shadow-slate-100/70">
             <p class="text-sm font-black text-slate-900 uppercase tracking-wider"><?= siteT('pag_metodo') ?></p>
-            <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button type="button" data-metodo="pix" onclick="escolherMetodo('pix')" id="mt-pix"
                     class="opcao-metodo <?= $pixOk ? '' : 'hidden' ?> text-left rounded-2xl border-2 border-slate-100 bg-white p-4 hover:border-brand-400 hover:bg-brand-50/40 transition">
                     <span class="inline-flex w-10 h-10 rounded-full bg-green-100 text-green-700 items-center justify-center">
@@ -116,13 +116,21 @@ siteHeader();
                     <span class="mt-3 block text-sm font-bold text-slate-800"><?= siteT('pag_boleto') ?></span>
                     <span class="mt-0.5 block text-xs text-slate-500"><?= siteT('pag_boleto_d') ?></span>
                 </button>
-                <button type="button" data-metodo="cartao" onclick="escolherMetodo('cartao')" id="mt-cartao"
+                <button type="button" data-metodo="cartao_credito" onclick="escolherMetodo('cartao_credito')" id="mt-cartao-credito"
                     class="opcao-metodo <?= $cartaoOk ? '' : 'hidden' ?> text-left rounded-2xl border-2 border-slate-100 bg-white p-4 hover:border-brand-400 hover:bg-brand-50/40 transition">
                     <span class="inline-flex w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                    </span>
+                    <span class="mt-3 block text-sm font-bold text-slate-800"><?= siteT('pag_cartao_credito') ?></span>
+                    <span class="mt-0.5 block text-xs text-slate-500"><?= siteT('pag_cartao_credito_d') ?></span>
+                </button>
+                <button type="button" data-metodo="cartao_debito" onclick="escolherMetodo('cartao_debito')" id="mt-cartao-debito"
+                    class="opcao-metodo <?= $cartaoOk ? '' : 'hidden' ?> text-left rounded-2xl border-2 border-slate-100 bg-white p-4 hover:border-brand-400 hover:bg-brand-50/40 transition">
+                    <span class="inline-flex w-10 h-10 rounded-full bg-sky-100 text-sky-700 items-center justify-center">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1M7 7h10a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2V9a2 2 0 012-2z"/></svg>
                     </span>
-                    <span class="mt-3 block text-sm font-bold text-slate-800"><?= siteT('pag_cartao') ?></span>
-                    <span class="mt-0.5 block text-xs text-slate-500"><?= siteT('pag_cartao_d') ?></span>
+                    <span class="mt-3 block text-sm font-bold text-slate-800"><?= siteT('pag_cartao_debito') ?></span>
+                    <span class="mt-0.5 block text-xs text-slate-500"><?= siteT('pag_cartao_debito_d') ?></span>
                 </button>
             </div>
             <button type="button" onclick="voltarMetodos()" class="mt-5 text-sm font-bold text-brand-700 hover:text-brand-800" id="voltar-metodos">
@@ -298,6 +306,8 @@ document.addEventListener('DOMContentLoaded', function () {
         cancelarPolling();
         if (m === 'pix') criar();
         else if (m === 'boleto') criarBoleto();
+        else if (m === 'cartao_credito') { tipoCartao = 'credito'; aplicarTabCartao(); mostrar('estagio-cartao'); montarCartao(); }
+        else if (m === 'cartao_debito') { tipoCartao = 'debito'; aplicarTabCartao(); mostrar('estagio-cartao'); montarCartao(); }
         else { montarCartao(); mostrar('estagio-cartao'); }
     };
 
@@ -314,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function () {
             metodoAtual = 'pix';
             mostrar('estagio-pix');
             iniciarPolling();
-        } else if (metodos.length === 1) {
+        } else if (metodos.length === 1 && metodos[0] !== 'cartao') {
             window.escolherMetodo(metodos[0]);
         } else {
             mostrar('estagio-metodo');
@@ -429,6 +439,22 @@ document.addEventListener('DOMContentLoaded', function () {
     let mp = null;
     let tipoCartao = 'credito';
     let parcelaSelect = null;
+
+    function aplicarTabCartao() {
+        const cred = document.getElementById('tabCredito');
+        const deb = document.getElementById('tabDebito');
+        const par = document.getElementById('ccParcelasWrap');
+        if (tipoCartao === 'debito') {
+            deb.className = 'flex-1 rounded-xl py-2.5 text-brand-700 bg-white shadow-sm';
+            cred.className = 'flex-1 rounded-xl py-2.5 text-slate-500';
+            if (par) { par.style.opacity = '0.35'; par.style.pointerEvents = 'none'; }
+        } else {
+            cred.className = 'flex-1 rounded-xl py-2.5 text-brand-700 bg-white shadow-sm';
+            deb.className = 'flex-1 rounded-xl py-2.5 text-slate-500';
+            if (par) { par.style.opacity = '1'; par.style.pointerEvents = 'auto'; }
+        }
+        if (typeof atualizarBtnCartao === 'function') atualizarBtnCartao();
+    }
 
     function txtMoeda(v) {
         return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -568,19 +594,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         document.getElementById('tabCredito').addEventListener('click', function () {
             tipoCartao = 'credito';
-            document.getElementById('tabCredito').className = 'flex-1 rounded-xl py-2.5 text-brand-700 bg-white shadow-sm';
-            document.getElementById('tabDebito').className = 'flex-1 rounded-xl py-2.5 text-slate-500';
-            document.getElementById('ccParcelasWrap').style.opacity = '1';
-            document.getElementById('ccParcelasWrap').style.pointerEvents = 'auto';
-            atualizarBtnCartao();
+            aplicarTabCartao();
         });
         document.getElementById('tabDebito').addEventListener('click', function () {
             tipoCartao = 'debito';
-            document.getElementById('tabDebito').className = 'flex-1 rounded-xl py-2.5 text-brand-700 bg-white shadow-sm';
-            document.getElementById('tabCredito').className = 'flex-1 rounded-xl py-2.5 text-slate-500';
-            document.getElementById('ccParcelasWrap').style.opacity = '0.35';
-            document.getElementById('ccParcelasWrap').style.pointerEvents = 'none';
-            atualizarBtnCartao();
+            aplicarTabCartao();
         });
         document.getElementById('ccParcelas').addEventListener('change', atualizarBtnCartao);
         document.getElementById('ccNumero').addEventListener('input', function (e) { e.target.value = formatarNumero(e.target.value); });

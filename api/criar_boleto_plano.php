@@ -52,7 +52,7 @@ if (!in_array($duracao, [1, 3, 6, 12])) {
 
 $pdo = getConnection();
 
-$stmt = $pdo->prepare("SELECT * FROM planos WHERE id = ? AND ativo = 1");
+$stmt = $pdo->prepare("SELECT * FROM planos WHERE id = ? AND ativo = 1 AND COALESCE(slug,'') <> 'demo'");
 $stmt->execute([$planoId]);
 $plano = $stmt->fetch();
 if (!$plano) {

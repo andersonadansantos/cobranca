@@ -32,6 +32,9 @@ $basePath = '/cobranca/superadmin';
         <a href="<?= $basePath ?>/tutoriais.php" class="nav-link <?= $currentPage === 'tutoriais' ? 'active' : '' ?>">
             <i class="fas fa-video"></i> <?= t('nav.tutoriais') ?>
         </a>
+        <a href="<?= $basePath ?>/personalizacao.php" class="nav-link <?= $currentPage === 'personalizacao' ? 'active' : '' ?>">
+            <i class="fas fa-image"></i> <?= t('nav.personalizacao') ?>
+        </a>
         <a href="<?= $basePath ?>/cron.php" class="nav-link <?= $currentPage === 'cron' ? 'active' : '' ?>">
             <i class="fas fa-clock"></i> <?= t('nav.cron_job') ?>
         </a>

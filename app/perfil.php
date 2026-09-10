@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } // fecha else acao senha
 }
 
-$logo = getConfig('logo_mobile', '') ?: getLogo();
+$logo = getLogo();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

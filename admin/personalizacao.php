@@ -59,37 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    if ($acao === 'logo_login') {
-        if (isset($_FILES['logo_login']) && $_FILES['logo_login']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['logo_login']['name'], PATHINFO_EXTENSION));
-            $permitidos = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
-            
-            if (in_array($ext, $permitidos)) {
-                $nome = 'logo_login_' . time() . '.' . $ext;
-                $destino = __DIR__ . '/../assets/img/' . $nome;
-                
-                if (move_uploaded_file($_FILES['logo_login']['tmp_name'], $destino)) {
-                    $logoAntiga = getConfig('logo_login');
-                    $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
-                    if ($logoAntiga && file_exists($logoAntigaPath)) {
-                        unlink($logoAntigaPath);
-                    }
-                    
-                    saveConfig('logo_login', '/cobranca/assets/img/' . $nome);
-                    
-                    $mensagem = 'Logo de login atualizada com sucesso!';
-                    $tipo = 'success';
-                }
-            } else {
-                $mensagem = 'Formato de arquivo não permitido. Use: JPG, PNG, GIF, SVG ou WEBP.';
-                $tipo = 'danger';
-            }
-        } else {
-            $mensagem = 'Selecione uma imagem para upload.';
-            $tipo = 'danger';
-        }
-    }
-
     if ($acao === 'logo_mobile') {
         if (isset($_FILES['logo_mobile']) && $_FILES['logo_mobile']['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($_FILES['logo_mobile']['name'], PATHINFO_EXTENSION));
@@ -192,14 +161,15 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             <!-- Logo -->
             <div class="col-lg-6">
                 <div class="form-card">
-                    <h6 class="mb-3"><i class="fas fa-image me-2"></i>Logo da Empresa</h6>
+<h6 class="mb-3"><i class="fas fa-image me-2"></i>Logo do Login do Cliente (Computador)</h6>
                     <form method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="acao" value="logo">
+                        <p class="text-muted mb-3" style="font-size:0.85rem;">Esta logo aparece somente na tela de login do cliente (área do pagador) no computador.</p>
                         
                         <?php if (!empty($config['logo_empresa'])): ?>
                             <div class="text-center mb-3">
                                 <img src="<?= htmlspecialchars($config['logo_empresa']) ?>" alt="Logo Atual" style="max-width: 250px;">
-                                <br><small class="text-muted">Logo atual (Dashboards)</small>
+                                <br><small class="text-muted">Logo atual (Login do Cliente - Computador)</small>
                             </div>
                         <?php endif; ?>
                         
@@ -213,41 +183,18 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 </div>
             </div>
 
-            <!-- Logo Login -->
+<!-- Logo Mobile -->
             <div class="col-lg-6">
                 <div class="form-card">
-                    <h6 class="mb-3"><i class="fas fa-sign-in-alt me-2"></i>Logo das Telas de Login</h6>
-                    <form method="POST" enctype="multipart/form-data">
-                        <input type="hidden" name="acao" value="logo_login">
-                        
-                        <?php if (!empty($config['logo_login'])): ?>
-                            <div class="text-center mb-3">
-                                <img src="<?= htmlspecialchars($config['logo_login']) ?>" alt="Logo Login Atual" style="max-width: 250px;">
-                                <br><small class="text-muted">Logo atual (Logins)</small>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <div class="mb-3">
-                            <input type="file" name="logo_login" class="form-control" accept="image/*">
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-upload me-1"></i> Enviar Logo de Login
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Logo Mobile -->
-            <div class="col-lg-6">
-                <div class="form-card">
-                    <h6 class="mb-3"><i class="fas fa-mobile-alt me-2"></i>Logo Versão Mobile</h6>
+<h6 class="mb-3"><i class="fas fa-mobile-alt me-2"></i>Logo do Login do Cliente (Mobile)</h6>
                     <form method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="acao" value="logo_mobile">
+                        <p class="text-muted mb-3" style="font-size:0.85rem;">Esta logo aparece somente na tela de login do cliente no celular (app).</p>
                         
                         <?php if (!empty($config['logo_mobile'])): ?>
                             <div class="text-center mb-3">
                                 <img src="<?= htmlspecialchars($config['logo_mobile']) ?>" alt="Logo Mobile Atual" style="max-width: 200px;">
-                                <br><small class="text-muted">Logo atual (App Mobile)</small>
+                                <br><small class="text-muted">Logo atual (Login do Cliente - Mobile)</small>
                             </div>
                         <?php endif; ?>
                         

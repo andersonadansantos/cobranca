@@ -13,7 +13,7 @@ $whatsapp = $config['financeiro_whatsapp'] ?? '';
 $email = $config['financeiro_email'] ?? '';
 $fone = $config['financeiro_fone'] ?? '';
 
-$logo = getConfig('logo_mobile', '') ?: getLogo();
+$logo = getLogo();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

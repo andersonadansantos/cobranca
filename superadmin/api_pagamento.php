@@ -111,6 +111,7 @@ $pixBoletoPlanosAtivo = getConfigGlobal('super_plano_pix_boleto', '1') === '1';
 $maxParcelasPlanos = max(1, min((int)getConfigGlobal('super_mp_max_parcelas', '12'), 12));
 
 $rotulosMetodo = ['pix' => 'PIX', 'boleto' => 'Boleto', 'cartao' => 'Cartão'];
+$iconesMetodo = ['pix' => 'fa-qrcode', 'boleto' => 'fa-barcode', 'cartao' => 'fa-credit-card'];
 $metodosBr = ['pix', 'boleto', 'cartao'];
 $metodosFora = ['cartao'];
 if (!$cartaoPlanosAtivo) {
@@ -120,16 +121,6 @@ if (!$cartaoPlanosAtivo) {
 if (!$pixBoletoPlanosAtivo) {
     $metodosBr = array_values(array_diff($metodosBr, ['pix', 'boleto']));
 }
-$metodosBrTxt = [];
-foreach ($metodosBr as $m) {
-    $metodosBrTxt[] = $rotulosMetodo[$m] ?? $m;
-}
-$metodosBrTxt = implode(', ', $metodosBrTxt) ?: 'Nenhum método disponível';
-$metodosForaTxt = [];
-foreach ($metodosFora as $m) {
-    $metodosForaTxt[] = $rotulosMetodo[$m] ?? $m;
-}
-$metodosForaTxt = implode(', ', $metodosForaTxt) ?: 'Nenhum método disponível';
 
 $pageTitle = 'API Pagamento';
 include __DIR__ . '/includes/header.php';
@@ -189,9 +180,19 @@ include __DIR__ . '/includes/sidebar.php';
         </div>
 
         <!-- Métodos de pagamento do site (planos) -->
+        <style>
+            .method-card { transition: border-color .15s ease, background-color .15s ease; }
+            .method-card.is-on { border-color: #198754 !important; background-color: #f4fbf7; }
+            .method-icon { width: 46px; height: 46px; flex: 0 0 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; color: #475569; background: #f1f5f9; transition: background-color .15s ease, color .15s ease; }
+            .method-card.is-on .method-icon { background: #198754; color: #fff; }
+            .form-card .badge-auto { width: auto; height: auto; padding: 4px 10px; font-size: 0.72rem; }
+        </style>
         <div class="form-card mb-4">
             <div class="p-3 border-bottom">
-                <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Métodos de pagamento do site (planos)</h6>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Métodos de pagamento do site (planos)</h6>
+                    <span class="small text-muted"><i class="fas fa-shopping-cart me-1"></i>Contratação de planos na página <strong>Planos</strong></span>
+                </div>
             </div>
             <div class="p-3">
                 <?php if ($metodosBr === [] && $metodosFora === []): ?>
@@ -200,65 +201,118 @@ include __DIR__ . '/includes/sidebar.php';
                         Todos os métodos estão desativados. Habilite ao menos um deles para que os admins consigam contratar planos.
                     </div>
                 <?php endif; ?>
-                <div class="alert alert-info py-2 mb-3">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Métodos exibidos na página <strong>Planos</strong> quando os admins contratam seus planos.
-                    <strong>Brasil:</strong> PIX, boleto e cartão. <strong>Fora do Brasil:</strong> somente cartão (internacional).
-                    Cartões internacionais (Visa, Master, Amex) são aceitos na conta do Mercado Pago; a cobrança é feita na moeda da conta (R$), com conversão pelo emissor do cliente.
-                    O cartão usa as credenciais do <strong>Mercado Pago</strong>; o boleto usa as credenciais do <strong>Banco Inter</strong> (aba acima).
-                </div>
+
                 <form method="POST">
                     <input type="hidden" name="acao" value="salvar_metodos_plano">
+
                     <div class="row g-3">
-                        <div class="col-md-4">
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="swCartaoPlano" name="super_plano_cartao" value="1" <?= $cartaoPlanosAtivo ? 'checked' : '' ?>>
-                                <label class="form-check-label fw-medium" for="swCartaoPlano">Cartão de crédito/débito</label>
+                        <!-- Cartão -->
+                        <div class="col-md-6">
+                            <div class="border rounded-3 p-3 d-flex align-items-center gap-3 h-100 method-card <?= $cartaoPlanosAtivo ? 'is-on' : '' ?>">
+                                <div class="method-icon"><i class="fas fa-credit-card"></i></div>
+                                <div class="flex-grow-1 lh-sm">
+                                    <div class="fw-medium mb-1">Cartão de crédito/débito</div>
+                                    <div class="text-muted small">
+                                        <i class="fas fa-globe-americas me-1"></i>Brasil e exterior
+                                        <span class="mx-1">·</span> <strong>Mercado Pago</strong>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input method-toggle" type="checkbox" id="swCartaoPlano" name="super_plano_cartao" value="1" <?= $cartaoPlanosAtivo ? 'checked' : '' ?>>
+                                </div>
                             </div>
-                            <small class="text-muted">Visa, Master, Amex e Elo (crédito/débito). Brasil e exterior.</small>
                         </div>
-                        <div class="col-md-4">
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="swPixBoletoPlano" name="super_plano_pix_boleto" value="1" <?= $pixBoletoPlanosAtivo ? 'checked' : '' ?>>
-                                <label class="form-check-label fw-medium" for="swPixBoletoPlano">PIX + Boleto</label>
+
+                        <!-- PIX + Boleto -->
+                        <div class="col-md-6">
+                            <div class="border rounded-3 p-3 d-flex align-items-center gap-3 h-100 method-card <?= $pixBoletoPlanosAtivo ? 'is-on' : '' ?>">
+                                <div class="method-icon"><i class="fas fa-qrcode"></i></div>
+                                <div class="flex-grow-1 lh-sm">
+                                    <div class="fw-medium mb-1">PIX + Boleto bancário</div>
+                                    <div class="text-muted small">
+                                        <i class="fas fa-globe-americas me-1"></i>Brasil
+                                        <span class="mx-1">·</span> <strong>Banco Inter</strong>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input method-toggle" type="checkbox" id="swPixBoletoPlano" name="super_plano_pix_boleto" value="1" <?= $pixBoletoPlanosAtivo ? 'checked' : '' ?>>
+                                </div>
                             </div>
-                            <small class="text-muted">Exclusivos do Brasil.</small>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label d-block mb-2">Parcelas no cartão</label>
-                            <select name="super_mp_max_parcelas" class="form-select">
-                                <?php for ($i = 1; $i <= 12; $i++): ?>
-                                    <option value="<?= $i ?>" <?= $maxParcelasPlanos === $i ? 'selected' : '' ?>><?= $i ?>x<?= $i === 1 ? ' (à vista)' : '' ?></option>
-                                <?php endfor; ?>
-                            </select>
-                            <small class="text-muted">Máximo permitido na contratação de plano (crédito).</small>
+                    </div>
+
+                    <div class="row g-3 mt-0">
+                        <!-- Parcelamento -->
+                        <div class="col-md-5">
+                            <div class="border rounded-3 p-3 h-100">
+                                <label class="form-label fw-medium mb-1" for="super_mp_max_parcelas"><i class="fas fa-layer-group me-1"></i> Parcelas no cartão</label>
+                                <select id="super_mp_max_parcelas" name="super_mp_max_parcelas" class="form-select">
+                                    <?php for ($i = 1; $i <= 12; $i++): ?>
+                                        <option value="<?= $i ?>" <?= $maxParcelasPlanos === $i ? 'selected' : '' ?>><?= $i ?>x<?= $i === 1 ? ' (à vista)' : '' ?></option>
+                                    <?php endfor; ?>
+                                </select>
+                                <small class="text-muted mt-1 d-block">Máximo na contratação de plano (crédito).</small>
+                            </div>
                         </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Salvar Métodos</button>
+
+                        <!-- O que cada visitante vê -->
+                        <div class="col-md-7">
+                            <div class="border rounded-3 p-3 h-100">
+                                <div class="fw-medium mb-2"><i class="fas fa-eye me-1"></i> O que cada visitante vê</div>
+                                <div class="d-flex flex-column">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <i class="fas fa-globe-americas text-muted"></i>
+                                        <strong class="small">Brasil</strong>
+                                        <span class="small text-muted">· pt-BR</span>
+                                    </div>
+                                    <div class="mt-2 d-flex gap-1 flex-wrap">
+                                        <?php if (empty($metodosBr)): ?>
+                                            <span class="badge badge-auto bg-light text-muted border">Nenhum método</span>
+                                        <?php else: ?>
+                                            <?php foreach ($metodosBr as $m): ?>
+                                                <span class="badge badge-auto bg-success-subtle text-success border border-success-subtle"><i class="fas <?= $iconesMetodo[$m] ?> me-1"></i><?= $rotulosMetodo[$m] ?></span>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <hr class="my-2">
+                                <div class="d-flex flex-column">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <i class="fas fa-globe-europe text-muted"></i>
+                                        <strong class="small">Fora do Brasil</strong>
+                                        <span class="small text-muted">· es-MX, es-AR, es-CO, es-CL, es-PE</span>
+                                    </div>
+                                    <div class="mt-2 d-flex gap-1 flex-wrap">
+                                        <?php if (empty($metodosFora)): ?>
+                                            <span class="badge badge-auto bg-light text-muted border">Nenhum método</span>
+                                        <?php else: ?>
+                                            <?php foreach ($metodosFora as $m): ?>
+                                                <span class="badge badge-auto bg-success-subtle text-success border border-success-subtle"><i class="fas <?= $iconesMetodo[$m] ?> me-1"></i><?= $rotulosMetodo[$m] ?></span>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Salvar Métodos</button>
                     </div>
                 </form>
-
-                <hr class="my-3">
-                <div class="row small">
-                    <div class="col-md-6">
-                        <div class="fw-medium text-muted mb-1"><i class="fas fa-globe-americas me-1"></i>O que cada visitante vê</div>
-                        <table class="table table-sm mb-0">
-                            <tbody>
-                                <tr>
-                                    <td class="text-muted" style="width:45%;">Brasil (pt-BR)</td>
-                                    <td class="fw-medium"><?= htmlspecialchars($metodosBrTxt) ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Fora do Brasil (es-MX, es-AR, es-CO, es-CL, es-PE)</td>
-                                    <td class="fw-medium"><?= htmlspecialchars($metodosForaTxt) ?></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
             </div>
         </div>
+
+        <script>
+            document.addEventListener('change', function (e) {
+                if (e.target && e.target.classList && e.target.classList.contains('method-toggle')) {
+                    var card = e.target.closest('.method-card');
+                    if (card) {
+                        card.classList.toggle('is-on', e.target.checked);
+                    }
+                }
+            });
+        </script>
 
         <ul class="nav nav-tabs" id="apiTabs" role="tablist">
             <li class="nav-item" role="presentation">
@@ -283,6 +337,24 @@ include __DIR__ . '/includes/sidebar.php';
 
             <!-- ==================== BANCO INTER ==================== -->
             <div class="tab-pane fade show <?= $planoApiAtiva === 'inter' ? 'active' : '' ?>" id="abaInter" role="tabpanel">
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3 p-3 rounded-3 border <?= $planoApiAtiva === 'inter' ? 'border-success bg-success-subtle' : 'border-warning bg-warning-subtle' ?>">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <?php if ($planoApiAtiva === 'inter'): ?>
+                            <span class="badge badge-auto bg-success"><i class="fas fa-check me-1"></i> API Ativa</span>
+                            <small class="text-success">Responsável pelo recebimento de PIX (e boleto) na contratação de planos.</small>
+                        <?php else: ?>
+                            <span class="badge badge-auto bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i> API Inativa</span>
+                            <small class="text-muted">Ao ativar, esta API passa a receber o PIX (e boleto) dos planos contratados.</small>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($planoApiAtiva !== 'inter'): ?>
+                        <form method="POST" class="m-0">
+                            <input type="hidden" name="acao" value="ativar_plano_api">
+                            <input type="hidden" name="api" value="inter">
+                            <button type="submit" class="btn btn-success btn-sm fw-bold"><i class="fas fa-power-off me-1"></i> ATIVAR API</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
                 <div class="row">
                     <div class="col-lg-8">
                         <div class="form-card">
@@ -396,6 +468,24 @@ include __DIR__ . '/includes/sidebar.php';
 
             <!-- ==================== MERCADO PAGO ==================== -->
             <div class="tab-pane fade show <?= $planoApiAtiva === 'mercadopago' ? 'active' : '' ?>" id="abaMp" role="tabpanel">
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3 p-3 rounded-3 border <?= $planoApiAtiva === 'mercadopago' ? 'border-success bg-success-subtle' : 'border-warning bg-warning-subtle' ?>">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <?php if ($planoApiAtiva === 'mercadopago'): ?>
+                            <span class="badge badge-auto bg-success"><i class="fas fa-check me-1"></i> API Ativa</span>
+                            <small class="text-success">Responsável pelo recebimento de PIX e cartão na contratação de planos.</small>
+                        <?php else: ?>
+                            <span class="badge badge-auto bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i> API Inativa</span>
+                            <small class="text-muted">Ao ativar, esta API passa a receber o PIX e o cartão dos planos contratados.</small>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($planoApiAtiva !== 'mercadopago'): ?>
+                        <form method="POST" class="m-0">
+                            <input type="hidden" name="acao" value="ativar_plano_api">
+                            <input type="hidden" name="api" value="mercadopago">
+                            <button type="submit" class="btn btn-success btn-sm fw-bold"><i class="fas fa-power-off me-1"></i> ATIVAR API</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
                 <div class="row">
                     <div class="col-lg-8">
                         <div class="form-card">

@@ -50,7 +50,8 @@ if ($meuPlano && !empty($meuPlano['data_fim'])) {
     $diasRestantes = (int)floor((strtotime($meuPlano['data_fim']) - strtotime(date('Y-m-d'))) / 86400);
 }
 
-$planos = $pdo->query("SELECT * FROM planos WHERE ativo = 1 AND COALESCE(slug,'') <> 'diamante' ORDER BY ordem ASC")->fetchAll();
+// O plano DEMO existe somente para testes pelo site (demo.php) e não é listado aqui.
+$planos = $pdo->query("SELECT * FROM planos WHERE ativo = 1 AND COALESCE(slug,'') NOT IN ('diamante', 'demo') ORDER BY ordem ASC")->fetchAll();
 
 $pageTitle = 'Meu Plano';
 include __DIR__ . '/../includes/header.php';
@@ -326,7 +327,9 @@ function hexToRgba($hex, $alpha) {
                             </div>
 
                             <?php if ($isCurrent): ?>
-                                <button class="btn current-plan-btn w-100" disabled><i class="fas fa-check me-1"></i>Plano Atual</button>
+                                <button class="btn current-plan-btn w-100" onclick="abrirPagamento(<?= (int)$p['id'] ?>, '<?= htmlspecialchars(addslashes($p['nome'])) ?>', <?= (float)$precoMensal ?>)">
+                                    <i class="fas fa-sync me-1"></i> Renovar este plano
+                                </button>
                             <?php else: ?>
                                 <button class="btn btn-contratar w-100" onclick="abrirPagamento(<?= (int)$p['id'] ?>, '<?= htmlspecialchars(addslashes($p['nome'])) ?>', <?= (float)$precoMensal ?>)">
                                     <i class="fas fa-shopping-cart me-1"></i> Contratar / Renovar
@@ -368,19 +371,51 @@ function hexToRgba($hex, $alpha) {
 
                 <div id="metodoStep" style="display:none;">
                     <p class="small text-muted mb-3">Escolha a forma de pagamento para <strong id="metodoPlanoNome"></strong></p>
-                    <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-outline-success text-start" id="metodoPixBtn" onclick="escolherMetodo('pix')">
-                            <span class="d-block"><i class="fab fa-pix me-2"></i> PIX</span>
-                            <small class="text-muted">Pagamento instantâneo</small>
-                        </button>
-                        <button type="button" class="btn btn-outline-warning text-start" id="metodoBoletoBtn" onclick="escolherMetodo('boleto')">
-                            <span class="d-block"><i class="fas fa-barcode me-2"></i> Boleto bancário</span>
-                            <small class="text-muted">Compensação em até 3 dias úteis</small>
-                        </button>
-                        <button type="button" class="btn btn-outline-primary text-start" id="metodoCartaoBtn" onclick="escolherMetodo('cartao')">
-                            <span class="d-block"><i class="fas fa-credit-card me-2"></i> Cartão de crédito/débito</span>
-                            <small class="text-muted">À vista ou parcelado, processado pelo Mercado Pago</small>
-                        </button>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-success text-start w-100" id="metodoPixBtn" onclick="escolherMetodo('pix')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#ecfdf5;color:#047857;flex:0 0 38px;"><i class="fab fa-pix fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">PIX</span>
+                                        <small class="text-muted">Pagamento instantâneo</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-warning text-start w-100" id="metodoBoletoBtn" onclick="escolherMetodo('boleto')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#fffbeb;color:#b45309;flex:0 0 38px;"><i class="fas fa-barcode fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">Boleto bancário</span>
+                                        <small class="text-muted">Compensação em até 3 dias úteis</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-primary text-start w-100" id="metodoCartaoCreditoBtn" onclick="escolherMetodo('cartao_credito')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#eef2ff;color:#4338ca;flex:0 0 38px;"><i class="fas fa-credit-card fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">Cartão de crédito</span>
+                                        <small class="text-muted">À vista ou parcelado · Mercado Pago</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-info text-start w-100" id="metodoCartaoDebitoBtn" onclick="escolherMetodo('cartao_debito')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#e0f2fe;color:#0369a1;flex:0 0 38px;"><i class="fas fa-credit-card fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">Cartão de débito</span>
+                                        <small class="text-muted">Pagamento à vista · Mercado Pago</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -496,6 +531,8 @@ let duracaoSelecionada = 1;
 let criando = false;
 
 const METODOS = <?= json_encode($metodosAdmin) ?>;
+const CARTAO_OK = METODOS.indexOf('cartao') !== -1;
+const QTD_OPCOES = (METODOS.indexOf('pix') !== -1 ? 1 : 0) + (METODOS.indexOf('boleto') !== -1 ? 1 : 0) + (CARTAO_OK ? 1 : 0);
 const MAX_PARCELAS = <?= (int)$maxParcelasAdmin ?>;
 const PUBLIC_KEY = <?= json_encode($mpPubKeyAdmin) ?>;
 const CPF_CLIENTE = <?= json_encode($adminCpfCnpj) ?>;
@@ -563,23 +600,21 @@ function abrirPagamento(planoId, nome, precoPadrao) {
     const nomePeriodo = { 1: 'Mensal', 3: 'Trimestral', 6: 'Semestral', 12: 'Anual' }[duracao] || 'Mensal';
     document.getElementById('pixModalTitle').textContent = 'Pagamento - ' + nome + ' (' + nomePeriodo + ')';
     document.getElementById('metodoPlanoNome').textContent = nome + ' (' + nomePeriodo + ')';
-    document.getElementById('voltarMetodoBtn').style.display = METODOS.length === 1 ? 'none' : 'inline-block';
+    document.getElementById('voltarMetodoBtn').style.display = (QTD_OPCOES === 1 && !CARTAO_OK) ? 'none' : 'inline-block';
     esconderPassos();
-    document.getElementById('pixLoading').style.display = 'block';
     let modal = new bootstrap.Modal(document.getElementById('pixModal'));
     modal.show();
 
     document.getElementById('metodoPixBtn').style.display = METODOS.indexOf('pix') !== -1 ? 'block' : 'none';
     document.getElementById('metodoBoletoBtn').style.display = METODOS.indexOf('boleto') !== -1 ? 'block' : 'none';
-    document.getElementById('metodoCartaoBtn').style.display = METODOS.indexOf('cartao') !== -1 ? 'block' : 'none';
+    document.getElementById('metodoCartaoCreditoBtn').style.display = CARTAO_OK ? 'block' : 'none';
+    document.getElementById('metodoCartaoDebitoBtn').style.display = CARTAO_OK ? 'block' : 'none';
 
-    setTimeout(function () {
-        if (METODOS.length === 1) {
-            escolherMetodo(METODOS[0]);
-        } else {
-            mostrarPasso('metodoStep');
-        }
-    }, 150);
+    if (QTD_OPCOES === 1 && !CARTAO_OK) {
+        escolherMetodo(METODOS[0]);
+    } else {
+        mostrarPasso('metodoStep');
+    }
 }
 
 function iniciarPolling() {
@@ -634,7 +669,8 @@ function escolherMetodo(m) {
     criando = false;
     if (m === 'pix') { puxarPix(); }
     else if (m === 'boleto') { puxarBoleto(); }
-    else { mostrarCartao(); }
+    else if (m === 'cartao_credito') { tipoCartao = 'credito'; mostrarCartao(); }
+    else if (m === 'cartao_debito') { tipoCartao = 'debito'; mostrarCartao(); }
 }
 function voltarMetodos() {
     pararPolling();
@@ -734,6 +770,7 @@ function atualizarBtnCartao() {
 }
 
 function mostrarCartao() {
+    aplicarTabCartao();
     montarParcelasCartao();
     atualizarBtnCartao();
     const msg = document.getElementById('ccMsg');
@@ -744,6 +781,27 @@ function mostrarCartao() {
         msg.textContent = '';
     }
     mostrarPasso('cartaoContent');
+}
+
+function aplicarTabCartao() {
+    const cred = document.getElementById('tabCredito');
+    const deb = document.getElementById('tabDebito');
+    const parcelas = document.getElementById('ccParcelasWrap');
+    if (!cred || !deb) return;
+    if (tipoCartao === 'debito') {
+        deb.className = 'btn btn-sm flex-fill fw-bold active';
+        deb.style.background = '#fff';
+        cred.className = 'btn btn-sm flex-fill fw-bold text-muted';
+        cred.style.background = '';
+        if (parcelas) { parcelas.style.opacity = '0.35'; parcelas.style.pointerEvents = 'none'; }
+    } else {
+        cred.className = 'btn btn-sm flex-fill fw-bold active';
+        cred.style.background = '#fff';
+        deb.className = 'btn btn-sm flex-fill fw-bold text-muted';
+        deb.style.background = '';
+        if (parcelas) { parcelas.style.opacity = '1'; parcelas.style.pointerEvents = 'auto'; }
+    }
+    if (typeof atualizarBtnCartao === 'function') atualizarBtnCartao();
 }
 
 function detectarBandeira(num) {
@@ -839,23 +897,11 @@ function tokenSucesso(resp) {
 function iniciarCartao() {
     document.getElementById('tabCredito').addEventListener('click', function () {
         tipoCartao = 'credito';
-        document.getElementById('tabCredito').className = 'btn btn-sm flex-fill fw-bold active';
-        document.getElementById('tabCredito').style.background = '#fff';
-        document.getElementById('tabDebito').className = 'btn btn-sm flex-fill fw-bold text-muted';
-        document.getElementById('tabDebito').style.background = '';
-        document.getElementById('ccParcelasWrap').style.opacity = '1';
-        document.getElementById('ccParcelasWrap').style.pointerEvents = 'auto';
-        atualizarBtnCartao();
+        aplicarTabCartao();
     });
     document.getElementById('tabDebito').addEventListener('click', function () {
         tipoCartao = 'debito';
-        document.getElementById('tabDebito').className = 'btn btn-sm flex-fill fw-bold active';
-        document.getElementById('tabDebito').style.background = '#fff';
-        document.getElementById('tabCredito').className = 'btn btn-sm flex-fill fw-bold text-muted';
-        document.getElementById('tabCredito').style.background = '';
-        document.getElementById('ccParcelasWrap').style.opacity = '0.35';
-        document.getElementById('ccParcelasWrap').style.pointerEvents = 'none';
-        atualizarBtnCartao();
+        aplicarTabCartao();
     });
     document.getElementById('ccParcelas').addEventListener('change', atualizarBtnCartao);
     document.getElementById('ccNumero').addEventListener('input', function (e) { e.target.value = formatarNumero(e.target.value); });

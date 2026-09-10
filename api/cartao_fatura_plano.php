@@ -1,8 +1,8 @@
 <?php
 // =====================================================
-// PAGAMENTO DE PLANO COM CARTÃO (Mercado Pago - Super Admin)
-// Recebe o token do cartão gerado no frontend (MercadoPago.js) e cria a cobrança.
-// Funciona em todos os países (cartão internacional).
+// CARTÃO DE FATURA DE PLANO EXISTENTE (Mercado Pago - Super Admin)
+// Recebe o token do cartão gerado no frontend (MercadoPago.js) e cobra uma
+// fatura (planos_pagamentos) já pendente do admin logado.
 // =====================================================
 ob_start();
 
@@ -33,14 +33,9 @@ if (getConfig('super_plano_cartao', '1') !== '1') {
     apiResponder(['sucesso' => false, 'erro' => 'O pagamento com cartão não está habilitado neste momento.']);
 }
 
-$planoId = (int)($_POST['plano_id'] ?? 0);
-if ($planoId <= 0) {
-    apiResponder(['sucesso' => false, 'erro' => 'Plano inválido.']);
-}
-
-$duracao = (int)($_POST['duracao_meses'] ?? 1);
-if (!in_array($duracao, [1, 3, 6, 12])) {
-    $duracao = 1;
+$pagamentoId = (int)($_POST['pagamento_id'] ?? 0);
+if ($pagamentoId <= 0) {
+    apiResponder(['sucesso' => false, 'erro' => 'Fatura inválida.']);
 }
 
 $tipo = trim((string)($_POST['tipo'] ?? 'credito'));
@@ -58,23 +53,15 @@ if ($cardToken === '') {
 
 $pdo = getConnection();
 
-$stmt = $pdo->prepare("SELECT * FROM planos WHERE id = ? AND ativo = 1 AND COALESCE(slug,'') <> 'demo'");
-$stmt->execute([$planoId]);
-$plano = $stmt->fetch();
-if (!$plano) {
-    apiResponder(['sucesso' => false, 'erro' => 'Plano não encontrado ou inativo.']);
+$stmt = $pdo->prepare("SELECT * FROM planos_pagamentos WHERE id = ? AND admin_id = ?");
+$stmt->execute([$pagamentoId, $adminId]);
+$fatura = $stmt->fetch();
+if (!$fatura) {
+    apiResponder(['sucesso' => false, 'erro' => 'Fatura não encontrada.']);
 }
 
-$stmt = $pdo->prepare("SELECT * FROM administradores WHERE id = ?");
-$stmt->execute([$adminId]);
-$admin = $stmt->fetch();
-if (!$admin) {
-    apiResponder(['sucesso' => false, 'erro' => 'Administrador não encontrado.']);
+if ($fatura['status'] !== 'pendente') {
+    apiResponder(['sucesso' => false, 'erro' => 'Esta fatura não está mais pendente.']);
 }
 
-$valor = valorPlanoPorDuracao($plano['preco'], $duracao);
-$descricao = descricaoPeriodoPlano($plano['nome'], $duracao);
-
-$resultado = criarCartaoPlano($adminId, $planoId, $valor, $descricao, $admin, $duracao, $cardToken, $installments, $paymentMethodId, $tipo);
-
-apiResponder($resultado);
+apiResponder(gerarCartaoFaturaPlano($pagamentoId, $cardToken, $installments, $paymentMethodId, $tipo));

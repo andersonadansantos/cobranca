@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 require_once __DIR__ . '/../config/settings.php';
-$logo = getConfig('logo_mobile', '') ?: getLogoLogin();
+$logo = getLogoClienteLoginMobile();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

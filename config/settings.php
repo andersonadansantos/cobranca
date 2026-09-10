@@ -121,12 +121,55 @@ function getCorFundo() {
     return getConfig('cor_fundo', '#f8f9fa');
 }
 
-function getLogo() {
-    return getConfig('logo_empresa', '');
+// Verifica se o caminho da logo ainda aponta para um arquivo existente.
+// Evita imagens quebradas quando o arquivo foi removido mas o config ficou no banco.
+function logoPathValido($caminho) {
+    $caminho = trim((string)$caminho);
+    if ($caminho === '') return false;
+    if (strpos($caminho, 'http') === 0 || strpos($caminho, 'data:') === 0) return true;
+    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminho);
+    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
+    return file_exists($arquivo);
 }
 
+// Logo da marca global (enviada pelo Super Admin). Usada nos painéis,
+// e-mails, PDFs e site público. As logos de personalização do admin
+// (logo_empresa/logo_mobile) ficam reservadas ao login do cliente.
+function getLogo() {
+    return getLogoLoginGlobal();
+}
+
+// Logo das telas de login do ADMIN (logins internos). Retorna vazio se o arquivo sumiu.
 function getLogoLogin() {
-    return getConfig('logo_login', '');
+    $logo = getConfig('logo_login', '');
+    return logoPathValido($logo) ? $logo : '';
+}
+
+// Logo global de login enviada pelo Super Admin (admin_id NULL).
+// Usada nas telas de login do admin, independente do tenant.
+function getLogoLoginGlobal() {
+    $logo = getConfigGlobal('logo_login', '');
+    return logoPathValido($logo) ? $logo : '';
+}
+
+// Logo do LOGIN DO CLIENTE (desktop): é o "Logo da Empresa" da personalização
+// do admin (logo_empresa). Cai para a marca global se o admin não enviou.
+function getLogoClienteLogin() {
+    $logo = getConfig('logo_empresa', '');
+    if (!logoPathValido($logo)) {
+        $logo = getLogoLoginGlobal();
+    }
+    return $logo;
+}
+
+// Logo do LOGIN DO CLIENTE (mobile/app): é o "Logo Versão Mobile" da
+// personalização do admin (logo_mobile). Cai para a marca global se não houver.
+function getLogoClienteLoginMobile() {
+    $logo = getConfig('logo_mobile', '');
+    if (!logoPathValido($logo)) {
+        $logo = getLogoLoginGlobal();
+    }
+    return $logo;
 }
 
 function getNomeSistema() {

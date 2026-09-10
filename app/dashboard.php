@@ -80,7 +80,7 @@ $allF = $pdo->prepare("SELECT * FROM faturas WHERE cliente_id = ? AND status NOT
 $allF->execute([$userId]);
 $proxima = $allF->fetch();
 
-$logo = getConfig('logo_mobile', '') ?: getLogo();
+$logo = getLogo();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

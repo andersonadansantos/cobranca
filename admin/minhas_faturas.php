@@ -2,10 +2,36 @@
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/inter_pix.php';
+require_once __DIR__ . '/../config/mercadopago.php';
 
 $pdo = getConnection();
 $adminId = (int)$_SESSION['admin_id'];
+
+// === Métodos de pagamento disponíveis para faturas de plano (PIX + boleto + cartão) ===
+$metodosAdmin = ['pix', 'boleto', 'cartao'];
+if (getConfig('super_plano_cartao', '1') !== '1') {
+    $metodosAdmin = array_values(array_diff($metodosAdmin, ['cartao']));
+}
+if (getConfig('super_plano_pix_boleto', '1') !== '1') {
+    $metodosAdmin = array_values(array_diff($metodosAdmin, ['pix', 'boleto']));
+}
+$cartaoOk = in_array('cartao', $metodosAdmin, true);
+$maxParcelasAdmin = $cartaoOk ? max(1, min((int)getConfig('super_mp_max_parcelas', '12'), 12)) : 0;
+
+$mpPubKeyAdmin = '';
+if ($cartaoOk) {
+    $superMp = getMPConfigSuper();
+    $mpPubKeyAdmin = $superMp['super_mp_public_key'] ?? '';
+}
+
+// CPF/CNPJ do admin (obrigatório para cartão e boleto)
+$adminCpfCnpj = '';
+$stmt = $pdo->prepare("SELECT cpf, cnpj FROM administradores WHERE id = ?");
+$stmt->execute([$adminId]);
+$rowCpf = $stmt->fetch();
+$adminCpfCnpj = $rowCpf ? preg_replace('/[^0-9]/', '', (($rowCpf['cnpj'] ?: '') ?: ($rowCpf['cpf'] ?? ''))) : '';
 
 // Gera automaticamente a fatura de renovação quando faltam 7 dias (ou menos)
 $faturaAutoId = gerarFaturaRenovacaoAuto($adminId);
@@ -58,10 +84,11 @@ foreach ($faturas as $f) {
         'descricao'   => $f['descricao'] ?: ('Fatura de plano'),
         'plano'       => $f['plano_nome'],
         'valor'       => 'R$ ' . number_format((float)$f['valor'], 2, ',', '.'),
+        'valor_num'   => (float)$f['valor'],
         'qr'          => $f['qr_code'] ?: '',
         'pix'         => $f['pix_copia_cola'] ?: '',
         'status'      => $f['status'],
-        'metodo'      => $f['metodo'] ?: 'pix',
+        'metodo'      => $f['metodo'] ?: '',
         'boleto_url'  => $f['boleto_url'] ?: '',
         'boleto_linha' => $f['boleto_linha_digitavel'] ?: ($f['boleto_codigo_barras'] ?: ''),
     ];
@@ -230,7 +257,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                         </button>
                                     <?php elseif ($isPendente): ?>
                                         <button class="btn btn-sm btn-warning fw-bold" onclick="abrirFatura(<?= (int)$f['id'] ?>)">
-                                            <i class="fas fa-qrcode me-1"></i>Pagar com PIX
+                                            <i class="fas fa-wallet me-1"></i>Pagar agora
                                         </button>
                                     <?php elseif ($st === 'pago'): ?>
                                         <span class="text-success small"><i class="fas fa-check-circle me-1"></i>Confirmado</span>
@@ -252,14 +279,65 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:1rem;">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold" id="pixModalFaturaTitle">Pagamento PIX</h5>
+                <h5 class="modal-title fw-bold" id="pixModalFaturaTitle">Pagamento</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body p-4" id="pixModalFaturaBody">
                 <div id="pixFaturaLoading" class="text-center py-4">
                     <div class="spinner-border" style="color:#cd7f32;"></div>
-                    <p class="text-muted mt-3 mb-0">Gerando cobrança PIX...</p>
+                    <p class="text-muted mt-3 mb-0">Gerando cobrança...</p>
                 </div>
+
+                <div id="metodoFaturaStep" style="display:none;">
+                    <p class="small text-muted mb-3">Escolha a forma de pagamento desta fatura</p>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-success text-start w-100" id="metodoFaturaPixBtn" onclick="escolherMetodoFatura('pix')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#ecfdf5;color:#047857;flex:0 0 38px;"><i class="fab fa-pix fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">PIX</span>
+                                        <small class="text-muted">Pagamento instantâneo</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-warning text-start w-100" id="metodoFaturaBoletoBtn" onclick="escolherMetodoFatura('boleto')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#fffbeb;color:#b45309;flex:0 0 38px;"><i class="fas fa-barcode fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">Boleto bancário</span>
+                                        <small class="text-muted">Compensação em até 3 dias úteis</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-primary text-start w-100" id="metodoFaturaCartaoCreditoBtn" onclick="escolherMetodoFatura('cartao_credito')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#eef2ff;color:#4338ca;flex:0 0 38px;"><i class="fas fa-credit-card fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">Cartão de crédito</span>
+                                        <small class="text-muted">À vista ou parcelado · Mercado Pago</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-outline-info text-start w-100" id="metodoFaturaCartaoDebitoBtn" onclick="escolherMetodoFatura('cartao_debito')" style="border-width:2px;border-radius:.8rem;padding:.9rem 1rem;">
+                                <span class="d-flex align-items-center gap-3">
+                                    <span class="d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;border-radius:10px;background:#e0f2fe;color:#0369a1;flex:0 0 38px;"><i class="fas fa-credit-card fa-lg"></i></span>
+                                    <span class="d-block lh-sm text-start">
+                                        <span class="d-block fw-bold">Cartão de débito</span>
+                                        <small class="text-muted">Pagamento à vista · Mercado Pago</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="pixFaturaContent" style="display:none;">
                     <div class="text-center mb-3">
                         <div class="d-inline-flex align-items-center gap-2">
@@ -282,6 +360,9 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <i class="fas fa-copy"></i>
                             </button>
                         </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="#" class="small text-muted" onclick="trocarMetodoFatura();return false;">← Escolher outro método</a>
                     </div>
                 </div>
                 <div id="boletoFaturaContent" style="display:none;">
@@ -306,6 +387,58 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             </button>
                         </div>
                     </div>
+                    <div class="text-center mt-3">
+                        <a href="#" class="small text-muted" onclick="trocarMetodoFatura();return false;">← Escolher outro método</a>
+                    </div>
+                </div>
+                <div id="cartaoFaturaContent" style="display:none;">
+                    <div class="d-flex rounded border p-1 mb-3">
+                        <button type="button" id="tabFaturaCredito" class="btn btn-sm flex-fill fw-bold active" style="background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);">Crédito</button>
+                        <button type="button" id="tabFaturaDebito" class="btn btn-sm flex-fill fw-bold text-muted">Débito</button>
+                    </div>
+                    <div id="ccFaturaMsg" class="small mb-2" style="min-height:18px;"></div>
+                    <form id="ccFaturaForm">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Número do cartão</label>
+                            <input id="ccFaturaNumero" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" class="form-control font-monospace">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Nome impresso no cartão</label>
+                            <input id="ccFaturaNome" autocomplete="cc-name" class="form-control">
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Validade</label>
+                                <input id="ccFaturaValidade" inputmode="numeric" placeholder="MM/AA" maxlength="5" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">CVV</label>
+                                <input id="ccFaturaCvv" inputmode="numeric" maxlength="4" class="form-control">
+                            </div>
+                        </div>
+                        <div class="mb-3" id="ccFaturaParcelasWrap">
+                            <label class="form-label small fw-semibold">Parcelas</label>
+                            <select id="ccFaturaParcelas" class="form-select"></select>
+                        </div>
+                        <button type="submit" id="ccFaturaBtn" class="btn btn-dark w-100 fw-bold" style="border-radius:.7rem;">Pagar</button>
+                    </form>
+                    <p class="mt-3 mb-0 small text-muted text-center">Pagamento processado com segurança pelo Mercado Pago.</p>
+                    <div class="text-center mt-3">
+                        <a href="#" class="small text-muted" onclick="trocarMetodoFatura();return false;">← Escolher outro método</a>
+                    </div>
+                </div>
+                <div id="cartaoFaturaAguardando" style="display:none;">
+                    <div class="text-center mb-3">
+                        <div class="d-inline-flex align-items-center gap-2">
+                            <span class="pulse-dot"></span>
+                            <span class="text-muted small">Aguardando confirmação do pagamento com cartão</span>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <button class="btn btn-sm btn-outline-primary fw-semibold" onclick="verificarCartaoFatura(pixPagamentoId, this)">
+                            <i class="fas fa-sync-alt me-1"></i>Verificar pagamento
+                        </button>
+                    </div>
                 </div>
                 <div class="alert alert-success mt-3 py-2 mb-0" id="faturaConfirmado" style="display:none;">
                     <i class="fas fa-check-circle me-1"></i> <strong>Pagamento confirmado!</strong> Seu plano foi renovado. Atualizando...
@@ -319,11 +452,24 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     </div>
 </div>
 
+<?php if ($cartaoOk && !empty($mpPubKeyAdmin)): ?>
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+<?php endif; ?>
+
 <script>
 const faturasData = <?= json_encode($faturasJs) ?>;
+const METODOS_FATURA = <?= json_encode($metodosAdmin) ?>;
+const CARTAO_FATURA = METODOS_FATURA.indexOf('cartao') !== -1;
+const MAX_PARCELAS = <?= (int)$maxParcelasAdmin ?>;
+const PUBLIC_KEY = <?= json_encode($mpPubKeyAdmin) ?>;
+const CPF_CLIENTE = <?= json_encode($adminCpfCnpj) ?>;
 let pixPolling = null;
 let pixPagamentoId = null;
 let pixQrJsInstance = null;
+let criando = false;
+let tipoCartao = 'credito';
+let parcelaMontada = false;
+let mp = null;
 
 function carregarQrJs(callback) {
     if (typeof QRCode !== 'undefined') { callback(); return; }
@@ -365,21 +511,37 @@ function mostrarQrFatura(qrB64, copiaCola) {
     }
 }
 
+function esconderPassosFatura() {
+    ['pixFaturaLoading', 'metodoFaturaStep', 'pixFaturaContent', 'boletoFaturaContent', 'cartaoFaturaContent', 'cartaoFaturaAguardando', 'faturaConfirmado', 'pixFaturaErro'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
+function mostrarPassoFatura(id) {
+    esconderPassosFatura();
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'block';
+}
+
 function abrirFatura(id) {
     const f = faturasData[id];
     if (!f) return;
     pixPagamentoId = id;
+    criando = false;
     document.getElementById('pixModalFaturaTitle').textContent = f.descricao + ' · ' + f.plano;
+    esconderPassosFatura();
     document.getElementById('pixFaturaLoading').style.display = 'block';
-    document.getElementById('pixFaturaContent').style.display = 'none';
-    document.getElementById('boletoFaturaContent').style.display = 'none';
-    document.getElementById('faturaConfirmado').style.display = 'none';
-    document.getElementById('pixFaturaErro').style.display = 'none';
     let modal = new bootstrap.Modal(document.getElementById('pixModalFatura'));
     modal.show();
 
-    if (f.metodo === 'boleto') {
-        // Boleto já foi gerado: exibe link e linha digitável e monitora o status
+    if (f.status !== 'pendente') {
+        document.getElementById('pixFaturaLoading').style.display = 'none';
+        mostrarErroFatura('Esta fatura não está mais pendente.');
+        return;
+    }
+
+    // Boleto já foi gerado: exibe link e linha digitável e monitora o status
+    if (f.metodo === 'boleto' && f.boleto_linha) {
         document.getElementById('boletoFaturaLinha').textContent = f.boleto_linha;
         const link = document.getElementById('boletoFaturaLink');
         if (f.boleto_url) {
@@ -388,41 +550,107 @@ function abrirFatura(id) {
         } else {
             link.classList.add('disabled');
         }
-        document.getElementById('pixFaturaLoading').style.display = 'none';
-        document.getElementById('boletoFaturaContent').style.display = 'block';
+        mostrarPassoFatura('boletoFaturaContent');
         iniciarPolling();
         return;
     }
 
+    // Cartão já foi tentado: aguarda a confirmação
+    if (f.metodo === 'cartao') {
+        mostrarPassoFatura('cartaoFaturaAguardando');
+        iniciarPolling();
+        return;
+    }
+
+    // Já existe cobrança PIX gerada: apenas exibe e inicia o monitoramento
     if (f.qr || f.pix) {
-        // Já existe cobrança gerada: apenas exibe e inicia o monitoramento
         document.getElementById('pixFaturaCopia').textContent = f.pix;
-        document.getElementById('pixFaturaLoading').style.display = 'none';
-        document.getElementById('pixFaturaContent').style.display = 'block';
+        mostrarPassoFatura('pixFaturaContent');
         mostrarQrFatura(f.qr, f.pix);
         iniciarPolling();
         return;
     }
 
-    // Sem cobrança ainda: gera o PIX para esta fatura
+    // Sem cobrança ainda: apresenta os 4 métodos para o admin escolher
+    mostrarMetodosFatura();
+}
+
+function mostrarMetodosFatura() {
+    pararPolling();
+    criando = false;
+    document.getElementById('metodoFaturaPixBtn').style.display = METODOS_FATURA.indexOf('pix') !== -1 ? 'block' : 'none';
+    document.getElementById('metodoFaturaBoletoBtn').style.display = METODOS_FATURA.indexOf('boleto') !== -1 ? 'block' : 'none';
+    document.getElementById('metodoFaturaCartaoCreditoBtn').style.display = CARTAO_FATURA ? 'block' : 'none';
+    document.getElementById('metodoFaturaCartaoDebitoBtn').style.display = CARTAO_FATURA ? 'block' : 'none';
+    mostrarPassoFatura('metodoFaturaStep');
+}
+
+function trocarMetodoFatura() {
+    mostrarMetodosFatura();
+}
+
+function escolherMetodoFatura(m) {
+    if (m === 'pix') { gerarPixFaturaSel(pixPagamentoId); }
+    else if (m === 'boleto') { gerarBoletoFaturaSel(pixPagamentoId); }
+    else if (m === 'cartao_credito') { tipoCartao = 'credito'; mostrarCartaoFatura(pixPagamentoId); }
+    else if (m === 'cartao_debito') { tipoCartao = 'debito'; mostrarCartaoFatura(pixPagamentoId); }
+}
+
+function gerarPixFaturaSel(id) {
+    if (criando) return;
+    criando = true;
+    mostrarPassoFatura('pixFaturaLoading');
     const fd = new FormData();
     fd.append('pagamento_id', id);
     fetch('/cobranca/api/criar_pix_fatura_plano.php', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(res => {
+            criando = false;
             if (res.erro) {
                 mostrarErroFatura(res.erro);
                 return;
             }
             faturasData[id].qr = res.qr_code || '';
             faturasData[id].pix = res.pix_copia_cola || '';
+            faturasData[id].metodo = 'pix';
             document.getElementById('pixFaturaCopia').textContent = res.pix_copia_cola;
-            document.getElementById('pixFaturaLoading').style.display = 'none';
-            document.getElementById('pixFaturaContent').style.display = 'block';
+            mostrarPassoFatura('pixFaturaContent');
             mostrarQrFatura(res.qr_code, res.pix_copia_cola);
             iniciarPolling();
         })
-        .catch(() => mostrarErroFatura('Erro de conexão ao gerar o PIX. Tente novamente.'));
+        .catch(() => { criando = false; mostrarErroFatura('Erro de conexão ao gerar o PIX. Tente novamente.'); });
+}
+
+function gerarBoletoFaturaSel(id) {
+    if (criando) return;
+    criando = true;
+    mostrarPassoFatura('pixFaturaLoading');
+    const fd = new FormData();
+    fd.append('pagamento_id', id);
+    fetch('/cobranca/api/criar_boleto_fatura_plano.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(res => {
+            criando = false;
+            if (res.erro) {
+                mostrarErroFatura(res.erro);
+                return;
+            }
+            const f = faturasData[id];
+            f.metodo = 'boleto';
+            f.boleto_url = res.boleto_url || '';
+            f.boleto_linha = res.boleto_linha_digitavel || res.boleto_codigo_barras || '';
+            document.getElementById('boletoFaturaLinha').textContent = f.boleto_linha;
+            const link = document.getElementById('boletoFaturaLink');
+            if (f.boleto_url) {
+                link.href = f.boleto_url;
+                link.classList.remove('disabled');
+            } else {
+                link.classList.add('disabled');
+            }
+            mostrarPassoFatura('boletoFaturaContent');
+            iniciarPolling();
+        })
+        .catch(() => { criando = false; mostrarErroFatura('Erro de conexão ao gerar o boleto. Tente novamente.'); });
 }
 
 function verificarCartaoFatura(id, btn) {
@@ -482,10 +710,7 @@ function verificarPagamento() {
 }
 function mostrarErroFatura(msg) {
     pararPolling();
-    document.getElementById('pixFaturaLoading').style.display = 'none';
-    document.getElementById('pixFaturaContent').style.display = 'none';
-    document.getElementById('boletoFaturaContent').style.display = 'none';
-    document.getElementById('faturaConfirmado').style.display = 'none';
+    esconderPassosFatura();
     const el = document.getElementById('pixFaturaErro');
     el.textContent = msg;
     el.style.display = 'block';
@@ -527,7 +752,246 @@ function feedbackCopiarBoletoFatura() {
     setTimeout(() => { btn.innerHTML = old; btn.classList.add('btn-outline-warning'); btn.classList.remove('btn-success'); }, 1500);
 }
 
-document.getElementById('pixModalFatura').addEventListener('hidden.bs.modal', pararPolling);
+document.getElementById('pixModalFatura').addEventListener('hidden.bs.modal', function () { pararPolling(); criando = false; });
+
+/* -------- CARTÃO -------- */
+function valorFaturaAtual() {
+    const f = faturasData[pixPagamentoId];
+    return f ? (parseFloat(f.valor_num) || 0) : 0;
+}
+function txtMoeda(v) {
+    return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+}
+function parcelasAtuaisFatura() {
+    const sel = document.getElementById('ccFaturaParcelas');
+    if (tipoCartao === 'debito' || !sel) return 1;
+    return parseInt(sel.value, 10) || 1;
+}
+function montarParcelasFatura() {
+    const sel = document.getElementById('ccFaturaParcelas');
+    if (parcelaMontada || !sel) return;
+    parcelaMontada = true;
+    sel.innerHTML = '';
+    for (let i = 1; i <= MAX_PARCELAS; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = i === 1 ? 'À vista (1x)' : i + 'x';
+        sel.appendChild(opt);
+    }
+}
+function atualizarBtnFatura() {
+    const btn = document.getElementById('ccFaturaBtn');
+    const p = parcelasAtuaisFatura();
+    const v = valorFaturaAtual();
+    if (tipoCartao === 'debito' || p <= 1) {
+        btn.textContent = 'Pagar à vista — ' + txtMoeda(v);
+    } else {
+        btn.textContent = 'Pagar em ' + p + 'x de ' + txtMoeda(v / p);
+    }
+}
+function aplicarTabFatura() {
+    const cred = document.getElementById('tabFaturaCredito');
+    const deb = document.getElementById('tabFaturaDebito');
+    const parcelas = document.getElementById('ccFaturaParcelasWrap');
+    if (!cred || !deb) return;
+    if (tipoCartao === 'debito') {
+        deb.className = 'btn btn-sm flex-fill fw-bold active';
+        deb.style.background = '#fff';
+        cred.className = 'btn btn-sm flex-fill fw-bold text-muted';
+        cred.style.background = '';
+        if (parcelas) { parcelas.style.opacity = '0.35'; parcelas.style.pointerEvents = 'none'; }
+    } else {
+        cred.className = 'btn btn-sm flex-fill fw-bold active';
+        cred.style.background = '#fff';
+        deb.className = 'btn btn-sm flex-fill fw-bold text-muted';
+        deb.style.background = '';
+        if (parcelas) { parcelas.style.opacity = '1'; parcelas.style.pointerEvents = 'auto'; }
+    }
+    atualizarBtnFatura();
+}
+function mostrarCartaoFatura(id) {
+    pixPagamentoId = id;
+    pararPolling();
+    criando = false;
+    aplicarTabFatura();
+    montarParcelasFatura();
+    atualizarBtnFatura();
+    const msg = document.getElementById('ccFaturaMsg');
+    if (!CPF_CLIENTE) {
+        msg.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Para pagar com cartão ou boleto é preciso ter CPF/CNPJ no cadastro. <a href="/cobranca/admin/perfil.php" class="fw-bold text-decoration-underline">Editar perfil</a>';
+        msg.style.color = '#b45309';
+    } else {
+        msg.textContent = '';
+    }
+    mostrarPassoFatura('cartaoFaturaContent');
+}
+
+function detectarBandeira(num) {
+    num = num.replace(/\s+/g, '');
+    if (!/^\d{6,}$/.test(num)) return null;
+    if (/^4/.test(num)) return { b: 'visa', label: 'Visa' };
+    if (/^3[47]/.test(num)) return { b: 'amex', label: 'Amex' };
+    if (/(^5[1-5]|^2[2-7])/.test(num)) return { b: 'master', label: 'Mastercard' };
+    if (/^(4011|4312|4389|4514|4573|4576|5041|5066|5090|6277|6362|6363|6504|6505|6507|6509|6516|6550)/.test(num)) return { b: 'elo', label: 'Elo' };
+    if (/^(6062|3841)/.test(num)) return { b: 'hipercard', label: 'Hipercard' };
+    return null;
+}
+function metodoDebitoFatura(numero) {
+    const b = detectarBandeira(numero.replace(/\s+/g, ''));
+    if (!b) return '';
+    switch (b.b) {
+        case 'visa': return 'debvisa';
+        case 'master': return 'debmaster';
+        case 'elo': return 'debelo';
+        case 'hipercard': return 'debhipercard';
+        default: return '';
+    }
+}
+function formatarNumeroFatura(val) {
+    const d = val.replace(/\D+/g, '');
+    const b = detectarBandeira(d);
+    if (b && b.b === 'amex') return d.slice(0, 15).replace(/(\d{4})(\d{6})(\d+)/, '$1 $2 $3');
+    return d.slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+function mensagensErro(err) {
+    const msgs = [];
+    function add(m) { if (m && typeof m === 'string' && msgs.indexOf(m) === -1) msgs.push(m); }
+    if (Array.isArray(err)) err.forEach(function (i) { add(i && (i.message || i.description)); });
+    else if (err && typeof err === 'object') { add(err.message); add(err.error); if (Array.isArray(err.cause)) err.cause.forEach(function (c) { add(c && c.description); }); }
+    else add(err);
+    return msgs.join(' | ') || 'Não foi possível validar o cartão. Verifique os dados e tente novamente.';
+}
+function msgFatura(texto, tipo) {
+    const m = document.getElementById('ccFaturaMsg');
+    m.className = 'small mb-2';
+    if (tipo === 'ok') { m.style.color = '#0f7b5c'; }
+    else if (tipo === 'warn') { m.style.color = '#b45309'; }
+    else { m.style.color = '#dc3545'; }
+    m.textContent = texto || '';
+}
+function tokenErroFatura(err) {
+    const btn = document.getElementById('ccFaturaBtn');
+    btn.disabled = false;
+    atualizarBtnFatura();
+    msgFatura(mensagensErro(err), 'erro');
+}
+function tokenSucessoFatura(resp) {
+    if (!resp || typeof resp.id !== 'string' || resp.id === '') { tokenErroFatura(resp); return; }
+    const fd = new FormData();
+    fd.append('pagamento_id', pixPagamentoId);
+    fd.append('card_token', resp.id);
+    fd.append('installments', parcelasAtuaisFatura());
+    fd.append('tipo', tipoCartao);
+    fd.append('method', tipoCartao === 'debito' ? metodoDebitoFatura(document.getElementById('ccFaturaNumero').value) : '');
+    fetch('/cobranca/api/cartao_fatura_plano.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.sucesso && (d.status === 'pago' || d.mp_status === 'approved')) {
+                pararPolling();
+                mostrarPassoFatura('faturaConfirmado');
+                setTimeout(() => window.location.reload(), 1800);
+            } else if (d.sucesso) {
+                faturasData[pixPagamentoId].metodo = 'cartao';
+                msgFatura('Pagamento em processamento. Acompanhe a confirmação abaixo.', 'warn');
+                mostrarPassoFatura('cartaoFaturaAguardando');
+                iniciarPolling();
+            } else {
+                const btn = document.getElementById('ccFaturaBtn');
+                btn.disabled = false;
+                atualizarBtnFatura();
+                msgFatura(d.erro || 'Não foi possível processar o pagamento.', 'erro');
+            }
+        })
+        .catch(function () {
+            const btn = document.getElementById('ccFaturaBtn');
+            btn.disabled = false;
+            atualizarBtnFatura();
+            msgFatura('Erro de conexão. Tente novamente.', 'erro');
+        });
+}
+
+function iniciarCartaoFatura() {
+    document.getElementById('tabFaturaCredito').addEventListener('click', function () {
+        tipoCartao = 'credito';
+        aplicarTabFatura();
+    });
+    document.getElementById('tabFaturaDebito').addEventListener('click', function () {
+        tipoCartao = 'debito';
+        aplicarTabFatura();
+    });
+    document.getElementById('ccFaturaParcelas').addEventListener('change', atualizarBtnFatura);
+    document.getElementById('ccFaturaNumero').addEventListener('input', function (e) { e.target.value = formatarNumeroFatura(e.target.value); });
+    document.getElementById('ccFaturaValidade').addEventListener('input', function (e) {
+        let v = e.target.value.replace(/\D+/g, '').slice(0, 4);
+        if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+        e.target.value = v;
+    });
+
+    document.getElementById('ccFaturaForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const numero = document.getElementById('ccFaturaNumero').value.replace(/\s+/g, '');
+        const nome = document.getElementById('ccFaturaNome').value.trim();
+        const validade = document.getElementById('ccFaturaValidade').value.trim();
+        const cvv = document.getElementById('ccFaturaCvv').value.trim();
+        if (!CPF_CLIENTE) {
+            msgFatura('Cadastre um CPF ou CNPJ no seu perfil para pagar com cartão.', 'erro');
+            return;
+        }
+        if (!/^\d{13,16}$/.test(numero)) { msgFatura('Número de cartão inválido.', 'erro'); return; }
+        const m = validade.match(/^(\d{2})\s*\/\s*(\d{2})$/);
+        if (!m) { msgFatura('Validade inválida. Use o formato MM/AA.', 'erro'); return; }
+        const mes = parseInt(m[1], 10), ano = 2000 + parseInt(m[2], 10);
+        if (mes < 1 || mes > 12) { msgFatura('Mês da validade inválido.', 'erro'); return; }
+        if (cvv.length < 3) { msgFatura('CVV inválido.', 'erro'); return; }
+        if (!nome) { msgFatura('Informe o nome impresso no cartão.', 'erro'); return; }
+        const hoje = new Date();
+        if (ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1)) {
+            msgFatura('Este cartão está vencido.', 'erro');
+            return;
+        }
+
+        const btn = document.getElementById('ccFaturaBtn');
+        btn.disabled = true;
+        btn.textContent = 'Processando...';
+        msgFatura('', 'ok');
+
+        if (!mp) { tokenErroFatura('SDK de pagamento não carregado. Recarregue a página.'); return; }
+
+        const payload = {
+            cardNumber: numero,
+            cardholderName: nome,
+            cardExpirationMonth: (mes < 10 ? '0' : '') + mes,
+            cardExpirationYear: String(ano),
+            securityCode: cvv,
+            installments: parcelasAtuaisFatura(),
+            identificationType: CPF_CLIENTE.length === 14 ? 'CNPJ' : 'CPF',
+            identificationNumber: CPF_CLIENTE,
+            locale: 'pt-BR'
+        };
+
+        try {
+            const prom = mp.createCardToken(payload);
+            if (prom && typeof prom.then === 'function') {
+                prom.then(tokenSucessoFatura).catch(function (err) { tokenErroFatura(err); });
+            } else {
+                mp.createCardToken(payload, function (resp, err) {
+                    if (err && (err.length || err.message)) tokenErroFatura(err);
+                    else tokenSucessoFatura(resp);
+                });
+            }
+        } catch (ex) {
+            tokenErroFatura(ex);
+        }
+    });
+
+    atualizarBtnFatura();
+}
+
+if (CARTAO_FATURA && PUBLIC_KEY) {
+    try { mp = new MercadoPago(PUBLIC_KEY, { locale: 'pt-BR' }); } catch (e) { mp = null; }
+    iniciarCartaoFatura();
+}
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

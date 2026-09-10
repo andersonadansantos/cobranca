@@ -322,6 +322,10 @@ function siteTrad() {
         'pag_boleto_d' => 'Gere um boleto para pagar em qualquer banco ou lotérica.',
         'pag_cartao' => 'Cartão de crédito / débito',
         'pag_cartao_d' => 'Pague com seu cartão — inclusive internacional — à vista ou parcelado.',
+        'pag_cartao_credito' => 'Cartão de crédito',
+        'pag_cartao_credito_d' => 'Pague à vista ou parcelado, processado pelo Mercado Pago.',
+        'pag_cartao_debito' => 'Cartão de débito',
+        'pag_cartao_debito_d' => 'Pague à vista com débito direto da sua conta.',
         'pag_note_int' => 'Pagamento processado pelo Mercado Pago em reais (R$). Fora do Brasil, a conversão é feita pelo seu banco emissor.',
         'pag_b_abrir' => 'Abrir boleto bancário',
         'pag_b_linha' => 'Linha digitável',
@@ -556,6 +560,10 @@ function siteTrad() {
         'pag_boleto_d' => 'Genera un boleto para pagar en cualquier banco.',
         'pag_cartao' => 'Tarjeta de crédito / débito',
         'pag_cartao_d' => 'Paga con tu tarjeta —incluso internacional— al contado o en cuotas.',
+        'pag_cartao_credito' => 'Tarjeta de crédito',
+        'pag_cartao_credito_d' => 'Paga al contado o en cuotas, procesado por Mercado Pago.',
+        'pag_cartao_debito' => 'Tarjeta de débito',
+        'pag_cartao_debito_d' => 'Paga al contado con débito directo de tu cuenta.',
         'pag_note_int' => 'El pago se procesa con Mercado Pago en reales (R$). Fuera de Brasil, la conversión la hace tu banco emisor.',
         'pag_b_abrir' => 'Abrir boleto bancario',
         'pag_b_linha' => 'Línea de pago',
@@ -775,7 +783,7 @@ function siteCorHex($cor) {
         'danger' => '#dc2626',
         'dark' => '#1f2937',
     ];
-    return $mapa[strtolower(trim((string)$cor))] ?? '#0f7b5c';
+    return $mapa[strtolower(trim((string)$cor))] ?? '#0057EC';
 }
 
 // Classe Tailwind (valor arbitrário) a partir da cor do plano
@@ -804,7 +812,7 @@ function siteHeader($secao = '') {
     <meta name="keywords" content="<?= siteT('seo_keys') ?>">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="<?= SITE_NOME ?>">
-    <meta name="theme-color" content="#059669">
+    <meta name="theme-color" content="#0057EC">
     <link rel="icon" type="image/png" href="/cobranca/assets/img/pix-logo.svg">
     <?php
     // ===================== SEO =====================
@@ -912,9 +920,9 @@ function siteHeader($secao = '') {
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
                     colors: {
                         brand: {
-                            50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7',
-                            400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857',
-                            800: '#065f46', 900: '#064e3b',
+                            50: '#eef4ff', 100: '#dbe7ff', 200: '#b8d1ff', 300: '#8ab6ff',
+                            400: '#5b96f9', 500: '#2f74f4', 600: '#0057EC', 700: '#0047c4',
+                            800: '#00389a', 900: '#062e6f',
                         }
                     }
                 }
@@ -934,7 +942,7 @@ function siteHeader($secao = '') {
             100% { background-position: 220% 50%; }
         }
         .anim-shimmer {
-            background: linear-gradient(90deg, #059669 0%, #34d399 25%, #f59e0b 50%, #34d399 75%, #059669 100%);
+            background: linear-gradient(90deg, #0057EC 0%, #3b82f6 25%, #f59e0b 50%, #3b82f6 75%, #0057EC 100%);
             background-size: 220% auto;
             -webkit-background-clip: text;
                     background-clip: text;
@@ -965,12 +973,9 @@ function siteHeader($secao = '') {
 <body class="bg-white text-slate-800 antialiased font-sans">
 <!-- Navegação -->
 <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
-    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <a href="/cobranca/index.php" class="flex items-center gap-2 font-extrabold text-lg tracking-tight">
-            <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white grid place-items-center shadow-lg shadow-brand-200">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </span>
-            <span><?= SITE_NOME ?></span>
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-36 flex items-center justify-between">
+        <a href="/cobranca/index.php" class="flex items-center">
+            <img src="/cobranca/assets/img/logo_color.png" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[135px] w-auto max-w-[400px] object-contain">
         </a>
         <div class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
             <a href="/cobranca/index.php#como-funciona" class="hover:text-brand-700 transition"><?= siteT('nav_como') ?></a>
@@ -1043,11 +1048,8 @@ function siteFooter() {
 <footer class="bg-slate-950 text-slate-300 mt-24">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
         <div class="md:col-span-2">
-            <div class="flex items-center gap-2 font-extrabold text-white text-lg">
-                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white grid place-items-center">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </span>
-                <?= SITE_NOME ?>
+            <div class="flex items-center">
+                <img src="/cobranca/assets/img/logo-branca.png" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[90px] w-auto max-w-[340px] object-contain">
             </div>
             <p class="mt-4 text-sm leading-relaxed text-slate-400 max-w-md"><?= siteT('ft_desc') ?></p>
         </div>

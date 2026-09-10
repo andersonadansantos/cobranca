@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
 }
 
 require_once __DIR__ . '/../config/settings.php';
-$logo = getLogoLogin();
+$logo = getLogoClienteLogin();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

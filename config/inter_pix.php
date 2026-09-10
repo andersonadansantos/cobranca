@@ -543,7 +543,7 @@ function gerarPixFaturaPlano($pagamentoId) {
         return $cobranca;
     }
 
-    $pdo->prepare("UPDATE planos_pagamentos SET codigo_solicitacao=?, qr_code=?, pix_copia_cola=? WHERE id=?")
+    $pdo->prepare("UPDATE planos_pagamentos SET metodo='pix', codigo_solicitacao=?, qr_code=?, pix_copia_cola=?, boleto_url=NULL, boleto_codigo_barras=NULL, boleto_linha_digitavel=NULL WHERE id=?")
         ->execute([$cobranca['codigo_solicitacao'], $cobranca['qr_code'], $cobranca['pix_copia_cola'], $pg['id']]);
 
     return [
@@ -553,6 +553,162 @@ function gerarPixFaturaPlano($pagamentoId) {
         'qr_code' => $cobranca['qr_code'],
         'pix_copia_cola' => $cobranca['pix_copia_cola'],
         'valor' => (float)$pg['valor'],
+    ];
+}
+
+// Gera (ou reutiliza) o boleto Mercado Pago de uma fatura de plano já existente
+// (pendente), atualizando o mesmo registro em planos_pagamentos.
+function gerarBoletoFaturaPlano($pagamentoId) {
+    garantirColunasPlanosPagamentos();
+    $pdo = getConnection();
+    $stmt = $pdo->prepare("SELECT * FROM planos_pagamentos WHERE id = ?");
+    $stmt->execute([$pagamentoId]);
+    $pg = $stmt->fetch();
+    if (!$pg) return ['erro' => 'Fatura não encontrada.'];
+
+    if ($pg['status'] !== 'pendente') {
+        return ['erro' => 'Esta fatura não está pendente.'];
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE id = ?");
+    $stmt->execute([(int)$pg['admin_id']]);
+    $admin = $stmt->fetch();
+    if (!$admin) return ['erro' => 'Administrador não encontrado.'];
+
+    if (!function_exists('criarBoletoMercadoPagoSuper')) {
+        require_once __DIR__ . '/mercadopago.php';
+    }
+
+    $cpfCnpj = preg_replace('/[^0-9]/', '', ($admin['cnpj'] ?? '') ?: ($admin['cpf'] ?? ''));
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        return ['erro' => 'Cadastre um CPF ou CNPJ válido no seu perfil para gerar o boleto.'];
+    }
+
+    $descricao = $pg['descricao'] ?: 'Fatura de plano';
+    $boleto = criarBoletoMercadoPagoSuper(
+        $descricao,
+        (float)$pg['valor'],
+        $admin['nome'] ?? 'Pagador',
+        $cpfCnpj,
+        $admin['email'] ?? '',
+        $admin['cep'] ?? '',
+        $admin['logradouro'] ?? '',
+        $admin['numero'] ?? '',
+        $admin['bairro'] ?? '',
+        $admin['cidade'] ?? '',
+        $admin['estado'] ?? ''
+    );
+
+    if (empty($boleto['sucesso'])) {
+        return $boleto;
+    }
+
+    $pdo->prepare("UPDATE planos_pagamentos SET metodo='boleto', codigo_solicitacao=?, boleto_url=?, boleto_codigo_barras=?, boleto_linha_digitavel=?, mp_status=?, qr_code=NULL, pix_copia_cola=NULL WHERE id=?")
+        ->execute([$boleto['payment_id'], $boleto['boleto_url'], $boleto['boleto_codigo_barras'], $boleto['boleto_linha_digitavel'], $boleto['status'] ?? '', $pg['id']]);
+
+    return [
+        'sucesso' => true,
+        'pagamento_id' => (int)$pg['id'],
+        'boleto_url' => $boleto['boleto_url'] ?? '',
+        'boleto_codigo_barras' => $boleto['boleto_codigo_barras'] ?? '',
+        'boleto_linha_digitavel' => $boleto['boleto_linha_digitavel'] ?? '',
+        'mp_status' => $boleto['status'] ?? '',
+        'valor' => (float)$pg['valor'],
+    ];
+}
+
+// Cobra no cartão (crédito/débito) uma fatura de plano já existente (pendente),
+// atualizando o mesmo registro em planos_pagamentos.
+function gerarCartaoFaturaPlano($pagamentoId, $cardToken, $installments = 1, $paymentMethodId = '', $tipo = 'credito') {
+    garantirColunasPlanosPagamentos();
+    $pdo = getConnection();
+    $stmt = $pdo->prepare("SELECT * FROM planos_pagamentos WHERE id = ?");
+    $stmt->execute([$pagamentoId]);
+    $pg = $stmt->fetch();
+    if (!$pg) return ['erro' => 'Fatura não encontrada.'];
+
+    if ($pg['status'] !== 'pendente') {
+        return ['erro' => 'Esta fatura não está pendente.'];
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM administradores WHERE id = ?");
+    $stmt->execute([(int)$pg['admin_id']]);
+    $admin = $stmt->fetch();
+    if (!$admin) return ['erro' => 'Administrador não encontrado.'];
+
+    if (!function_exists('criarPagamentoCartaoMercadoPagoSuper')) {
+        require_once __DIR__ . '/mercadopago.php';
+    }
+
+    $cpfCnpj = preg_replace('/[^0-9]/', '', ($admin['cnpj'] ?? '') ?: ($admin['cpf'] ?? ''));
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        return ['erro' => 'Cadastre um CPF ou CNPJ válido no seu perfil para pagar com cartão.'];
+    }
+
+    $tipo = ($tipo === 'debito') ? 'debito' : 'credito';
+    $installments = max(1, min((int)$installments, (int)getConfig('super_mp_max_parcelas', '12')));
+    if ($tipo === 'debito') {
+        $installments = 1;
+    }
+
+    $descricao = $pg['descricao'] ?: 'Fatura de plano';
+    $result = criarPagamentoCartaoMercadoPagoSuper(
+        $descricao,
+        (float)$pg['valor'],
+        $admin['email'] ?? '',
+        $admin['nome'] ?? 'Pagador',
+        $cpfCnpj,
+        $cardToken,
+        $installments,
+        $paymentMethodId,
+        $tipo
+    );
+
+    $mpStatus = $result['status'] ?? ($result['mp_status'] ?? '');
+    $pgId = (int)$pg['id'];
+
+    if (empty($result['sucesso'])) {
+        $statusRow = in_array($mpStatus, ['rejected', 'cancelled'], true) ? 'cancelado' : 'pendente';
+        $pdo->prepare("UPDATE planos_pagamentos SET metodo='cartao', mp_status=?, status=? WHERE id=?")
+            ->execute([$mpStatus ?: ($result['detalhes'] ? 'erro' : 'rejected'), $statusRow, $pgId]);
+        return [
+            'sucesso' => false,
+            'erro' => $result['erro'] ?? 'O pagamento com cartão foi recusado. Tente novamente.',
+            'mp_status' => $mpStatus ?: 'rejected',
+        ];
+    }
+
+    $pdo->prepare("UPDATE planos_pagamentos SET metodo='cartao', codigo_solicitacao=?, mp_status=?, qr_code=NULL, pix_copia_cola=NULL, boleto_url=NULL, boleto_linha_digitavel=NULL WHERE id=?")
+        ->execute([$result['payment_id'], $mpStatus, $pgId]);
+
+    if (in_array($mpStatus, ['rejected', 'cancelled', 'refunded'], true)) {
+        $pdo->prepare("UPDATE planos_pagamentos SET status='cancelado' WHERE id=?")->execute([$pgId]);
+        return [
+            'sucesso' => false,
+            'erro' => $result['status_detail'] !== '' && function_exists('msgErroCartaoMercadoPago')
+                ? msgErroCartaoMercadoPago($result['status_detail'])
+                : 'O pagamento com cartão foi recusado. Tente novamente.',
+            'mp_status' => $mpStatus,
+        ];
+    }
+
+    if ($mpStatus === 'approved') {
+        $pdo->prepare("UPDATE planos_pagamentos SET status='pago', pago_em=? WHERE id=?")
+            ->execute([date('Y-m-d H:i:s'), $pgId]);
+        ativarPlanoAdmin($pg['admin_id'], $pg['plano_id'], (int)($pg['duracao_meses'] ?? 1));
+        return [
+            'sucesso' => true,
+            'status' => 'pago',
+            'pagamento_id' => $pgId,
+            'mp_status' => $mpStatus,
+        ];
+    }
+
+    return [
+        'sucesso' => true,
+        'status' => 'pendente',
+        'pagamento_id' => $pgId,
+        'mp_status' => $mpStatus,
     ];
 }
 
