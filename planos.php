@@ -18,7 +18,7 @@ siteHeader();
         <div class="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
             <?php foreach ($planos as $p):
                 $cor = siteCorHex($p['cor'] ?? '');
-                $destacado = ($p['slug'] ?? '') === 'ouro' || (count($planos) > 1 && ($p === end($planos)));
+                $destacado = abs((float)($p['preco'] ?? 0) - 49.00) < 0.005;
             ?>
             <div class="relative flex flex-col rounded-3xl border p-8 transition hover:-translate-y-1.5
                 <?= $destacado ? 'border-brand-500 shadow-2xl shadow-brand-100 ring-1 ring-brand-500 bg-gradient-to-b from-brand-50/50 to-white' : 'border-slate-100 bg-white shadow-lg shadow-slate-100/60' ?>">
