@@ -1,0 +1,22 @@
+# Central de faturas
+
+> Sistema de cobrança online, automática e recorrente. Emita faturas, cobre por PIX e boleto e automatize a cobrança pelo WhatsApp e e-mail.
+
+A Central de faturas é um software de cobrança para empresas, pequenas empresas, escolas, academias, prestadores de serviços e SaaS. O sistema faz gestão de contas a receber, controle de mensalidades, cobrança recorrente e dispara lembretes automáticos antes e depois do vencimento, para reduzir inadimplência.
+
+## Principais recursos
+
+- [Sistema de cobrança Pix e boleto](/planos.php): faturas com QR Code PIX e boletos registrados.
+- [Cobrança pelo WhatsApp](/planos.php): envio automático do link de pagamento e do código PIX no chat do cliente.
+- [Cobrança automática e recorrente](/planos.php): lembretes programados por e-mail e WhatsApp.
+- [Gestão de cobranças e mensalidades](/planos.php): painel de contas a receber, vencimentos e inadimplência.
+- [Planos e preços](/planos.php): opções para mensalidades, escolas, academias e prestadores de serviços.
+- [Demonstração gratuita](/demo.php): teste o sistema de cobrança sem cartão de crédito.
+- [Criar conta](/cadastro.php): comece a cobrar em minutos.
+
+## Empresa
+
+- Nome: Central de faturas
+- Segmento: software de cobrança (SaaS)
+- Abrangência: Brasil
+- Idiomas: português e espanhol (latino-americano)

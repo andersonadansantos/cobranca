@@ -120,8 +120,8 @@ function siteTrad() {
     $pt = [
         'site_tagline' => 'Cobranças que chegam e são pagas',
         'meta_desc' => 'Emissão e cobrança de faturas com PIX, boleto, WhatsApp e e-mail. Cadastre-se em minutos e receba mais rápido.',
-        'seo_title' => 'CobrançaPRO — Cobranças que chegam e são pagas',
-        'seo_keys' => 'cobrança online, emissão de faturas, cobrança por WhatsApp, cobrança por e-mail, boleto, PIX, receber pagamentos, gestão de cobranças',
+        'seo_title' => 'Central de faturas - Receba sem intermediários',
+        'seo_keys' => 'sistema de cobrança, sistema de cobrança online, sistema de cobrança automática, sistema de cobrança recorrente, software de cobrança, cobrança recorrente, cobrança automática, sistema de cobrança Pix, sistema de cobrança Pix e boleto, cobrança pelo WhatsApp, sistema de mensalidades, gestão de cobranças, sistema de cobrança para empresas, sistema de cobrança para pequenas empresas, sistema de contas a receber, controle de mensalidades, sistema de cobrança para escolas, sistema de cobrança para academias, sistema de cobrança para prestadores de serviços, sistema de cobrança para SaaS',
         // NAV
         'nav_como' => 'Como funciona',
         'nav_recursos' => 'Recursos',
@@ -816,7 +816,8 @@ function siteHeader($secao = '') {
     <link rel="icon" type="image/png" href="/cobranca/assets/img/pix-logo.svg">
     <?php
     // ===================== SEO =====================
-    $proto   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $fwd   = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    $proto = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $fwd === 'https') ? 'https' : 'http';
     $host    = $_SERVER['HTTP_HOST'] ?? '';
     $reqPath = strtok($_SERVER['REQUEST_URI'] ?? '', '?');
 
@@ -909,6 +910,52 @@ function siteHeader($secao = '') {
         }
     }
     </script>
+
+    <?php if ($idiomaAtual === 'pt-BR'):
+        // ===================== GEO - Schema para buscadores generativos (SEO) =====================
+        $geoApp = [
+            '@context' => 'https://schema.org',
+            '@type' => 'SoftwareApplication',
+            'name' => 'Central de faturas',
+            'alternateName' => 'Sistema de cobrança online',
+            'operatingSystem' => 'Web',
+            'applicationCategory' => 'BusinessApplication',
+            'applicationSubCategory' => 'Sistema de cobrança',
+            'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'BRL'],
+            'countriesSupported' => 'BR',
+            'availableLanguage' => ['pt-BR', 'es-MX', 'es-AR', 'es-CO', 'es-CL', 'es-PE'],
+            'description' => 'Sistema de cobrança online, automática e recorrente: emite faturas, cobra por PIX e boleto, dispara cobrança pelo WhatsApp e e-mail e faz gestão de mensalidades e contas a receber para empresas, pequenas empresas, escolas, academias, prestadores de serviços e SaaS.',
+            'author' => [
+                '@type' => 'Organization',
+                'name' => 'Central de faturas',
+                'url' => $urlBase,
+                'contactPoint' => [
+                    '@type' => 'ContactPoint',
+                    'contactType' => 'customer support',
+                    'availableLanguage' => 'Portuguese',
+                    'areaServed' => 'BR',
+                ],
+            ],
+        ];
+        if ($ogImagem !== '') {
+            $geoApp['author']['logo'] = ['@type' => 'ImageObject', 'url' => $ogImagem];
+        }
+        $geoFaq = [
+            '@context' => 'https://schema.org',
+            '@type' => 'FAQPage',
+            'mainEntity' => [
+                ['@type' => 'Question', 'name' => 'O que é um sistema de cobrança online?', 'acceptedAnswer' => ['@type' => 'Answer', 'text' => 'Central de faturas é um sistema de cobrança online que emite faturas, cobra por PIX e boleto e automatiza o envio de cobranças pelo WhatsApp e e-mail.']],
+                ['@type' => 'Question', 'name' => 'Como funciona a cobrança automática e recorrente?', 'acceptedAnswer' => ['@type' => 'Answer', 'text' => 'O sistema de cobrança recorrente dispara lembretes automáticos de pagamento antes e depois do vencimento, reduzindo a inadimplência e o trabalho manual.']],
+                ['@type' => 'Question', 'name' => 'O software de cobrança emite PIX e boleto?', 'acceptedAnswer' => ['@type' => 'Answer', 'text' => 'Sim. Gera cobranças PIX e boletos registrados para pagamento imediato ou agendado, direto no painel.']],
+                ['@type' => 'Question', 'name' => 'É possível fazer cobrança pelo WhatsApp?', 'acceptedAnswer' => ['@type' => 'Answer', 'text' => 'Sim. A cobrança pelo WhatsApp envia o link de pagamento e o código PIX automaticamente no chat do cliente.']],
+                ['@type' => 'Question', 'name' => 'O sistema de cobrança serve para escolas, academias e prestadores de serviços?', 'acceptedAnswer' => ['@type' => 'Answer', 'text' => 'Sim. É um sistema de cobrança para escolas, academias e prestadores de serviços, com controle de mensalidades e contas a receber.']],
+                ['@type' => 'Question', 'name' => 'O que é gestão de cobranças e controle de mensalidades?', 'acceptedAnswer' => ['@type' => 'Answer', 'text' => 'É o acompanhamento de todas as faturas, vencimentos, inadimplência e recebimentos de contas a receber em um único painel.']],
+            ],
+        ];
+    ?>
+    <script type="application/ld+json"><?= json_encode($geoApp, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?></script>
+    <script type="application/ld+json"><?= json_encode($geoFaq, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?></script>
+    <?php endif; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
