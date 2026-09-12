@@ -17,7 +17,7 @@ if ($planoId > 0 && $pdo) {
 }
 
 if ($p['id'] == 0) {
-    header('Location: /cobranca/planos.php');
+    header('Location: ' . siteAsset('/planos.php'));
     exit;
 }
 
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             notificarSuperCadastro($d['nome'], $d['usuario'], $d['email'], $p['nome']);
 
-            header('Location: /cobranca/pagamento.php?plano=' . $planoId);
+            header('Location: ' . siteAsset('/pagamento.php?plano=' . (int)$planoId));
             exit;
         } catch (Throwable $ex) {
             $erros[] = siteT('cad_e_falha') . $ex->getMessage();
@@ -110,7 +110,7 @@ siteHeader();
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-5 gap-10">
         <!-- Formulário -->
         <div class="lg:col-span-3">
-            <a href="/cobranca/planos.php" class="inline-flex items-center gap-1 text-sm font-bold text-brand-700 hover:text-brand-800">
+            <a href="<?= siteAsset('/planos.php') ?>" class="inline-flex items-center gap-1 text-sm font-bold text-brand-700 hover:text-brand-800">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
                 <?= siteT('cad_voltar') ?>
             </a>

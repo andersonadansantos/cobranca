@@ -449,6 +449,27 @@ body {
 .app-badge-atrasado { background: #fee2e2; color: #991b1b; }
 .app-badge-cancelado { background: #f1f5f9; color: #475569; }
 
+.app-recibo-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid rgba(108, 92, 231, 0.35);
+    border-radius: var(--app-radius-sm);
+    background: rgba(108, 92, 231, 0.08);
+    color: var(--app-primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    -webkit-appearance: none;
+}
+.app-recibo-btn:hover {
+    background: rgba(108, 92, 231, 0.15);
+}
+
 .app-fatura-action {
     display: flex;
     gap: 8px;

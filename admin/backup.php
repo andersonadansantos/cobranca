@@ -1,10 +1,11 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
-require_once __DIR__ . '/../config/database.php';
 
-$success = '';
-$error = '';
+// Backup do banco inteiro só está disponível na área do Super Admin.
+// Admins de tenants não devem acessar o dump global (dados de todos os admins).
+header('Location: index.php');
+exit;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['gerar_backup'])) {
     $host = '127.0.0.1';

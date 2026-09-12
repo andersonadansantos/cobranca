@@ -61,7 +61,7 @@ siteHeader();
     <div class="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><?= htmlspecialchars($falhaDemo) ?></div>
     <?php endif; ?>
 
-    <a href="/cobranca/demo.php?entrar=1" class="mt-10 inline-flex items-center gap-2 rounded-2xl px-10 py-5 text-lg font-black text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-2xl shadow-brand-200 hover:-translate-y-0.5 transition">
+    <a href="<?= siteAsset('/demo.php?entrar=1') ?>" class="mt-10 inline-flex items-center gap-2 rounded-2xl px-10 py-5 text-lg font-black text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-2xl shadow-brand-200 hover:-translate-y-0.5 transition">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <?= siteT('demo_btn') ?>
     </a>

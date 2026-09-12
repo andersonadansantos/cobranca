@@ -56,6 +56,17 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $listaFaturas = $stmt->fetchAll();
 
+$recibosMap = [];
+if (!empty($listaFaturas)) {
+    $fatIds = array_map(function($f) { return (int)$f['id']; }, $listaFaturas);
+    $fPlaceholders = implode(',', array_fill(0, count($fatIds), '?'));
+    $recStmt = $pdo->prepare("SELECT id, fatura_id FROM recibos WHERE fatura_id IN ($fPlaceholders)");
+    $recStmt->execute($fatIds);
+    while ($rec = $recStmt->fetch()) {
+        $recibosMap[(int)$rec['fatura_id']] = (int)$rec['id'];
+    }
+}
+
 $statsStmt = $pdo->prepare("SELECT status, valor_final FROM faturas WHERE cliente_id = ?");
 $statsStmt->execute([$userId]);
 $allFaturas = $statsStmt->fetchAll();
@@ -80,7 +91,7 @@ $allF = $pdo->prepare("SELECT * FROM faturas WHERE cliente_id = ? AND status NOT
 $allF->execute([$userId]);
 $proxima = $allF->fetch();
 
-$logo = getLogo();
+$logo = getLogoPainelUsuario();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>
@@ -96,6 +107,7 @@ $nomeSistema = getNomeSistema();
     <link rel="icon" type="image/png" sizes="192x192" href="icon.php?size=192">
     <link rel="apple-touch-icon" href="icon.php?size=192">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="css/app.css" rel="stylesheet">
 </head>
@@ -218,6 +230,11 @@ $nomeSistema = getNomeSistema();
                             </div>
                             <span class="app-badge app-badge-<?= $f['status'] ?>"><?= ucfirst($f['status']) ?></span>
                         </div>
+                        <?php if ($f['status'] === 'pago' && isset($recibosMap[$f['id']])): ?>
+                            <a href="recibo.php?id=<?= (int)$recibosMap[$f['id']] ?>" class="app-recibo-btn" onclick="event.stopPropagation();">
+                                <i class="bi bi-file-earmark-text"></i> Ver Recibo
+                            </a>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>

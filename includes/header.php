@@ -32,6 +32,7 @@ $painelIdioma = painelIdiomaAtual();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="/cobranca/assets/css/style.css?v=<?= filemtime($_SERVER['DOCUMENT_ROOT'] . '/cobranca/assets/css/style.css') ?>" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script>
@@ -62,6 +63,6 @@ $painelIdioma = painelIdiomaAtual();
     <div class="demo-banner">
         <i class="fas fa-flask me-2"></i>
         <strong>Você está na conta de demonstração.</strong>&nbsp;Envios de WhatsApp e e-mail estão bloqueados para não gerar cobranças reais.
-        <a href="/cobranca/planos.php" class="ms-2" style="color:#fff;text-decoration:underline;">Conheça os planos</a>
+        <a href="/planos.php" class="ms-2" style="color:#fff;text-decoration:underline;">Conheça os planos</a>
     </div>
 <?php endif; ?>

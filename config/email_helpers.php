@@ -707,10 +707,48 @@ if (!function_exists('enviarEmailPagamento')) {
         $msgHtml = montarMensagemPagamentoHtml($fatura);
         $msgTxt  = montarMensagemPagamentoTxt($fatura);
 
-        $ret = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+        // Anexa o recibo em PDF (auto-gerado quando a fatura é paga).
+        $anexoPdf = '';
+        $anexoNome = '';
+        if (!function_exists('gerarReciboPdfFatura')) {
+            require_once __DIR__ . '/recibo_pdf.php';
+        }
+        if (function_exists('gerarReciboPdfFatura')) {
+            try {
+                $anexoPdf = gerarReciboPdfFatura($fatura);
+                if ($anexoPdf && is_file($anexoPdf)) {
+                    $anexoNome = 'Recibo_' . $fatura['numero'] . '.pdf';
+                } else {
+                    $anexoPdf = '';
+                }
+            } catch (Throwable $e) {
+                $anexoPdf = '';
+            }
+        }
+
+        if ($anexoPdf) {
+            $ret = enviarEmailComAnexo($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexoPdf, $anexoNome);
+            @unlink($anexoPdf);
+        } else {
+            $ret = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+        }
 
         if (!empty($fatura['email2'])) {
-            enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+            $anexoPdf2 = '';
+            if (function_exists('gerarReciboPdfFatura')) {
+                try {
+                    $anexoPdf2 = gerarReciboPdfFatura($fatura);
+                    if ($anexoPdf2 && !is_file($anexoPdf2)) $anexoPdf2 = '';
+                } catch (Throwable $e) {
+                    $anexoPdf2 = '';
+                }
+            }
+            if ($anexoPdf2) {
+                enviarEmailComAnexo($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexoPdf2, 'Recibo_' . $fatura['numero'] . '.pdf');
+                @unlink($anexoPdf2);
+            } else {
+                enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+            }
         }
 
         return $ret;

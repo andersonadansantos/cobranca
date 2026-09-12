@@ -61,6 +61,17 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $listaFaturas = $stmt->fetchAll();
 
+$recibosMap = [];
+if (!empty($listaFaturas)) {
+    $fatIds = array_map(function($f) { return (int)$f['id']; }, $listaFaturas);
+    $fPlaceholders = implode(',', array_fill(0, count($fatIds), '?'));
+    $recStmt = $pdo->prepare("SELECT id, fatura_id FROM recibos WHERE fatura_id IN ($fPlaceholders)");
+    $recStmt->execute($fatIds);
+    while ($rec = $recStmt->fetch()) {
+        $recibosMap[(int)$rec['fatura_id']] = (int)$rec['id'];
+    }
+}
+
 $totalPendente = 0;
 $totalPago = 0;
 $abertas = 0;
@@ -319,6 +330,14 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
                                         <a href="fatura.php?id=<?= $f['id'] ?>" class="btn btn-sm btn-success">
                                             <i class="fas fa-credit-card me-1"></i> PAGAR
                                         </a>
+                                    <?php elseif ($f['status'] === 'pago'): ?>
+                                        <?php if (isset($recibosMap[$f['id']])): ?>
+                                            <a href="recibo.php?id=<?= (int)$recibosMap[$f['id']] ?>" class="acao-btn acao-btn-primary" title="Baixar Recibo">
+                                                <i class="bi bi-file-earmark-text"></i>
+                                            </a>
+                                        <?php else: ?>
+                                            <small class="text-muted">--</small>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <small class="text-muted">--</small>
                                     <?php endif; ?>

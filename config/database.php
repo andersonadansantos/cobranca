@@ -167,6 +167,24 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `estado` CHAR(2) DEFAULT NULL AFTER `cidade`"); } catch (PDOException $e) {}
 
         try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `recibos` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `admin_id` INT NOT NULL,
+                `cliente_id` INT NOT NULL,
+                `fatura_id` INT NOT NULL,
+                `numero` VARCHAR(20) NOT NULL,
+                `descricao_servico` TEXT,
+                `cidade_emissao` VARCHAR(100),
+                `data_emissao` DATE NOT NULL,
+                `valor_recebido` DECIMAL(10,2) NOT NULL,
+                `valor_extenso` TEXT,
+                `html_gerado` LONGTEXT,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_admin_recibo_numero` (`admin_id`, `numero`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        try {
             $pdo->exec("CREATE TABLE IF NOT EXISTS `login_attempts` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
                 `contexto` VARCHAR(20) NOT NULL,
@@ -582,6 +600,22 @@ function criarTabelas($pdo) {
     try { $pdo->exec("CREATE INDEX idx_faturas_status ON `faturas`(`status`)"); } catch (PDOException $e) {}
     try { $pdo->exec("CREATE INDEX idx_faturas_vencimento ON `faturas`(`data_vencimento`)"); } catch (PDOException $e) {}
     try { $pdo->exec("CREATE INDEX idx_clientes_cpf_cnpj ON `clientes`(`cpf_cnpj`)"); } catch (PDOException $e) {}
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `recibos` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `admin_id` INT NOT NULL,
+        `cliente_id` INT NOT NULL,
+        `fatura_id` INT NOT NULL,
+        `numero` VARCHAR(20) NOT NULL,
+        `descricao_servico` TEXT,
+        `cidade_emissao` VARCHAR(100),
+        `data_emissao` DATE NOT NULL,
+        `valor_recebido` DECIMAL(10,2) NOT NULL,
+        `valor_extenso` TEXT,
+        `html_gerado` LONGTEXT,
+        `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_admin_recibo_numero (`admin_id`, `numero`)
+    ) ENGINE=InnoDB");
 
     $configInicial = [
         ['mp_access_token', ''],

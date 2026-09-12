@@ -1,6 +1,7 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $basePath = '/cobranca/usuario';
+$logo = function_exists('getLogoPainelUsuario') ? getLogoPainelUsuario() : ($logo ?? '');
 ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">

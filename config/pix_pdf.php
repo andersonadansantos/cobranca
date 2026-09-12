@@ -319,18 +319,19 @@ function buscarClienteParaPdf($fatura) {
     return $cliente;
 }
 
-function buscarBeneficiarioParaPdf() {
+function buscarBeneficiarioParaPdf($adminId = null) {
+    $config = ($adminId) ? getAllConfigForAdmin((int)$adminId) : getAllConfig();
     $benef = [
-        'favorecido' => getConfig('pix_manual_favorecido', ''),
-        'cnpj' => getConfig('pix_manual_cnpj', ''),
-        'banco' => getConfig('pix_manual_banco', ''),
-        'chave' => getConfig('pix_manual_chave', ''),
+        'favorecido' => $config['pix_manual_favorecido'] ?? '',
+        'cnpj' => $config['pix_manual_cnpj'] ?? '',
+        'banco' => $config['pix_manual_banco'] ?? '',
+        'chave' => $config['pix_manual_chave'] ?? '',
     ];
     $pdo = getConnection();
     if ($pdo) {
         try {
-            $stmt = $pdo->prepare("SELECT nome_fantasia, cnpj FROM administradores WHERE id = 1");
-            $stmt->execute();
+            $stmt = $pdo->prepare("SELECT nome_fantasia, cnpj FROM administradores WHERE id = ?");
+            $stmt->execute([(int)$adminId]);
             $admin = $stmt->fetch();
             if ($admin) {
                 if (empty($benef['favorecido']) && !empty($admin['nome_fantasia'])) $benef['favorecido'] = $admin['nome_fantasia'];
@@ -350,18 +351,30 @@ function gerarPixPdfFatura($fatura) {
     if (empty($pix)) return null;
 
     $cliente = buscarClienteParaPdf($fatura);
-    $benef = buscarBeneficiarioParaPdf();
+
+    $pdo = getConnection();
+    $adminId = (int)($fatura['admin_id'] ?? 0);
+    if ($adminId <= 0 && $pdo) {
+        try {
+            $st = $pdo->prepare("SELECT admin_id FROM faturas WHERE id = ?");
+            $st->execute([(int)$fatura['id']]);
+            $adminId = (int)$st->fetchColumn();
+        } catch (Exception $e) {
+        }
+    }
+
+    $benef = buscarBeneficiarioParaPdf($adminId);
 
     $pdf = new CobrancaPixPdf('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(false);
-    $pdf->nomeSistema = getNomeSistema();
-    $cor = getCorPrimaria();
+    $pdf->nomeSistema = getConfigForAdmin($adminId, 'nome_sistema', getNomeSistema());
+    $cor = getConfigForAdmin($adminId, 'cor_primaria', getCorPrimaria());
     if ($cor) {
         $pdf->setCorPrimariaHex($cor);
     }
     $pdf->AddPage();
 
-    $pdf->desenharCabecalho(getLogoLogin());
+    $pdf->desenharCabecalho(getLogoEmpresaFatura($adminId));
     $pdf->tituloPagina($fatura['numero'] ?? '');
 
     $pdf->sectionCard('DADOS DO CLIENTE', [

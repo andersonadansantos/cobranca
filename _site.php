@@ -14,6 +14,22 @@ if (session_status() === PHP_SESSION_NONE) {
 define('SITE_NOME', 'CobrançaPRO');
 define('SITE_TAGLINE', 'Cobranças que chegam e são pagas');
 
+// Base da URL do site: '' quando o site está na raiz do domínio (produção)
+// ou '/cobranca' quando o site é servido dentro de um subdiretório (XAMPP).
+function siteAssetsBase() {
+    static $base = null;
+    if ($base !== null) return $base;
+    $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    $dir = rtrim(dirname($script), '/');
+    if ($dir === '.' || $dir === '/') $dir = '';
+    $base = $dir;
+    return $base;
+}
+
+function siteAsset($caminho) {
+    return siteAssetsBase() . '/' . ltrim((string)$caminho, '/');
+}
+
 mb_internal_encoding('UTF-8');
 ini_set('default_charset', 'UTF-8');
 
@@ -765,10 +781,10 @@ function siteBeneficioStatus($linha) {
 
 function siteGateways() {
     return [
-        ['log' => '/cobranca/assets/img/pix-logo.svg',             'alt' => 'PIX',          'cls' => 'h-6 w-auto'],
-        ['log' => '/cobranca/assets/img/mercado-pago-logo.png',    'alt' => 'Mercado Pago', 'cls' => 'h-6 w-auto'],
-        ['log' => '/cobranca/assets/img/banco-inter-logo-0-1.png', 'alt' => 'Banco Inter',  'cls' => 'h-6 w-auto'],
-        ['log' => '/cobranca/assets/img/asaas-logo.svg',           'alt' => 'Asaas',        'cls' => 'h-5 w-auto'],
+        ['log' => siteAsset('/assets/img/pix-logo.svg'),             'alt' => 'PIX',          'cls' => 'h-6 w-auto'],
+        ['log' => siteAsset('/assets/img/mercado-pago-logo.png'),    'alt' => 'Mercado Pago', 'cls' => 'h-6 w-auto'],
+        ['log' => siteAsset('/assets/img/banco-inter-logo-0-1.png'), 'alt' => 'Banco Inter',  'cls' => 'h-6 w-auto'],
+        ['log' => siteAsset('/assets/img/asaas-logo.svg'),           'alt' => 'Asaas',        'cls' => 'h-5 w-auto'],
     ];
 }
 
@@ -813,7 +829,7 @@ function siteHeader($secao = '') {
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="<?= SITE_NOME ?>">
     <meta name="theme-color" content="#0057EC">
-    <link rel="icon" type="image/png" href="/cobranca/assets/img/pix-logo.svg">
+    <link rel="icon" type="image/png" href="<?= siteAsset('/assets/img/pix-logo.svg') ?>">
     <?php
     // ===================== SEO =====================
     $fwd   = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
@@ -839,18 +855,21 @@ function siteHeader($secao = '') {
     $ogImagem = '';
     require_once __DIR__ . '/config/settings.php';
     $logo = function_exists('getLogo') ? trim((string)getLogo()) : '';
+    // Normaliza: remove prefixo /cobranca para que siteAsset() reconstrua a URL correta
+    // (localmente vira /cobranca/assets/...; na raiz vira /assets/...)
+    $logo = preg_replace('#^/cobranca(/|$)#', '$1', $logo);
     if ($logo !== '') {
         if (strpos($logo, 'http') === 0) {
             $ogImagem = $logo;
         } elseif (strpos($logo, '/') === 0) {
-            $ogImagem = $proto . '://' . $host . $logo;
+            $ogImagem = $proto . '://' . $host . siteAsset($logo);
         } else {
-            $ogImagem = $proto . '://' . $host . '/cobranca/assets/img/' . $logo;
+            $ogImagem = $proto . '://' . $host . siteAsset('/assets/img/' . $logo);
         }
     }
     if (empty($ogImagem)) {
         $logos = glob(__DIR__ . '/assets/img/logo_*.png');
-        $ogImagem = $logos ? ($proto . '://' . $host . '/cobranca/assets/img/' . basename($logos[0])) : '';
+        $ogImagem = $logos ? ($proto . '://' . $host . siteAsset('/assets/img/' . basename($logos[0]))) : '';
     }
 
     $ogLocale = str_replace('-', '_', $idiomaAtual);
@@ -1021,20 +1040,21 @@ function siteHeader($secao = '') {
 <!-- Navegação -->
 <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-36 flex items-center justify-between">
-        <a href="/cobranca/index.php" class="flex items-center">
-            <img src="/cobranca/assets/img/logo_color.png" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[135px] w-auto max-w-[400px] object-contain">
+        <a href="<?= siteAsset('/') ?>" class="flex items-center">
+            <img src="<?= siteAsset('/assets/img/logo_color.png') ?>" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[135px] 
+            w-auto max-w-[400px] object-contain">
         </a>
         <div class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="/cobranca/index.php#como-funciona" class="hover:text-brand-700 transition"><?= siteT('nav_como') ?></a>
-            <a href="/cobranca/index.php#recursos" class="hover:text-brand-700 transition"><?= siteT('nav_recursos') ?></a>
-            <a href="/cobranca/planos.php" class="hover:text-brand-700 transition"><?= siteT('nav_planos') ?></a>
-            <a href="/cobranca/index.php#faq" class="hover:text-brand-700 transition"><?= siteT('nav_duvidas') ?></a>
+            <a href="<?= siteAsset('/#como-funciona') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_como') ?></a>
+            <a href="<?= siteAsset('/#recursos') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_recursos') ?></a>
+            <a href="<?= siteAsset('/planos.php') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_planos') ?></a>
+            <a href="<?= siteAsset('/#faq') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_duvidas') ?></a>
         </div>
         <div class="flex items-center gap-2">
             <div class="relative" id="idioma-selector">
             <button type="button" id="idioma-btn" aria-haspopup="listbox" aria-expanded="false"
                     class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 focus:outline-none focus:border-brand-400 cursor-pointer">
-                <img id="idioma-lbl-flag" src="/cobranca/assets/img/flags/<?= siteBandeira(siteIdiomaAtual()) ?>" width="20" height="14"
+                <img id="idioma-lbl-flag" src="<?= siteAsset('/assets/img/flags/' . siteBandeira(siteIdiomaAtual())) ?>" width="20" height="14"
                      class="w-5 h-3.5 object-cover rounded-[2px]" alt="">
                 <span id="idioma-lbl"><?= htmlspecialchars(siteIdiomas()[siteIdiomaAtual()] ?? siteIdiomaAtual()) ?></span>
                 <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -1043,7 +1063,7 @@ function siteHeader($secao = '') {
                 <?php foreach (siteIdiomas() as $cod => $rot): ?>
                 <button type="button" data-idioma="<?= $cod ?>" role="option" aria-selected="<?= siteIdiomaAtual() === $cod ? 'true' : 'false' ?>"
                         class="idioma-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-brand-50 hover:text-brand-700 cursor-pointer">
-                    <img src="/cobranca/assets/img/flags/<?= siteBandeira($cod) ?>" width="20" height="14" class="w-5 h-3.5 object-cover rounded-[2px]" alt="">
+                    <img src="<?= siteAsset('/assets/img/flags/' . siteBandeira($cod)) ?>" width="20" height="14" class="w-5 h-3.5 object-cover rounded-[2px]" alt="">
                     <span class="flex-1 text-left"><?= htmlspecialchars($rot) ?></span>
                     <?php if (siteIdiomaAtual() === $cod): ?>
                     <svg class="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
@@ -1079,11 +1099,11 @@ function siteHeader($secao = '') {
             });
         })();
         </script>
-            <a href="/cobranca/demo.php" class="hidden sm:inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 transition">
+            <a href="<?= siteAsset('/demo.php') ?>" class="hidden sm:inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 transition">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 9.563c0-.82.745-1.46 1.55-1.33.85.14 1.25.63 1.25 1.02 0 .78-2.25 1.24-2.25 2.94a.873.873 0 001.66.39M12 14.5v.01"/></svg>
                 <?= siteT('nav_demo') ?>
             </a>
-            <a href="/cobranca/cadastro.php<?= $secao ? '?plano=' . $secao : '' ?>" class="rounded-full px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-200 transition"><?= siteT('nav_criar') ?></a>
+            <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="rounded-full px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-200 transition"><?= siteT('nav_criar') ?></a>
         </div>
     </nav>
 </header>
@@ -1096,17 +1116,17 @@ function siteFooter() {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
         <div class="md:col-span-2">
             <div class="flex items-center">
-                <img src="/cobranca/assets/img/logo-branca.png" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[90px] w-auto max-w-[340px] object-contain">
+                <img src="<?= siteAsset('/assets/img/logo-branca.png') ?>" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[90px] w-auto max-w-[340px] object-contain">
             </div>
             <p class="mt-4 text-sm leading-relaxed text-slate-400 max-w-md"><?= siteT('ft_desc') ?></p>
         </div>
         <div>
             <h4 class="font-bold text-white text-sm uppercase tracking-wider"><?= siteT('ft_produto') ?></h4>
             <ul class="mt-4 space-y-2 text-sm">
-                <li><a href="/cobranca/planos.php" class="hover:text-brand-400 transition"><?= siteT('nav_planos') ?></a></li>
-                <li><a href="/cobranca/demo.php" class="hover:text-brand-400 transition"><?= siteT('nav_demo') ?></a></li>
-                <li><a href="/cobranca/index.php#como-funciona" class="hover:text-brand-400 transition"><?= siteT('nav_como') ?></a></li>
-                <li><a href="/cobranca/index.php#faq" class="hover:text-brand-400 transition"><?= siteT('nav_duvidas') ?></a></li>
+                <li><a href="<?= siteAsset('/planos.php') ?>" class="hover:text-brand-400 transition"><?= siteT('nav_planos') ?></a></li>
+                <li><a href="<?= siteAsset('/demo.php') ?>" class="hover:text-brand-400 transition"><?= siteT('nav_demo') ?></a></li>
+                <li><a href="<?= siteAsset('/#como-funciona') ?>" class="hover:text-brand-400 transition"><?= siteT('nav_como') ?></a></li>
+                <li><a href="<?= siteAsset('/#faq') ?>" class="hover:text-brand-400 transition"><?= siteT('nav_duvidas') ?></a></li>
             </ul>
         </div>
         <div>
@@ -1114,7 +1134,7 @@ function siteFooter() {
             <ul class="mt-4 space-y-2 text-sm">
                 <li><a href="/cobranca/admin/login.php" class="hover:text-brand-400 transition"><?= siteT('ft_painel') ?></a></li>
                 <li><a href="/cobranca/usuario/login.php" class="hover:text-brand-400 transition"><?= siteT('ft_pagador') ?></a></li>
-                <li><a href="/cobranca/cadastro.php" class="hover:text-brand-400 transition"><?= siteT('ft_criar') ?></a></li>
+                <li><a href="<?= siteAsset('/cadastro.php') ?>" class="hover:text-brand-400 transition"><?= siteT('ft_criar') ?></a></li>
             </ul>
         </div>
     </div>

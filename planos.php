@@ -63,7 +63,7 @@ siteHeader();
                     </div>
                 </div>
 
-                <a href="/cobranca/cadastro.php?plano=<?= (int)$p['id'] ?>"
+                <a href="<?= siteAsset('/cadastro.php?plano=' . (int)$p['id']) ?>"
                    class="mt-7 block rounded-2xl py-4 text-center font-bold transition
                    <?= $destacado ? 'text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-xl shadow-brand-200' : 'text-white hover:opacity-90 ' . siteCorCls($cor) ?>"><?= siteT('plan_assinar') ?></a>
 
@@ -92,7 +92,7 @@ siteHeader();
                 <h3 class="text-xl font-black text-slate-900"><?= siteT('pl_demo_t') ?></h3>
                 <p class="mt-1.5 text-sm text-slate-600"><?= siteT('pl_demo_d') ?></p>
             </div>
-            <a href="/cobranca/demo.php" class="shrink-0 inline-flex items-center gap-2 rounded-2xl px-7 py-4 font-bold text-white bg-slate-800 hover:bg-slate-900 transition">
+            <a href="<?= siteAsset('/demo.php') ?>" class="shrink-0 inline-flex items-center gap-2 rounded-2xl px-7 py-4 font-bold text-white bg-slate-800 hover:bg-slate-900 transition">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <?= siteT('pl_ver_demo') ?>
             </a>

@@ -4,6 +4,11 @@ $basePath = '/cobranca/admin';
 $planoExpirado = function_exists('adminPlanoExpirado') ? adminPlanoExpirado() : false;
 $adminDesativado = function_exists('adminEstaAtivo') ? !adminEstaAtivo() : false;
 $acessoRestrito = $planoExpirado || $adminDesativado;
+
+$logoEmpresaAdmin = function_exists('getConfig') ? getConfig('logo_empresa_admin', '') : '';
+if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($logoEmpresaAdmin)) {
+    $logo = $logoEmpresaAdmin;
+}
 ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -27,6 +32,9 @@ $acessoRestrito = $planoExpirado || $adminDesativado;
         <a href="<?= $basePath ?>/emissao.php" class="nav-link <?= $currentPage === 'emissao' ? 'active' : '' ?>">
             <i class="fas fa-file-invoice-dollar"></i> <?= t('nav.emissao') ?>
         </a>
+        <a href="<?= $basePath ?>/recibo_avulso.php" class="nav-link <?= $currentPage === 'recibo_avulso' ? 'active' : '' ?>">
+            <i class="fas fa-file-invoice"></i> Recibo Avulso
+        </a>
         <a href="<?= $basePath ?>/livro_caixa.php" class="nav-link <?= $currentPage === 'livro_caixa' ? 'active' : '' ?>">
             <i class="fas fa-book"></i> <?= t('nav.livro_caixa') ?>
         </a>
@@ -38,7 +46,7 @@ $acessoRestrito = $planoExpirado || $adminDesativado;
         <a href="#" class="nav-link sidebar-toggle-config" onclick="var el=document.getElementById('configSubmenu');el.style.display=el.style.display==='none'?'block':'none';var icon=this.querySelector('.fa-chevron-down,.fa-chevron-up');if(icon){icon.classList.toggle('fa-chevron-down');icon.classList.toggle('fa-chevron-up');}return false;">
             <i class="fas fa-cog"></i> <?= t('nav.configuracoes') ?> <i class="fas fa-chevron-down ms-auto" style="font-size:0.65rem;"></i>
         </a>
-        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','template_whats','config_financeiro','whatsapp'])) ? 'block' : 'none' ?>;">
+        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','template_whats','template_recibo','config_financeiro','whatsapp'])) ? 'block' : 'none' ?>;">
             <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-key"></i> <?= t('nav.api_pagamento') ?>
             </a>
@@ -56,6 +64,9 @@ $acessoRestrito = $planoExpirado || $adminDesativado;
             </a>
             <a href="<?= $basePath ?>/template_whats.php" class="nav-link <?= $currentPage === 'template_whats' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fab fa-whatsapp" style="color:#25D366;"></i> <?= t('nav.template_whats') ?>
+            </a>
+            <a href="<?= $basePath ?>/template_recibo.php" class="nav-link <?= $currentPage === 'template_recibo' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-file-invoice"></i> <?= t('nav.template_recibo') ?>
             </a>
             <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-headset"></i> <?= t('nav.contato_financeiro') ?>

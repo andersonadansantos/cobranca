@@ -19,8 +19,22 @@ $tipo = '';
 // Ações na fatura recorrente
 if (isset($_GET['pago'])) {
     $id = intval($_GET['pago']);
+    $stFat = $pdo->prepare("SELECT f.id FROM faturas f WHERE f.fatura_recorrente_id = ? AND f.admin_id = ? AND f.status != 'pago' ORDER BY f.data_vencimento DESC LIMIT 1");
+    $stFat->execute([$id, $adminIdE]);
+    $fatPagaId = (int)$stFat->fetchColumn();
     $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE fatura_recorrente_id = ? AND admin_id = ? AND status != 'pago' ORDER BY data_vencimento DESC LIMIT 1");
     $stmt->execute([$id, $adminIdE]);
+    if ($fatPagaId > 0 && $stmt->rowCount() > 0) {
+        $stFat2 = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
+        $stFat2->execute([$fatPagaId, $adminIdE]);
+        $fatPaga = $stFat2->fetch();
+        if ($fatPaga && !empty($fatPaga['email'])) {
+            $fatPaga['data_pagamento'] = date('Y-m-d');
+            if (function_exists('enviarEmailPagamento')) {
+                enviarEmailPagamento($fatPaga);
+            }
+        }
+    }
     header('Location: emissao.php?msg=pago');
     exit;
 }
@@ -102,6 +116,17 @@ if (isset($_GET['fatura_pago'])) {
     $id = intval($_GET['fatura_pago']);
     $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ? AND admin_id = ? AND status != 'pago'");
     $stmt->execute([$id, $adminIdE]);
+    if ($stmt->rowCount() > 0) {
+        $stFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
+        $stFat->execute([$id, $adminIdE]);
+        $fatPaga = $stFat->fetch();
+        if ($fatPaga && !empty($fatPaga['email'])) {
+            $fatPaga['data_pagamento'] = date('Y-m-d');
+            if (function_exists('enviarEmailPagamento')) {
+                enviarEmailPagamento($fatPaga);
+            }
+        }
+    }
     header('Location: emissao.php?msg=pago');
     exit;
 }
@@ -739,6 +764,9 @@ $statusClasses = [
                                                         <button type="button" class="acao-btn acao-btn-dark" title="Copiar código PIX copia e cola" data-fatura="<?= $fh['id'] ?>" onclick="copiarPixFatura(this)"><i class="bi bi-qr-code"></i></button>
                                                         <a href="#" class="acao-btn acao-btn-success" title="Pago" data-bs-toggle="modal" data-bs-target="#modalMarcarPago" data-url="?fatura_pago=<?= $fh['id'] ?>"><i class="bi bi-check-circle-fill"></i></a>
                                                         <a href="#" class="acao-btn acao-btn-warning" title="Cancelar" onclick="event.preventDefault(); showConfirm('Cancelar Fatura','Deseja cancelar esta fatura?','?fatura_cancelar=<?= $fh['id'] ?>','primary')"><i class="bi bi-x-circle-fill"></i></a>
+                                                        <?php endif; ?>
+                                                        <?php if ($fh['status'] === 'pago'): ?>
+                                                        <a href="recibos.php?fatura_id=<?= (int)$fh['id'] ?>" class="acao-btn acao-btn-primary" title="Ver Recibo"><i class="bi bi-file-earmark-text"></i></a>
                                                         <?php endif; ?>
                                                         <a href="#" class="acao-btn acao-btn-danger" title="Excluir" data-bs-toggle="modal" data-bs-target="#modalExcluir" data-url="?fatura_excluir=<?= $fh['id'] ?>"><i class="bi bi-trash3"></i></a>
                                                     </div>

@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } // fecha else acao senha
 }
 
-$logo = getLogo();
+$logo = getLogoPainelUsuario();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

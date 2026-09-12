@@ -89,6 +89,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tipo = 'danger';
         }
     }
+
+    if ($acao === 'logo_painel') {
+        if (isset($_FILES['logo_painel']) && $_FILES['logo_painel']['error'] === UPLOAD_ERR_OK) {
+            $ext = strtolower(pathinfo($_FILES['logo_painel']['name'], PATHINFO_EXTENSION));
+            $permitidos = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
+
+            if (in_array($ext, $permitidos)) {
+                $nome = 'logo_empresa_admin_' . time() . '.' . $ext;
+                $destino = __DIR__ . '/../assets/img/' . $nome;
+
+                if (move_uploaded_file($_FILES['logo_painel']['tmp_name'], $destino)) {
+                    $logoAntiga = getConfig('logo_empresa_admin');
+                    if ($logoAntiga) {
+                        $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
+                        if ($logoAntigaPath && file_exists($logoAntigaPath)) {
+                            @unlink($logoAntigaPath);
+                        }
+                    }
+                    saveConfig('logo_empresa_admin', '/cobranca/assets/img/' . $nome);
+                    $mensagem = 'Logo da empresa atualizada com sucesso!';
+                    $tipo = 'success';
+                }
+            } else {
+                $mensagem = 'Formato de arquivo não permitido. Use: JPG, PNG, GIF, SVG ou WEBP.';
+                $tipo = 'danger';
+            }
+        } else {
+            $mensagem = 'Selecione uma imagem para upload.';
+            $tipo = 'danger';
+        }
+    }
 }
 
 $config = getAllConfig();
@@ -203,6 +234,31 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         </div>
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-upload me-1"></i> Enviar Logo Mobile
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+<!-- Logo da Empresa -->
+            <div class="col-lg-6">
+                <div class="form-card">
+<h6 class="mb-3"><i class="fas fa-building me-2"></i>Logo da Empresa</h6>
+                    <form method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="acao" value="logo_painel">
+                        <p class="text-muted mb-3" style="font-size:0.85rem;">Esta logo aparece no recibo e no cabeçalho do painel administrativo.</p>
+                        
+                        <?php if (!empty($config['logo_empresa_admin'])): ?>
+                            <div class="text-center mb-3">
+                                <img src="<?= htmlspecialchars($config['logo_empresa_admin']) ?>" alt="Logo da Empresa Atual" style="max-width: 200px;">
+                                <br><small class="text-muted">Logo atual da empresa</small>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <div class="mb-3">
+                            <input type="file" name="logo_painel" class="form-control" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload me-1"></i> Enviar Logo da Empresa
                         </button>
                     </form>
                 </div>

@@ -25,14 +25,14 @@ siteHeader();
             </h1>
             <p class="anim-entrada-d mt-6 text-lg text-slate-600 leading-relaxed max-w-xl"><?= siteT('hero_sub') ?></p>
             <div class="mt-8 flex flex-wrap items-center gap-3">
-                <a href="/cobranca/cadastro.php" class="inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-base font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-xl shadow-brand-200 hover:-translate-y-0.5 transition">
+                <a href="<?= siteAsset('/cadastro.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-base font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-xl shadow-brand-200 hover:-translate-y-0.5 transition">
                     <?= siteT('hero_btn1') ?>
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                 </a>
-                <a href="/cobranca/planos.php" class="inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-base font-bold text-slate-700 bg-white border border-slate-200 hover:border-brand-300 hover:text-brand-700 transition">
+                <a href="<?= siteAsset('/planos.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-base font-bold text-slate-700 bg-white border border-slate-200 hover:border-brand-300 hover:text-brand-700 transition">
                     <?= siteT('hero_btn2') ?>
                 </a>
-                <a href="/cobranca/demo.php" class="inline-flex items-center gap-2 rounded-2xl px-4 py-4 text-sm font-bold text-brand-700 hover:text-brand-800 transition">
+                <a href="<?= siteAsset('/demo.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-4 py-4 text-sm font-bold text-brand-700 hover:text-brand-800 transition">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <?= siteT('hero_btn3') ?>
                 </a>
@@ -111,10 +111,10 @@ siteHeader();
             </p>
             <div class="flex flex-wrap justify-center items-center gap-3">
                 <?php $bancos = [
-                    ['log' => '/cobranca/assets/img/pix-logo.svg',            'alt' => 'PIX',          'cls' => 'h-9 w-auto'],
-                    ['log' => '/cobranca/assets/img/mercado-pago-logo.png',   'alt' => 'Mercado Pago', 'cls' => 'h-9 w-auto'],
-                    ['log' => '/cobranca/assets/img/banco-inter-logo-0-1.png','alt' => 'Banco Inter',   'cls' => 'h-9 w-auto'],
-                    ['log' => '/cobranca/assets/img/asaas-logo.svg',          'alt' => 'Asaas',        'cls' => 'h-8 w-auto'],
+                    ['log' => siteAsset('/assets/img/pix-logo.svg'),            'alt' => 'PIX',          'cls' => 'h-9 w-auto'],
+                    ['log' => siteAsset('/assets/img/mercado-pago-logo.png'),   'alt' => 'Mercado Pago', 'cls' => 'h-9 w-auto'],
+                    ['log' => siteAsset('/assets/img/banco-inter-logo-0-1.png'),'alt' => 'Banco Inter',   'cls' => 'h-9 w-auto'],
+                    ['log' => siteAsset('/assets/img/asaas-logo.svg'),          'alt' => 'Asaas',        'cls' => 'h-8 w-auto'],
                 ]; ?>
                 <?php foreach ($bancos as $b): ?>
                 <span class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-2.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-brand-200 transition">
@@ -241,7 +241,7 @@ siteHeader();
                         <?php endforeach; ?>
                     </div>
                 </div>
-                <a href="/cobranca/cadastro.php?plano=<?= (int)$p['id'] ?>" class="mt-6 rounded-2xl py-3 text-center font-bold text-white <?= siteCorCls($cor) ?> hover:opacity-90 transition"><?= siteT('plan_assinar') ?></a>
+                <a href="<?= siteAsset('/cadastro.php?plano=' . (int)$p['id']) ?>" class="mt-6 rounded-2xl py-3 text-center font-bold text-white <?= siteCorCls($cor) ?> hover:opacity-90 transition"><?= siteT('plan_assinar') ?></a>
                 <ul class="mt-6 space-y-2.5 text-sm text-slate-600">
                     <?php foreach (siteParseBeneficios($p['beneficios']) as $b):
                         if (siteBeneficioStatus($b) !== 'ok') continue; ?>
@@ -252,9 +252,9 @@ siteHeader();
             <?php endforeach; ?>
         </div>
         <div class="mt-10 text-center">
-            <a href="/cobranca/demo.php" class="inline-flex items-center gap-2 font-bold text-brand-700 hover:text-brand-800">
+<a href="<?= siteAsset('/demo.php') ?>" class="inline-flex items-center gap-2 font-bold text-brand-700 hover:text-brand-800">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <?= siteT('plan_demo_link') ?>
+                <?= siteT('ver_demo') ?>
             </a>
         </div>
     </div>
@@ -334,10 +334,10 @@ siteHeader();
             <h2 class="relative text-3xl sm:text-5xl font-black tracking-tight"><?= siteT('cta_titulo') ?></h2>
             <p class="relative mt-5 text-slate-200 max-w-xl mx-auto"><?= siteT('cta_sub') ?></p>
             <div class="relative mt-8 flex flex-wrap justify-center gap-3">
-                <a href="/cobranca/cadastro.php" class="inline-flex items-center gap-2 rounded-2xl px-8 py-4 font-bold text-brand-900 bg-white hover:bg-brand-50 shadow-xl transition"><?= siteT('cta_btn1') ?>
+                <a href="<?= siteAsset('/cadastro.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-8 py-4 font-bold text-brand-900 bg-white hover:bg-brand-50 shadow-xl transition"><?= siteT('cta_btn1') ?>
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                 </a>
-                <a href="/cobranca/demo.php" class="inline-flex items-center gap-2 rounded-2xl px-8 py-4 font-bold text-white border border-white/30 hover:bg-white/10 transition"><?= siteT('cta_btn2') ?></a>
+                <a href="<?= siteAsset('/demo.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-8 py-4 font-bold text-white border border-white/30 hover:bg-white/10 transition"><?= siteT('cta_btn2') ?></a>
             </div>
         </div>
     </div>

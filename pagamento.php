@@ -10,7 +10,7 @@ require_once __DIR__ . '/config/inter_pix.php';
 
 // Requer cadastro/sessão ativa
 if (!siteLogado()) {
-    header('Location: /cobranca/cadastro.php' . (isset($_GET['plano']) ? '?plano=' . (int)$_GET['plano'] : ''));
+    header('Location: ' . siteAsset('/cadastro.php' . (isset($_GET['plano']) ? '?plano=' . (int)$_GET['plano'] : '')));
     exit;
 }
 
@@ -25,7 +25,7 @@ if ($planoId > 0 && $pdo = getConnection()) {
     $plano = $stmt->fetch() ?: null;
 }
 if (!$plano) {
-    header('Location: /cobranca/planos.php');
+    header('Location: ' . siteAsset('/planos.php'));
     exit;
 }
 
@@ -243,7 +243,8 @@ siteHeader();
             </a>
         </div>
 
-        <p class="mt-8 text-center text-xs text-slate-400"><?= siteT('pag_problemas') ?> <a href="/cobranca/planos.php" class="font-bold text-brand-700 hover:underline"><?= siteT('pag_outro') ?></a> <?= siteT('pag_ou') ?> <a href="/cobranca/admin/login.php" class="font-bold text-brand-700 hover:underline"><?= siteT('pag_entrar') ?></a>.</p>
+        <p class="mt-8 text-center text-xs text-slate-400"><?= siteT('pag_problemas') ?> <a href="<?= siteAsset('/planos.php') ?>" class="font-bold text-brand-700 hover:underline"><?= siteT('pag_outro') ?></a> <?= siteT('pag_ou') ?> <a href="/cobranca/admin/login.php" class="font-bold
+                                       text-brand-700 hover:underline"><?= siteT('pag_entrar') ?></a>.</p>
     </div>
 </section>
 

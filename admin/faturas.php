@@ -222,6 +222,11 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                             <i class="fas fa-ban"></i>
                                         </a>
                                     <?php endif; ?>
+                                    <?php if ($f['status'] === 'pago'): ?>
+                                        <a href="/cobranca/admin/emitir_recibo.php?fatura_id=<?= $f['id'] ?>" class="acao-btn acao-btn-primary" title="Emitir Recibo">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                        </a>
+                                    <?php endif; ?>
                                     <?php else: ?>
                                         <small class="text-muted">--</small>
                                     <?php endif; ?>

@@ -228,7 +228,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <div class="alert alert-warning d-flex align-items-center">
             <i class="fas fa-flask me-2 fa-lg"></i>
             <div><strong>WhatsApp bloqueado na conta de demonstração.</strong><br>
-            <small>O envio e a configuração da API de WhatsApp estão bloqueados nesta versão demo. <a href="/cobranca/planos.php">Assine um plano</a> para liberar.</small></div>
+            <small>O envio e a configuração da API de WhatsApp estão bloqueados nesta versão demo. <a href="/planos.php">Assine um plano</a> para liberar.</small></div>
         </div>
         <?php endif; ?>
 

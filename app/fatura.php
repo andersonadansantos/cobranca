@@ -100,7 +100,7 @@ if (!$jaTemCobranca && !$fatura['link_pagamento'] && !$fatura['pix_copia_cola'] 
     }
 }
 
-$logo = getLogo();
+$logo = getLogoPainelUsuario();
 $nomeSistema = getNomeSistema();
 ?>
 <!DOCTYPE html>

@@ -5,3 +5,9 @@ assets/boletos_inter/
 assets/boletos_pagbank/
 api/cron_log.txt
 *.log
+_cp/
+*.p12
+*.pfx
+*.key
+!config/inter_certs/certificado.crt
+!config/inter_certs_super/certificado.crt

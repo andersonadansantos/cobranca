@@ -109,6 +109,53 @@ function getAllConfig() {
     return $config;
 }
 
+// === Helpers por admin (independentes da sessão) ===
+// Resolvem a configuração de um admin específico (ex.: o admin dono da fatura)
+// para que recibo e fatura em PDF usem sempre a personalização do admin correto.
+
+function getConfigForAdmin($adminId, $chave, $padrao = '') {
+    $pdo = getConnection();
+    if (!$pdo) return $padrao;
+    $adminId = (int)$adminId;
+    if ($adminId > 0) {
+        $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = ?");
+        $stmt->execute([$adminId, $chave]);
+        $row = $stmt->fetch();
+        if ($row) return $row['valor'];
+    }
+    $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
+    $stmt->execute([$chave]);
+    $row = $stmt->fetch();
+    return $row ? $row['valor'] : $padrao;
+}
+
+// Todas as configurações aplicáveis a um admin específico
+// (base global + sobreposição do admin), independente da sessão.
+function getAllConfigForAdmin($adminId) {
+    $pdo = getConnection();
+    $config = [];
+    if (!$pdo) return $config;
+
+    $stmt = $pdo->query("SELECT chave, valor FROM configuracoes WHERE admin_id IS NULL");
+    while ($row = $stmt->fetch()) $config[$row['chave']] = $row['valor'];
+
+    $adminId = (int)$adminId;
+    if ($adminId > 0) {
+        $stmt = $pdo->prepare("SELECT chave, valor FROM configuracoes WHERE admin_id = ?");
+        $stmt->execute([$adminId]);
+        while ($row = $stmt->fetch()) $config[$row['chave']] = $row['valor'];
+    }
+    return $config;
+}
+
+// Logo da empresa de um admin específico (logo_empresa_admin). Cai para a
+// marca global se o admin não tiver enviado logo própria.
+function getLogoEmpresaFatura($adminId) {
+    $logo = getConfigForAdmin($adminId, 'logo_empresa_admin', '');
+    if (!logoPathValido($logo)) $logo = getLogo();
+    return $logo;
+}
+
 function getCorPrimaria() {
     return getConfig('cor_primaria', '#0f7b5c');
 }
@@ -168,6 +215,41 @@ function getLogoClienteLoginMobile() {
     $logo = getConfig('logo_mobile', '');
     if (!logoPathValido($logo)) {
         $logo = getLogoLoginGlobal();
+    }
+    return $logo;
+}
+
+// Logo do PAINEL DO CLIENTE logado (canto superior esquerdo): é o "Logo da
+// Empresa" disponibilizado pelo admin que emitiu as faturas (logo_empresa_admin).
+// Resolve o admin dono do cliente mesmo sem contexto de subdomínio. Cai para a
+// marca global se o admin não enviou logo própria.
+function getLogoPainelUsuario() {
+    $adminId = getTenantAdminId();
+    if ($adminId <= 0 && isset($_SESSION['user_id']) && (int)$_SESSION['user_id'] > 0) {
+        $pdo = getConnection();
+        if ($pdo) {
+            try {
+                $stmt = $pdo->prepare("SELECT admin_id FROM clientes WHERE id = ?");
+                $stmt->execute([(int)$_SESSION['user_id']]);
+                $adminId = (int)$stmt->fetchColumn();
+                if ($adminId > 0) $_SESSION['tenant_admin_id'] = $adminId;
+            } catch (Exception $e) {}
+        }
+    }
+
+    $logo = '';
+    if ($adminId > 0) {
+        $pdo = getConnection();
+        if ($pdo) {
+            try {
+                $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = 'logo_empresa_admin'");
+                $stmt->execute([$adminId]);
+                $logo = (string)$stmt->fetchColumn();
+            } catch (Exception $e) {}
+        }
+    }
+    if (!logoPathValido($logo)) {
+        $logo = getLogo();
     }
     return $logo;
 }
