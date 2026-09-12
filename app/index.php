@@ -111,7 +111,7 @@ $nomeSistema = getNomeSistema();
                     </div>
                 </div>
                 <div style="margin-bottom:16px; display:flex; justify-content:center;">
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAEACAqDXrIelvjeK" data-theme="light"></div>
+                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAExttofBsCkR1InN" data-theme="light"></div>
                 </div>
                 <button type="submit" class="app-btn app-btn-primary" style="margin-bottom:6px;">
                     <i class="fas fa-arrow-right-to-bracket"></i> Entrar

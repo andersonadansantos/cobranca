@@ -5,7 +5,7 @@ $basePath = '/cobranca/superadmin';
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <?php if ($logo): ?>
-            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 150px;">
+            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 180px; max-height: 60px;">
         <?php endif; ?>
         <h4><i class="fas fa-crown me-2"></i><?= t('layout.super_admin') ?></h4>
     </div>

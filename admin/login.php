@@ -111,7 +111,7 @@ $nomeSistema = getNomeSistema();
                             </div>
                         </div>
                         <div class="mb-4">
-                            <div class="cf-turnstile" data-sitekey="0x4AAAAAAEACAqDXrIelvjeK" data-theme="light"></div>
+                            <div class="cf-turnstile" data-sitekey="0x4AAAAAAExttofBsCkR1InN" data-theme="light"></div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-sign-in-alt me-1"></i> <?= t('login.entrar') ?>
