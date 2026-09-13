@@ -28,8 +28,8 @@
     </nav>
     <?php endif; ?>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/cobranca/assets/js/main.js?v=<?= filemtime($_SERVER['DOCUMENT_ROOT'] . '/cobranca/assets/js/main.js') ?>"></script>
+    <script src="/cobranca/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="/cobranca/assets/js/main.js?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__)) . '/assets/js/main.js') ?>"></script>
     <script>
     (function () {
         // Seletor de idioma (bandeiras) injetado na topbar

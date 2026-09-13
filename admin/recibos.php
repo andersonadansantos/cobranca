@@ -149,7 +149,7 @@ function imprimirRecibo(id) {
     if (recibo) {
         var win = window.open('', '_blank');
         win.document.write('<!DOCTYPE html><html><head><title>Recibo ' + recibo.numero + '</title>');
-        win.document.write('<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">');
+        win.document.write('<link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">');
         win.document.write('<style>@page{size:A4;margin:15mm;}body{margin:0;padding:0;font-family:"Inter","Segoe UI",Arial,sans-serif;}</style>');
         win.document.write('</head><body>');
         win.document.write(recibo.html);
@@ -163,7 +163,7 @@ function imprimirReciboModal() {
     var content = document.getElementById('modalReciboA4').innerHTML;
     var win = window.open('', '_blank');
     win.document.write('<!DOCTYPE html><html><head><title>Recibo</title>');
-    win.document.write('<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">');
+    win.document.write('<link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">');
     win.document.write('<style>@page{size:A4;margin:15mm;}body{margin:0;padding:0;font-family:"Inter","Segoe UI",Arial,sans-serif;}</style>');
     win.document.write('</head><body>');
     win.document.write(content);

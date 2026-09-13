@@ -132,6 +132,30 @@ $diasRestantes = null;
 if ($meuPlanoInfo && !empty($meuPlanoInfo['data_fim'])) {
     $diasRestantes = (int)floor((strtotime($meuPlanoInfo['data_fim']) - strtotime(date('Y-m-d'))) / 86400);
 }
+
+// Subdomínio do admin + link da área do usuário
+$meuSubdominio = '';
+$stmtSub = $pdo->prepare("SELECT subdominio FROM administradores WHERE id = ?");
+$stmtSub->execute([$adminIdI]);
+$meuSubdominio = strtolower(trim((string)$stmtSub->fetchColumn()));
+
+$protoSite = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') ? 'https' : 'http';
+$hostAtualSite = strtolower(preg_replace('/:\d+$/', '', trim($_SERVER['HTTP_HOST'] ?? '')));
+$baseDominioSite = function_exists('getBaseDomain') ? strtolower(ltrim((string)getBaseDomain(), '.')) : '';
+if ($baseDominioSite === '') $baseDominioSite = $hostAtualSite;
+$appBaseSite = rtrim(str_replace('\\', '/', dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/cobranca/admin/index.php'))), '/');
+if ($appBaseSite === '' || $appBaseSite === '.') $appBaseSite = '/cobranca';
+
+$hostTenantSite = $hostAtualSite;
+if ($meuSubdominio !== '' && $baseDominioSite !== '') {
+    $hostTenantSite = $meuSubdominio . '.' . ltrim($baseDominioSite, '.');
+} elseif ($meuSubdominio !== '' && $hostAtualSite !== '') {
+    $hostTenantSite = $meuSubdominio . '.' . $hostAtualSite;
+}
+$urlSubdominio = $protoSite . '://' . $hostTenantSite . $appBaseSite;
+$urlAreaUsuario = $urlSubdominio . '/usuario/login.php';
+$subdominioCopiar = $protoSite . '://' . $hostTenantSite;
+$semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
 ?>
 
 <div class="main-content">
@@ -140,6 +164,20 @@ if ($meuPlanoInfo && !empty($meuPlanoInfo['data_fim'])) {
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
             <h5><?= t('dash.titulo') ?></h5>
         </div>
+        <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
+        <span class="d-inline-flex align-items-center gap-2 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px solid #dee2e6;background:#f8f9fa;color:#1e293b;" title="<?= t('tb.copiar_subdominio') ?>">
+            <i class="fas fa-globe me-1"></i>
+            <strong><?= htmlspecialchars($hostTenantSite) ?></strong>
+            <a href="javascript:void(0)" onclick="copiarSubdominio(this)" data-copiar="<?= htmlspecialchars($subdominioCopiar) ?>" class="text-decoration-none" title="<?= t('tb.copiar_subdominio') ?>"><i class="fas fa-copy text-muted"></i></a>
+        </span>
+        <a href="<?= htmlspecialchars($urlAreaUsuario) ?>" target="_blank" rel="noopener" class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill text-decoration-none" style="font-size:0.78rem;border:1px solid #dee2e6;background:#e8f5ee;color:#0f7b5c;">
+            <i class="fas fa-external-link-alt me-1"></i><?= t('tb.area_usuario') ?>
+        </a>
+        <?php else: ?>
+        <span class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px dashed #dee2e6;background:#f8f9fa;color:#6c757d;">
+            <i class="fas fa-info-circle me-1"></i><?= t('tb.sem_subdominio') ?>
+        </span>
+        <?php endif; ?>
         <?php if (!empty($meuPlanoInfo)): ?>
         <span class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px solid #dee2e6;<?= ($diasRestantes !== null && $diasRestantes <= 7) ? 'background:#fff3cd;color:#856404;border-color:#ffc107;' : 'background:#e8f5ee;color:#0f7b5c;' ?>">
             <i class="fas fa-hourglass-half me-1"></i>
@@ -175,6 +213,17 @@ if ($meuPlanoInfo && !empty($meuPlanoInfo['data_fim'])) {
     </div>
 
     <div class="content-area fade-in">
+        <?php if ($semPlano): ?>
+        <div class="alert alert-warning d-flex align-items-center mb-4" role="alert" style="border-left:4px solid #ffc107;">
+            <i class="fas fa-rocket me-3" style="font-size:1.2rem;"></i>
+            <div class="w-100">
+                <strong><?= t('layout.sem_plano_titulo') ?></strong>
+                <br><small><?= t('layout.sem_plano_msg') ?></small>
+                <a href="meu_plano.php" class="btn btn-warning btn-sm fw-bold ms-auto mt-2" style="color:#1f2937;"><?= t('layout.sem_plano_btn') ?> <i class="fas fa-arrow-right ms-1"></i></a>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <?php if (!empty($empPendentes)): ?>
         <div class="alert alert-danger d-flex align-items-center mb-4" role="alert" style="border-left:4px solid #dc3545;">
             <i class="fas fa-exclamation-triangle me-3" style="font-size:1.2rem;"></i>
@@ -463,6 +512,36 @@ new Chart(document.getElementById('chartLivroCaixaMini'), {
         }
     }
 });
+</script>
+
+<script>
+function copiarSubdominio(el) {
+    var txt = el.dataset.copiar || '';
+    var icon = el.querySelector('.fa-copy, .fa-check');
+    function ok() {
+        if (!icon) return;
+        icon.className = 'fas fa-check text-success';
+        setTimeout(function(){ icon.className = 'fas fa-copy text-muted'; }, 1600);
+    }
+    function fallback() {
+        var ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+    }
+    if (!txt) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(ok, function(){ fallback(); ok(); });
+    } else {
+        fallback();
+        ok();
+    }
+}
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

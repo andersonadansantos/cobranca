@@ -60,6 +60,10 @@ class CobrancaPixPdf extends FPDF
     public $mx = 14;
     public $cw = 182;
 
+    // QR em base64 já gerado pela API de pagamento (mesmo da fatura online).
+    // Quando vazio, o PDF gera o QR localmente a partir do PIX copia-e-cola.
+    public $qrBase64 = '';
+
     public function t($s) {
         $s = (string) $s;
         if ($s === '') return '';
@@ -155,7 +159,7 @@ class CobrancaPixPdf extends FPDF
         $this->SetY(58);
         $this->SetFont('Helvetica', 'B', 17);
         $this->SetTextColor($this->corEscura[0], $this->corEscura[1], $this->corEscura[2]);
-        $this->Cell($this->cw, 8, $this->t('Comprovante de Cobrança'), 0, 1, 'C');
+        $this->Cell($this->cw, 8, $this->t('Cobrança'), 0, 1, 'C');
         $this->SetFont('Helvetica', '', 10);
         $this->SetTextColor($this->corCinza[0], $this->corCinza[1], $this->corCinza[2]);
         $this->Cell($this->cw, 6, $this->t('Fatura ' . $numero), 0, 1, 'C');
@@ -234,16 +238,27 @@ class CobrancaPixPdf extends FPDF
         $this->Ln(3);
 
         $qrData = '';
-        require_once __DIR__ . '/phpqrcode.php';
-        try {
-            ob_start();
-            QRcode::png($pix, false, QR_ECLEVEL_M, 8, 2);
-            $img = ob_get_clean();
-            if ($img !== false && !empty($img)) {
-                $qrData = base64_encode($img);
+        $qrApi = trim((string) $this->qrBase64);
+        if ($qrApi !== '') {
+            $qrApi = preg_replace('/\s+/', '', $qrApi);
+            $qrApi = preg_replace('#^data:image/[a-z]+;base64,#i', '', $qrApi);
+            $dec = @base64_decode($qrApi, true);
+            if ($dec !== false && $dec !== '' && (substr($dec, 1, 3) === 'PNG' || substr($dec, 0, 2) === "\xff\xd8")) {
+                $qrData = $qrApi;
             }
-        } catch (Exception $e) {
-            $qrData = '';
+        }
+        if ($qrData === '') {
+            require_once __DIR__ . '/phpqrcode.php';
+            try {
+                ob_start();
+                QRcode::png($pix, false, QR_ECLEVEL_M, 8, 2);
+                $img = ob_get_clean();
+                if ($img !== false && !empty($img)) {
+                    $qrData = base64_encode($img);
+                }
+            } catch (Exception $e) {
+                $qrData = '';
+            }
         }
 
         if ($qrData) {
@@ -334,8 +349,8 @@ function buscarBeneficiarioParaPdf($adminId = null) {
             $stmt->execute([(int)$adminId]);
             $admin = $stmt->fetch();
             if ($admin) {
-                if (empty($benef['favorecido']) && !empty($admin['nome_fantasia'])) $benef['favorecido'] = $admin['nome_fantasia'];
-                if (empty($benef['cnpj']) && !empty($admin['cnpj'])) $benef['cnpj'] = $admin['cnpj'];
+                $benef['favorecido'] = $admin['nome_fantasia'] ?: $benef['favorecido'];
+                $benef['cnpj'] = $admin['cnpj'] ?: $benef['cnpj'];
             }
         } catch (Exception $e) {
         }
@@ -373,6 +388,7 @@ function gerarPixPdfFatura($fatura) {
         $pdf->setCorPrimariaHex($cor);
     }
     $pdf->AddPage();
+    $pdf->qrBase64 = $fatura['pix_qrcode'] ?? '';
 
     $pdf->desenharCabecalho(getLogoEmpresaFatura($adminId));
     $pdf->tituloPagina($fatura['numero'] ?? '');

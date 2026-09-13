@@ -115,8 +115,8 @@ $nomeSistema = getNomeSistema();
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="192x192" href="icon.php?size=192">
     <link rel="apple-touch-icon" href="icon.php?size=192">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="/cobranca/assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
+    <link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">
     <link href="css/app.css" rel="stylesheet">
 </head>
 <body>
@@ -413,7 +413,7 @@ $nomeSistema = getNomeSistema();
     </script>
 
     <?php if ($apiDaFatura !== 'pix_manual' && !$fatura['pix_qrcode'] && $fatura['pix_copia_cola']): ?>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/cobranca/assets/vendor/qrcodejs/qrcode.min.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var c = document.getElementById('qrCodeContainer');
@@ -432,7 +432,7 @@ $nomeSistema = getNomeSistema();
         <?php $pmQrChave = getConfig('pix_manual_chave', ''); ?>
         <?php if (!empty($pmQrChave)): ?>
             <?php if (!$fatura['pix_qrcode']): ?>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+            <script src="/cobranca/assets/vendor/qrcodejs/qrcode.min.js"></script>
             <?php endif; ?>
             <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -485,7 +485,7 @@ $nomeSistema = getNomeSistema();
     $naoPago = $fatura['status'] !== 'pago';
     if ($apiAtiva === 'inter' && $temInterCodigo && $semPix && $naoPago):
     ?>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/cobranca/assets/vendor/qrcodejs/qrcode.min.js"></script>
     <script>
     var _interPollCount = 0;
     function verificarInterPix() {

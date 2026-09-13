@@ -3247,8 +3247,9 @@
         
         public $structured = 0; // not supported yet
         
-        public $level = QR_ECLEVEL_L;
+public $level = QR_ECLEVEL_L;
         public $hint = QR_MODE_8;
+        public $cmyk = false;
         
         //----------------------------------------------------------------------
         public static function factory($level = QR_ECLEVEL_L, $size = 3, $margin = 4, $back_color = 0xFFFFFF, $fore_color = 0x000000, $cmyk = false)
@@ -3567,7 +3568,7 @@
         }
         
         //----------------------------------------------------------------------
-        public static function svg($frame, $filename = false, $pixelPerPoint = 4, $outerFrame = 4,$saveandprint=FALSE, $back_color, $fore_color) 
+        public static function svg($frame, $filename = false, $pixelPerPoint = 4, $outerFrame = 4,$saveandprint=FALSE, $back_color = 0xFFFFFF, $fore_color = 0x000000) 
         {
             $vect = self::vectSVG($frame, $pixelPerPoint, $outerFrame, $back_color, $fore_color);
             

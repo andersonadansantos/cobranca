@@ -1,5 +1,5 @@
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/cobranca/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script>
     (function () {
         // Seletor de idioma (bandeiras) injetado na topbar

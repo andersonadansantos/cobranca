@@ -44,8 +44,10 @@ function requireAdmin() {
         header('Location: /cobranca/admin/login.php');
         exit;
     }
-    // Admin desativado manualmente OU plano vencido: acesso apenas à página de planos e faturas.
-    if (!adminEstaAtivo() || adminPlanoExpirado()) {
+    // Admin desativado manualmente (super admin): acesso apenas à página de planos e faturas.
+    // A ausência de plano não bloqueia o painel — apenas emissão/configurações usam
+    // requirePlanoAtivo().
+    if (!adminEstaAtivo()) {
         $pagina = basename($_SERVER['PHP_SELF'] ?? '');
         if (!in_array($pagina, ['meu_plano.php', 'minhas_faturas.php'])) {
             header('Location: /cobranca/admin/meu_plano.php');
@@ -80,6 +82,30 @@ function adminPlanoExpirado() {
     if (empty($dataFim)) return false;
 
     return strtotime($dataFim) < strtotime(date('Y-m-d'));
+}
+
+// Verifica se o admin logado possui um plano ativo (com data_fim >= hoje).
+// Retorna false quando não há plano registrado ou o plano já expirou.
+function adminTemPlanoAtivo() {
+    if (!isLoggedInAdmin()) return false;
+    $pdo = getConnection();
+    if (!$pdo) return false;
+
+    $stmt = $pdo->prepare("SELECT data_fim FROM admin_planos WHERE admin_id = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([(int)$_SESSION['admin_id']]);
+    $dataFim = $stmt->fetchColumn();
+
+    if (empty($dataFim)) return false;
+
+    return strtotime($dataFim) >= strtotime(date('Y-m-d'));
+}
+
+// Bloqueia páginas que exigem plano ativo (emissão de faturas e configurações).
+function requirePlanoAtivo() {
+    if (!adminTemPlanoAtivo()) {
+        header('Location: /cobranca/admin/meu_plano.php?precisa_plano=1');
+        exit;
+    }
 }
 
 function requireUser() {

@@ -436,7 +436,7 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
 </div>
 
 <?php if ($apiDaFatura !== 'pix_manual' && !$fatura['pix_qrcode'] && $fatura['pix_copia_cola']): ?>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="/cobranca/assets/vendor/qrcodejs/qrcode.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var container = document.getElementById('qrCodeContainer');
@@ -458,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php $pmQrChave = getConfig('pix_manual_chave', ''); ?>
     <?php if (!empty($pmQrChave)): ?>
         <?php if (!$fatura['pix_qrcode']): ?>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script src="/cobranca/assets/vendor/qrcodejs/qrcode.min.js"></script>
         <?php endif; ?>
         <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -528,7 +528,7 @@ $semPix = empty($fatura['pix_copia_cola']);
 $naoPago = $fatura['status'] !== 'pago';
 if ($apiAtiva === 'inter' && $temInterCodigo && $semPix && $naoPago):
 ?>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="/cobranca/assets/vendor/qrcodejs/qrcode.min.js"></script>
 <script>
 var _interPollCount = 0;
 var _interPollMax = 60;

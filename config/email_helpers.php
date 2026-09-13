@@ -70,19 +70,34 @@ if (!function_exists('getLogoLoginImg')) {
 }
 
 if (!function_exists('getLogoTagEmail')) {
-    function getLogoTagEmail() {
+    function getLogoTagEmail($adminId = null) {
+        $adminId = (int) $adminId;
+        if ($adminId <= 0) $adminId = getConfigAdminId();
         $pdo = getConnection();
         $nome = getNomeSistema();
         $cnpj = '';
-        if ($pdo) {
-            $stmt = $pdo->prepare("SELECT nome_fantasia, cnpj FROM administradores WHERE id = 1");
-            $stmt->execute();
+        if ($pdo && $adminId > 0) {
+            $stmt = $pdo->prepare("SELECT nome_fantasia, nome, cnpj FROM administradores WHERE id = ?");
+            $stmt->execute([$adminId]);
             $admin = $stmt->fetch();
             if ($admin) {
-                $nome = $admin['nome_fantasia'] ?: $nome;
+                $nome = $admin['nome_fantasia'] ?: ($admin['nome'] ?: $nome);
                 $cnpj = $admin['cnpj'] ?? '';
             }
         }
+
+        // Logo da empresa do admin (cai para a marca global se não houver).
+        $logo = getLogoEmpresaFatura($adminId > 0 ? $adminId : 0);
+        if (!empty($logo)) {
+            $src = $logo;
+            if (strpos($logo, 'http') !== 0 && strpos($logo, 'data:') !== 0) {
+                $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? 'agenciawd.com.br';
+                $src = "{$protocolo}://{$host}{$logo}";
+            }
+            return '<div style="text-align:center;margin-bottom:14px;"><img src="' . htmlspecialchars($src) . '" alt="' . htmlspecialchars($nome) . '" style="max-width:250px;max-height:120px;width:auto;height:auto;display:block;margin:0 auto;border:0;outline:none;text-decoration:none;"></div>';
+        }
+
         $html = '<h2 style="margin:0 0 5px 0;color:#333;font-weight:bold;font-size:22px;">' . htmlspecialchars($nome) . '</h2>';
         if ($cnpj) {
             $html .= '<p style="margin:0;color:#666;font-size:13px;">CNPJ: ' . htmlspecialchars($cnpj) . '</p>';
@@ -118,23 +133,11 @@ if (!function_exists('getLinkFatura')) {
 }
 
 if (!function_exists('montarMensagemHtml')) {
-    function gerarQrCodeEmail($pixCopiaCola) {
-        require_once __DIR__ . '/phpqrcode.php';
-        try {
-            ob_start();
-            QRcode::png($pixCopiaCola, false, QR_ECLEVEL_L, 5, 2);
-            $img = ob_get_clean();
-            return ($img !== false && !empty($img)) ? base64_encode($img) : '';
-        } catch (Exception $e) {
-            return '';
-        }
-    }
-
     function montarMensagemHtml($fatura, $tipo, $dias = 0) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
         $linkPag = $fatura['link_pagamento'] ?? '';
-        $logoTag = getLogoTagEmail();
+        $logoTag = getLogoTagEmail($fatura['admin_id'] ?? null);
 
         $chaveTemplate = ($tipo === 'antes') ? 'template_email_corpo_antes' : 'template_email_corpo_depois';
         $templateHtml = getConfig($chaveTemplate, '');
@@ -160,13 +163,9 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '</div>';
             if (!empty($fatura['pix_copia_cola'])) {
                 $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
-                $qrBase64 = gerarQrCodeEmail($pixLimpo);
                 $conteudo .= '<div style="background:#ffffff;border:2px dashed ' . $corPrimaria . ';border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
                 $conteudo .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#1a1a2e;">Pague com PIX</h3>';
-                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Escaneie o QR Code abaixo ou copie o código PIX</p>';
-                if (!empty($qrBase64)) {
-                    $conteudo .= '<div style="margin-bottom:16px;"><img src="data:image/png;base64,' . $qrBase64 . '" alt="QR Code PIX" style="width:180px;height:180px;max-width:100%;"></div>';
-                }
+                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Copie o código PIX abaixo</p>';
                 $conteudo .= '<div style="background:#f8f9fa;border:1px dashed ' . $corPrimaria . ';border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
                 $conteudo .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">' . htmlspecialchars($pixLimpo) . '</div>';
@@ -205,13 +204,9 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '</div>';
             if (!empty($fatura['pix_copia_cola'])) {
                 $pixLimpo = str_replace(["\r\n", "\r", "\n"], '', $fatura['pix_copia_cola']);
-                $qrBase64 = gerarQrCodeEmail($pixLimpo);
                 $conteudo .= '<div style="background:#ffffff;border:2px dashed #dc2626;border-radius:12px;padding:24px;margin-bottom:24px;text-align:center;">';
                 $conteudo .= '<h3 style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#991b1b;">Pague com PIX</h3>';
-                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Escaneie o QR Code abaixo ou copie o código PIX</p>';
-                if (!empty($qrBase64)) {
-                    $conteudo .= '<div style="margin-bottom:16px;"><img src="data:image/png;base64,' . $qrBase64 . '" alt="QR Code PIX" style="width:180px;height:180px;max-width:100%;"></div>';
-                }
+                $conteudo .= '<p style="margin:0 0 16px 0;font-size:13px;color:#666;">Copie o código PIX abaixo</p>';
                 $conteudo .= '<div style="background:#f8f9fa;border:1px dashed #dc2626;border-radius:8px;padding:12px;margin-bottom:12px;text-align:left;">';
                 $conteudo .= '<p style="margin:0 0 6px 0;font-size:12px;color:#666;">Código PIX Copia e Cola:</p>';
                 $conteudo .= '<div style="font-family:\'Courier New\',monospace;font-size:12px;word-break:break-all;color:#333;user-select:all;-webkit-user-select:all;">' . htmlspecialchars($pixLimpo) . '</div>';
@@ -625,7 +620,7 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
     function montarMensagemPagamentoHtml($fatura) {
         $nomeSistema = getNomeSistema();
         $linkFatura = getLinkFatura($fatura['id']);
-        $logoTag = getLogoTagEmail();
+        $logoTag = getLogoTagEmail($fatura['admin_id'] ?? null);
 
         $templateHtml = getConfig('template_email_corpo_pagamento', '');
         $corPrimaria = getCorPrimaria();

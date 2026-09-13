@@ -50,6 +50,8 @@ if ($meuPlano && !empty($meuPlano['data_fim'])) {
     $diasRestantes = (int)floor((strtotime($meuPlano['data_fim']) - strtotime(date('Y-m-d'))) / 86400);
 }
 
+$semPlanoInfo = !$meuPlano;
+
 // O plano DEMO existe somente para testes pelo site (demo.php) e não é listado aqui.
 $planos = $pdo->query("SELECT * FROM planos WHERE ativo = 1 AND COALESCE(slug,'') NOT IN ('diamante', 'demo') ORDER BY ordem ASC")->fetchAll();
 
@@ -198,6 +200,14 @@ function hexToRgba($hex, $alpha) {
             <div>
                 <strong>Sua conta está desativada.</strong>
                 <br><small>O acesso ao painel foi restrito pelo administrador. Contate o suporte para reativar o acesso.</small>
+            </div>
+        </div>
+        <?php elseif ($semPlanoInfo): ?>
+        <div class="alert alert-warning d-flex align-items-center mx-md-4 mt-3 mb-0" role="alert" style="border-left:4px solid #ffc107;">
+            <i class="fas fa-rocket me-3" style="font-size:1.2rem;"></i>
+            <div>
+                <strong>Você ainda não tem um plano ativo.</strong>
+                <br><small>Escolha um plano abaixo e efetue o pagamento para liberar a emissão de faturas e as configurações.</small>
             </div>
         </div>
         <?php elseif (function_exists('adminPlanoExpirado') && adminPlanoExpirado()): ?>
@@ -554,7 +564,7 @@ function getSelecao(planoId, precoPadrao) {
 function carregarQrJs(callback) {
     if (typeof QRCode !== 'undefined') { callback(); return; }
     let s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.src = '/cobranca/assets/vendor/qrcodejs/qrcode.min.js';
     s.onload = callback;
     s.onerror = callback;
     document.head.appendChild(s);

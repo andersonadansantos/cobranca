@@ -45,8 +45,8 @@ $nomeSistema = function_exists('getNomeSistema') ? getNomeSistema() : '';
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#6C5CE7">
     <title>Recibo <?= htmlspecialchars($recibo['numero']) ?></title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="/cobranca/assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
+    <link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {

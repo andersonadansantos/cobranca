@@ -6,10 +6,25 @@
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/tenant.php';
 
+// Resolve o tenant pelo subdomínio do host em toda requisição compartilhada
+// (painel, site, portal e webhooks). É o que dá "vida" ao subdomínio criado
+// no cadastro: branding, configurações e escopo do admin.
+initTenant();
+
+// === Raiz física do sistema (funciona em qualquer ambiente/host) ===
+if (!defined('APP_ROOT')) {
+    define('APP_ROOT', realpath(__DIR__ . '/..') ?: __DIR__ . '/..');
+}
+
 // === UTF-8 global ===
 if (function_exists('mb_internal_encoding')) { mb_internal_encoding('UTF-8'); }
 if (function_exists('mb_http_output')) { mb_http_output('UTF-8'); }
 ini_set('default_charset', 'UTF-8');
+
+// Produção: nunca imprimir avisos/deprecations na resposta (evita corromper HTML/headers).
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
 
 // Contexto de admin usado para ler/gravar configurações por admin.
 // Painel admin -> admin logado. Demais contextos (portal, login, webhook) -> tenant do subdomínio.

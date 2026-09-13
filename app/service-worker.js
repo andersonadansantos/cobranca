@@ -7,8 +7,8 @@ const STATIC_ASSETS = [
     '/cobranca/app/manifest.json',
     '/cobranca/app/icon.php?size=192',
     '/cobranca/app/icon.php?size=512',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
-    'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap'
+    '/cobranca/assets/vendor/fontawesome/css/all.min.css',
+    '/cobranca/assets/vendor/fonts/fonts.css'
 ];
 
 self.addEventListener('install', (event) => {

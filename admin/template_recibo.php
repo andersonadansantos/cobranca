@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
+requirePlanoAtivo();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/recibo_template.php';
@@ -140,7 +141,7 @@ include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/sidebar_admin.php';
 ?>
 
-<link href="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-bs5.min.css" rel="stylesheet">
+<link href="/cobranca/assets/vendor/summernote/summernote-bs5.min.css" rel="stylesheet">
 
 <div class="main-content">
     <div class="topbar">
@@ -312,8 +313,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/summernote@0.9.0/dist/summernote-bs5.min.js"></script>
+<script src="/cobranca/assets/vendor/jquery/jquery-3.7.1.min.js"></script>
+<script src="/cobranca/assets/vendor/summernote/summernote-bs5.min.js"></script>
 <script>
 var currentHtml = <?= json_encode($htmlTemplate) ?>;
 var previewVars = <?= json_encode([

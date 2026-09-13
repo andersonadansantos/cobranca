@@ -1,14 +1,14 @@
 <?php
 // =====================================================
-// CADASTRO NO SITE (cliente final) -> pós-cadastro: PIX
+// CADASTRO NO SITE (cliente final) -> painel liberado na hora
 // =====================================================
 require_once __DIR__ . '/_site.php';
 
 $pdo = getConnection();
 $erros = [];
-$p = ['id' => 0, 'nome' => '', 'preco' => '0', 'descricao' => ''];
+$p = ['id' => 0, 'nome' => '', 'preco' => '0', 'descricao' => '', 'beneficios' => ''];
 
-// --- Plano escolhido (por GET ou POST) ---
+// --- Plano escolhido (por GET ou POST) — opcional. O cadastro é gratuito. ---
 $planoId = (int)($_POST['plano'] ?? $_GET['plano'] ?? 0);
 if ($planoId > 0 && $pdo) {
     $stmt = $pdo->prepare("SELECT * FROM planos WHERE id = ? AND ativo = 1 AND slug <> 'demo'");
@@ -16,10 +16,6 @@ if ($planoId > 0 && $pdo) {
     $p = $stmt->fetch() ?: $p;
 }
 
-if ($p['id'] == 0) {
-    header('Location: ' . siteAsset('/planos.php'));
-    exit;
-}
 
 // --- Processa cadastro ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -39,7 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'telefone'         => trim((string)($_POST['telefone'] ?? '')),
         'cidade'           => trim((string)($_POST['cidade'] ?? '')),
         'estado'           => strtoupper(trim((string)($_POST['estado'] ?? ''))),
+        'subdominio'       => strtolower(trim((string)($_POST['subdominio'] ?? ''))),
     ];
+
+    $hostCadastro = preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? '')));
 
     if ($d['nome'] === '')                          $erros[] = siteT('cad_e_nome');
     if (!filter_var($d['email'], FILTER_VALIDATE_EMAIL)) $erros[] = siteT('cad_e_email');
@@ -48,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($d['senha'] !== $d['confirma'])             $erros[] = siteT('cad_e_confirma');
     if (!in_array(strlen($d['documento']), [11, 14])) $erros[] = siteT('cad_e_doc');
     if (strlen($d['cep']) !== 8)                    $erros[] = siteT('cad_e_cep');
+    if (!preg_match('/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/', $d['subdominio'])) $erros[] = siteT('cad_e_subdominio');
 
     if (!$erros) {
         $e_u = $pdo->prepare("SELECT COUNT(*) FROM administradores WHERE usuario = ?");
@@ -57,20 +57,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $e_em = $pdo->prepare("SELECT COUNT(*) FROM administradores WHERE email = ?");
         $e_em->execute([$d['email']]);
         if ((int)$e_em->fetchColumn() > 0)   $erros[] = siteT('cad_e_email_uso');
+
+        $e_su = $pdo->prepare("SELECT COUNT(*) FROM administradores WHERE subdominio = ?");
+        $e_su->execute([$d['subdominio']]);
+        if ((int)$e_su->fetchColumn() > 0)   $erros[] = siteT('cad_e_subdominio_uso');
     }
 
     if (!$erros) {
         try {
             $sql = "INSERT INTO administradores
-                    (usuario, senha, nome, email, razao_social, nome_fantasia, cnpj, cpf,
+                    (usuario, senha, nome, email, subdominio,
+                     razao_social, nome_fantasia, cnpj, cpf,
                      telefone_comercial, cidade, estado, cep, logradouro, numero, bairro, ativo, origem)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'site')";
+                    VALUES (?, ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?, ?, ?, 1, 'site')";
             $ins = $pdo->prepare($sql);
             $ins->execute([
                 $d['usuario'],
                 password_hash($d['senha'], PASSWORD_DEFAULT),
                 $d['nome'],
                 $d['email'],
+                $d['subdominio'],
                 $d['razao_social'] ?: null,
                 $d['nome_fantasia'] ?: null,
                 strlen($d['documento']) === 14 ? $d['documento'] : null,
@@ -85,7 +93,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $novoId = (int)$pdo->lastInsertId();
 
-            // Auto-login e redirect direto ao pagamento
+            // Garante o domínio base global p/ resolução por subdomínio (criado na 1ª vez)
+            if (function_exists('salvarConfigGlobal') && function_exists('getConfigGlobal')) {
+                if (trim((string)getConfigGlobal('base_domain')) === '' && $hostCadastro !== '') {
+                    salvarConfigGlobal('base_domain', ltrim($hostCadastro, '.'));
+                }
+            }
+
+            // Auto-login e redirect direto ao painel (cadastro gratuito).
+            // O plano pode ser escolhido depois em Meu Plano.
             session_regenerate_id(true);
             $_SESSION['admin_id']      = $novoId;
             $_SESSION['admin_usuario'] = $d['usuario'];
@@ -93,9 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['admin_nivel']   = 'admin';
             $_SESSION['admin_origem']  = 'site';
 
-            notificarSuperCadastro($d['nome'], $d['usuario'], $d['email'], $p['nome']);
+            notificarSuperCadastro($d['nome'], $d['usuario'], $d['email'], $p['id'] > 0 ? $p['nome'] : 'Sem plano');
 
-            header('Location: ' . siteAsset('/pagamento.php?plano=' . (int)$planoId));
+            header('Location: ' . siteAsset('/admin/index.php'));
             exit;
         } catch (Throwable $ex) {
             $erros[] = siteT('cad_e_falha') . $ex->getMessage();
@@ -115,7 +131,13 @@ siteHeader();
                 <?= siteT('cad_voltar') ?>
             </a>
             <h1 class="mt-4 text-3xl sm:text-4xl font-black text-slate-900 tracking-tight"><?= siteT('cad_titulo') ?></h1>
-            <p class="mt-2 text-slate-600"><?= siteT('cad_sub1') ?> <strong class="text-slate-900"><?= htmlspecialchars($p['nome']) ?></strong>.</p>
+            <p class="mt-2 text-slate-600">
+                <?php if ($p['id'] > 0): ?>
+                <?= siteT('cad_sub1') ?> <strong class="text-slate-900"><?= htmlspecialchars($p['nome']) ?></strong>.
+                <?php else: ?>
+                <?= siteT('cad_sub1_livre') ?>
+                <?php endif; ?>
+            </p>
 
             <?php if (!empty($erros)): ?>
             <div class="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
@@ -155,6 +177,18 @@ siteHeader();
                             <label class="block text-sm font-semibold text-slate-700"><?= siteT('cad_confirma') ?></label>
                             <input type="password" name="confirma_senha" required minlength="6"
                                    class="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none transition" placeholder="<?= siteT('cad_confirma_ph') ?>">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700"><?= siteT('cad_subdominio') ?></label>
+                            <div class="mt-1.5 flex items-stretch overflow-hidden rounded-2xl border border-slate-200 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100 transition">
+                                <input id="campoSubdominio" name="subdominio" value="<?= htmlspecialchars(strtolower(trim($d['subdominio'] ?? ''))) ?>" required
+                                       pattern="[a-z0-9][a-z0-9-]{1,28}[a-z0-9]" title="<?= htmlspecialchars(siteT('cad_e_subdominio')) ?>"
+                                       oninput="siteAtualizarSubdominio()"
+                                       class="w-full px-4 py-3 text-sm outline-none" placeholder="<?= siteT('cad_subdominio_ph') ?>">
+                                <span class="flex items-center px-3 text-sm font-bold text-slate-400 bg-slate-50 whitespace-nowrap">.<?= htmlspecialchars(ltrim(preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? ''))), '.')) ?></span>
+                            </div>
+                            <p class="mt-1.5 text-xs text-slate-500"><?= siteT('cad_subdominio_hint') ?></p>
+                            <p class="mt-1 text-xs font-semibold text-brand-700">https://<span id="previaSubdominio"><?= htmlspecialchars(strtolower(trim($d['subdominio'] ?? ''))) ?></span>.<span id="previaHost"><?= htmlspecialchars(ltrim(preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? ''))), '.')) ?></span></p>
                         </div>
                     </div>
                 </fieldset>
@@ -221,6 +255,7 @@ siteHeader();
         <aside class="lg:col-span-2">
             <div class="sticky top-24 rounded-3xl border border-slate-100 bg-white p-7 shadow-xl shadow-slate-100/70">
                 <h3 class="text-sm font-black uppercase tracking-wider text-slate-900"><?= siteT('cad_resumo') ?></h3>
+                <?php if ($p['id'] > 0): ?>
                 <div class="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                     <span class="font-bold text-slate-800"><?= htmlspecialchars($p['nome']) ?> <span class="text-xs font-semibold text-slate-400 block"><?= htmlspecialchars(trim((string)$p['descricao'])) ?></span></span>
                     <span class="text-lg font-black text-slate-900">R$ <?= sitePreco($p['preco']) ?><span class="text-xs text-slate-400 font-semibold"><?= siteT('plan_mes') ?></span></span>
@@ -230,15 +265,32 @@ siteHeader();
                     <li class="flex gap-2"><span class="w-5 h-5 rounded-full bg-brand-50 text-brand-600 grid place-items-center shrink-0"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span><?= htmlspecialchars($b) ?></li>
                     <?php endforeach; ?>
                 </ul>
+                <?php else: ?>
+                <div class="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
+                    <span class="font-bold text-slate-800"><?= siteT('cad_gratis_t') ?></span>
+                    <span class="text-xs font-semibold text-slate-400 block mt-0.5"><?= siteT('cad_gratis_d') ?></span>
+                </div>
+                <?php endif; ?>
                 <div class="mt-6 rounded-2xl bg-gradient-to-r from-brand-600 to-brand-800 text-white p-4 flex items-center gap-3">
                     <svg class="w-8 h-8 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
                     <p class="text-sm font-semibold"><?= siteT('cad_pix_nota') ?></p>
                 </div>
-                <p class="mt-5 text-center text-sm text-slate-500"><?= siteT('cad_conta') ?> <a href="/cobranca/admin/login.php" class="font-bold text-brand-700 hover:underline"><?= siteT('cad_login') ?></a></p>
             </div>
         </aside>
     </div>
 </section>
+
+<script>
+function siteAtualizarSubdominio() {
+    var input = document.getElementById('campoSubdominio');
+    var prev = document.getElementById('previaSubdominio');
+    if (input && prev) {
+        var v = input.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        prev.textContent = v;
+        if (input.value !== v) input.value = v;
+    }
+}
+</script>
 
 <?php siteFooter(); ?>
 </body>

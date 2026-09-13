@@ -95,8 +95,8 @@ foreach ($pendentes as $fat) {
     }
 }
 
-$cronAtivo = getConfig('cron_envio_ativo', '0');
-if ($cronAtivo !== '1') {
+$cronAtivoGlobal = getConfigGlobal('cron_envio_ativo', '');
+if ($cronAtivoGlobal !== '' && $cronAtivoGlobal !== '1') {
     file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - " . implode(" | ", $log) . "\n", FILE_APPEND);
     die("CRON executado (baixa): " . count($log) . " acoes\n");
 }
@@ -227,21 +227,6 @@ foreach ($recorrentes as $rec) {
     $log[] = "[gerada_auto] {$numero} -> {$proximaVenc} (freq {$rec['frequencia']})";
 }
 
-$smtpHost = getConfig('smtp_host', '');
-$smtpPort = getConfig('smtp_port', '587');
-$smtpUser = getConfig('smtp_usuario', '');
-$smtpPass = getConfig('smtp_senha', '');
-$smtpFrom = getConfig('smtp_from_email', '');
-$smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobranca');
-$smtpSsl  = getConfig('smtp_ssl', 'tls');
-
-if (!$naJanela) {
-    file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - Envio de emails fora da janela ({$envioHora}). " . implode(" | ", $log) . "\n", FILE_APPEND);
-    die("CRON executado (fora da janela de envio): " . count($log) . " acoes\n");
-}
-
-if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) { die("SMTP nao configurado"); }
-
 $regua1 = (getConfig('regua_1_enviar_geracao', '0') === '1');
 $regua2 = intval(getConfig('regua_2_dias_antes', '0'));
 $regua3 = intval(getConfig('regua_3_dias_antes', '0'));
@@ -250,7 +235,7 @@ $regua5 = intval(getConfig('regua_5_dias_depois', '0'));
 
 function buscarFaturas($pdo, $statuses) {
     $ph = implode(',', array_fill(0, count($statuses), '?'));
-    $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ($ph) AND (c.email IS NOT NULL AND c.email != '' OR c.email2 IS NOT NULL AND c.email2 != '')");
+    $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.status IN ($ph) AND (c.email IS NOT NULL AND c.email != '' OR c.email2 IS NOT NULL AND c.email2 != '' OR c.celular IS NOT NULL AND c.celular != '' OR c.telefone IS NOT NULL AND c.telefone != '')");
     $stmt->execute($statuses);
     return $stmt->fetchAll();
 }
@@ -280,6 +265,7 @@ function enviarEAtualizar($pdo, $fat, $tipo, $assunto, $html, $txt, $s, &$log) {
     } else {
         $log[] = "[erro {$tipo}] {$fat['numero']} -> {$fat['email']}";
     }
+    return $enviado;
 }
 
 function montarAssunto($antes, $fat) {
@@ -301,6 +287,10 @@ foreach ($faturas as &$fat) {
 
     // Contexto de tenant (admin) da fatura — configurações específicas do admin
     cronTenantContext($fat['admin_id'] ?? 0);
+
+    // Envio automático ativo para este admin? (flag por tenant; cai para a global)
+    if (getConfig('cron_envio_ativo', $cronAtivoGlobal ?: '0') !== '1') continue;
+
     $smtpHost = getConfig('smtp_host', '');
     $smtpPort = getConfig('smtp_port', '587');
     $smtpUser = getConfig('smtp_usuario', '');
@@ -308,8 +298,8 @@ foreach ($faturas as &$fat) {
     $smtpFrom = getConfig('smtp_from_email', '');
     $smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobranca');
     $smtpSsl  = getConfig('smtp_ssl', 'tls');
+    $smtpOk = !(empty($smtpHost) || empty($smtpUser) || empty($smtpFrom));
     $s = ['host'=>$smtpHost,'port'=>$smtpPort,'user'=>$smtpUser,'pass'=>$smtpPass,'from'=>$smtpFrom,'nome'=>$smtpNome,'ssl'=>$smtpSsl];
-    if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) { continue; }
 
     $regua1 = (getConfig('regua_1_enviar_geracao', '0') === '1');
     $regua2 = intval(getConfig('regua_2_dias_antes', '0'));
@@ -332,8 +322,14 @@ foreach ($faturas as &$fat) {
         $tipoEnviado = 'atraso';
     }
 
-    if ($tipoEnviado !== null) {
-        if (empty($fat['pix_copia_cola']) && ($fat['status'] ?? '') !== 'pago' && !empty($fat['email'])) {
+    if ($tipoEnviado === null) continue;
+
+    // Janela de envio por admin (60 min a partir do envio_hora do admin)
+    $envioHoraAdmin = getConfig('envio_hora', '08:00');
+    $tsAlvoAdmin = strtotime(date('Y-m-d') . ' ' . $envioHoraAdmin . ':00');
+    if ($tsAlvoAdmin === false || time() < $tsAlvoAdmin || time() >= $tsAlvoAdmin + 3600) continue;
+
+    if (empty($fat['pix_copia_cola']) && ($fat['status'] ?? '') !== 'pago' && !empty($fat['email'])) {
             $resultadoPix = criarPagamento($fat['descricao'], $fat['valor_final'], $fat['email'], $fat['nome_razao']);
             if (isset($resultadoPix['sucesso']) && $resultadoPix['sucesso']) {
                 $fat['pix_qrcode'] = $resultadoPix['qr_code'] ?? '';
@@ -349,25 +345,40 @@ foreach ($faturas as &$fat) {
                 }
             }
         }
+
         $antes = ($tipoEnviado !== 'atraso');
         $diasRef = 0;
         if ($tipoEnviado === 'lembrete1') $diasRef = $regua2;
         elseif ($tipoEnviado === 'lembrete2') $diasRef = $regua3;
         elseif ($tipoEnviado === 'atraso') $diasRef = $regua5;
 
-        enviarEAtualizar($pdo, $fat, $tipoEnviado, montarAssunto($antes, $fat), montarMensagemHtml($fat, $antes ? 'antes' : 'depois', $diasRef), montarMensagemTxt($fat, $antes ? 'antes' : 'depois', $diasRef), $s, $log);
-        $fat['ultimo_envio_tipo'] = $tipoEnviado;
+        // E-mail (apenas se o SMTP do admin estiver configurado e a fatura tiver e-mail)
+        $emailEnviado = false;
+        if ($smtpOk && !empty($fat['email'])) {
+            $emailEnviado = enviarEAtualizar($pdo, $fat, $tipoEnviado, montarAssunto($antes, $fat), montarMensagemHtml($fat, $antes ? 'antes' : 'depois', $diasRef), montarMensagemTxt($fat, $antes ? 'antes' : 'depois', $diasRef), $s, $log);
+        }
 
+        // WhatsApp — enviado sempre que a fatura estiver na régua, independente de SMTP
+        $whatsEnviado = false;
         if ($tipoEnviado === 'geracao' && enviarWhatsAppFatura($fat, 'antes', $diasRef)) {
+            $whatsEnviado = true;
             $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
-        if (in_array($tipoEnviado, ['lembrete1','lembrete2']) && enviarWhatsAppFatura($fat, 'antes', $diasRef)) {
+        if (!$whatsEnviado && in_array($tipoEnviado, ['lembrete1','lembrete2']) && enviarWhatsAppFatura($fat, 'antes', $diasRef)) {
+            $whatsEnviado = true;
             $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
-        if (in_array($tipoEnviado, ['vencimento','atraso']) && enviarWhatsAppFatura($fat, 'depois', $diasRef)) {
+        if (!$whatsEnviado && in_array($tipoEnviado, ['vencimento','atraso']) && enviarWhatsAppFatura($fat, 'depois', $diasRef)) {
+            $whatsEnviado = true;
             $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
-    }
+
+        // Sem SMTP (ou sem e-mail): marca o envio quando o WhatsApp foi entregue,
+        // evitando disparos repetidos a cada execução do cron.
+        if ($whatsEnviado && !$emailEnviado) {
+            $stmtTipo = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = ? WHERE id = ?");
+            $stmtTipo->execute([$tipoEnviado, $fat['id']]);
+        }
 }
 unset($fat);
 

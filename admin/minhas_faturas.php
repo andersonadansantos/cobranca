@@ -474,7 +474,7 @@ let mp = null;
 function carregarQrJs(callback) {
     if (typeof QRCode !== 'undefined') { callback(); return; }
     let s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.src = '/cobranca/assets/vendor/qrcodejs/qrcode.min.js';
     s.onload = callback;
     s.onerror = callback;
     document.head.appendChild(s);

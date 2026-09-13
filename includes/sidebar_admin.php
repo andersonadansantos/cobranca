@@ -3,7 +3,8 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $basePath = '/cobranca/admin';
 $planoExpirado = function_exists('adminPlanoExpirado') ? adminPlanoExpirado() : false;
 $adminDesativado = function_exists('adminEstaAtivo') ? !adminEstaAtivo() : false;
-$acessoRestrito = $planoExpirado || $adminDesativado;
+$acessoRestrito = $adminDesativado;
+$semPlano = function_exists('adminTemPlanoAtivo') ? !adminTemPlanoAtivo() : false;
 
 $logoEmpresaAdmin = function_exists('getConfig') ? getConfig('logo_empresa_admin', '') : '';
 if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($logoEmpresaAdmin)) {
@@ -29,12 +30,14 @@ if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($lo
         <a href="<?= $basePath ?>/cadastro.php" class="nav-link <?= $currentPage === 'cadastro' ? 'active' : '' ?>">
             <i class="fas fa-building"></i> <?= t('nav.cadastro') ?>
         </a>
+        <?php if (!$semPlano): ?>
         <a href="<?= $basePath ?>/emissao.php" class="nav-link <?= $currentPage === 'emissao' ? 'active' : '' ?>">
             <i class="fas fa-file-invoice-dollar"></i> <?= t('nav.emissao') ?>
         </a>
         <a href="<?= $basePath ?>/recibo_avulso.php" class="nav-link <?= $currentPage === 'recibo_avulso' ? 'active' : '' ?>">
             <i class="fas fa-file-invoice"></i> Recibo Avulso
         </a>
+        <?php endif; ?>
         <a href="<?= $basePath ?>/livro_caixa.php" class="nav-link <?= $currentPage === 'livro_caixa' ? 'active' : '' ?>">
             <i class="fas fa-book"></i> <?= t('nav.livro_caixa') ?>
         </a>
@@ -42,6 +45,7 @@ if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($lo
             <i class="fas fa-exclamation-triangle"></i> <?= t('nav.inadimplencia') ?>
         </a>
 
+        <?php if (!$semPlano): ?>
         <div class="nav-section"><?= t('nav.configuracoes') ?></div>
         <a href="#" class="nav-link sidebar-toggle-config" onclick="var el=document.getElementById('configSubmenu');el.style.display=el.style.display==='none'?'block':'none';var icon=this.querySelector('.fa-chevron-down,.fa-chevron-up');if(icon){icon.classList.toggle('fa-chevron-down');icon.classList.toggle('fa-chevron-up');}return false;">
             <i class="fas fa-cog"></i> <?= t('nav.configuracoes') ?> <i class="fas fa-chevron-down ms-auto" style="font-size:0.65rem;"></i>
@@ -75,6 +79,14 @@ if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($lo
                 <i class="fab fa-whatsapp" style="color:#25D366;"></i> <?= t('nav.config_whatsapp') ?>
             </a>
         </div>
+        <?php else: ?>
+        <div style="margin:0 16px 14px;padding:12px 14px;border-radius:8px;background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.35);font-size:.75rem;color:#7a5b00;">
+            <i class="fas fa-rocket me-1"></i>
+            <span class="fw-bold d-block mb-1"><?= t('layout.sem_plano_titulo') ?></span>
+            <?= t('layout.sem_plano_msg') ?>
+            <a href="<?= $basePath ?>/meu_plano.php" class="btn btn-sm btn-warning fw-bold w-100 mt-2" style="font-size:.72rem;color:#1f2937;"><?= t('layout.sem_plano_btn') ?></a>
+        </div>
+        <?php endif; ?>
         <?php endif; ?>
 
         <?php if ($acessoRestrito): ?>

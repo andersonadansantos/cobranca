@@ -47,10 +47,14 @@ function enviarWhatsApp($telefone, $mensagem) {
 
 function renderizarTemplateWhats($template, $fatura, $dias = 0) {
     $pdo = getConnection();
-    $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = 1");
-    $stmt->execute();
-    $admin = $stmt->fetch();
-    $nomeEmpresa = $admin['nome_fantasia'] ?: getNomeSistema();
+    $nomeEmpresa = getNomeSistema();
+    $adminFatura = (int) ($fatura['admin_id'] ?? 0);
+    if ($pdo && $adminFatura > 0) {
+        $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = ?");
+        $stmt->execute([$adminFatura]);
+        $admin = $stmt->fetch();
+        if ($admin && !empty($admin['nome_fantasia'])) $nomeEmpresa = $admin['nome_fantasia'];
+    }
     $linkFatura = getLinkFatura($fatura['id']);
 
     $substituicoes = [
@@ -83,10 +87,14 @@ function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
     }
 
     $pdo = getConnection();
-    $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = 1");
-    $stmt->execute();
-    $admin = $stmt->fetch();
-    $nomeEmpresa = $admin['nome_fantasia'] ?: getNomeSistema();
+    $nomeEmpresa = getNomeSistema();
+    $adminFatura = (int) ($fatura['admin_id'] ?? 0);
+    if ($pdo && $adminFatura > 0) {
+        $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = ?");
+        $stmt->execute([$adminFatura]);
+        $admin = $stmt->fetch();
+        if ($admin && !empty($admin['nome_fantasia'])) $nomeEmpresa = $admin['nome_fantasia'];
+    }
     $linkFatura = getLinkFatura($fatura['id']);
 
     $pixTexto = '';

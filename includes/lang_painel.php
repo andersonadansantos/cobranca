@@ -63,6 +63,9 @@ $GLOBALS['painel_pt'] = [
     'layout.plano_expirado' => 'Plano Expirado',
     'layout.conta_desativada_msg' => 'Sua conta foi desativada pelo administrador. Contate o suporte para reativar o acesso.',
     'layout.plano_vencido_msg' => 'Seu plano está vencido. Renove para continuar usando o painel.',
+    'layout.sem_plano_titulo' => 'Escolha um plano',
+    'layout.sem_plano_msg' => 'A emissão de faturas e as configurações são liberadas quando você escolhe um plano.',
+    'layout.sem_plano_btn' => 'Escolher plano',
 
     // Navegação (painel do admin/usuário)
     'nav.painel_geral' => 'Painel Geral',
@@ -105,6 +108,10 @@ $GLOBALS['painel_pt'] = [
     'tb.dias_restantes' => '%d dia(s) restantes',
     'tb.plano' => 'Plano:',
     'tb.super_admin_tag' => 'Super Admin',
+    'tb.meu_subdominio' => 'Seu subdomínio',
+    'tb.copiar_subdominio' => 'Copiar endereço do seu subdomínio',
+    'tb.area_usuario' => 'Área do usuário',
+    'tb.sem_subdominio' => 'Sem subdomínio definido',
 
     // Login
     'login.titulo' => 'Login Admin',
@@ -322,6 +329,9 @@ $GLOBALS['painel_es'] = [
     'layout.plano_expirado' => 'Plan Expirado',
     'layout.conta_desativada_msg' => 'Tu cuenta fue desactivada por el administrador. Contacta al soporte para reactivar el acceso.',
     'layout.plano_vencido_msg' => 'Tu plan está vencido. Renueva para seguir usando el panel.',
+    'layout.sem_plano_titulo' => 'Elige un plan',
+    'layout.sem_plano_msg' => 'La emisión de facturas y la configuración se liberan cuando eliges un plan.',
+    'layout.sem_plano_btn' => 'Elegir plan',
 
     // Navegação
     'nav.painel_geral' => 'Panel General',
@@ -364,6 +374,10 @@ $GLOBALS['painel_es'] = [
     'tb.dias_restantes' => '%d día(s) restantes',
     'tb.plano' => 'Plan:',
     'tb.super_admin_tag' => 'Super Admin',
+    'tb.meu_subdominio' => 'Tu subdominio',
+    'tb.copiar_subdominio' => 'Copiar dirección de tu subdominio',
+    'tb.area_usuario' => 'Área del usuario',
+    'tb.sem_subdominio' => 'Sin subdominio definido',
 
     // Login
     'login.titulo' => 'Login Admin',

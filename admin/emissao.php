@@ -5,6 +5,7 @@ header('Expires: 0');
 
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
+requirePlanoAtivo();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/mercadopago.php';

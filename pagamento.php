@@ -80,7 +80,6 @@ siteHeader();
                 <p class="text-xs font-bold uppercase tracking-wider text-slate-400"><?= siteT('pag_plano_rot') ?> <?= htmlspecialchars($plano['nome']) ?> · <?= siteT('pag_mensal') ?></p>
                 <p class="mt-1 text-4xl font-black text-slate-900">R$ <?= sitePreco($plano['preco']) ?></p>
             </div>
-            <span class="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-4 py-2"><?= siteT('pag_unico') ?></span>
         </div>
 
         <?php if (!siteEhBrasil() && siteNoMetodoPlano('cartao')): ?>

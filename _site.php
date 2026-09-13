@@ -258,7 +258,8 @@ function siteTrad() {
         // PÁGINA CADASTRO
         'cad_voltar' => 'Voltar aos planos',
         'cad_titulo' => 'Criar minha conta',
-        'cad_sub1' => 'Preencha em menos de 2 minutos. Ao finalizar, você segue direto para o pagamento por PIX do plano',
+        'cad_sub1' => 'Preencha em menos de 2 minutos. Sua conta é gratuita — depois você escolhe o plano',
+        'cad_sub1_livre' => 'Preencha em menos de 2 minutos e crie sua conta gratuita.',
         'cad_erros_t' => 'Revise os dados abaixo:',
         'cad_passo1' => '1. Dados de acesso',
         'cad_nome' => 'Nome completo *',
@@ -285,10 +286,12 @@ function siteTrad() {
         'cad_cidade' => 'Cidade',
         'cad_uf' => 'UF',
         'cad_uf_sel' => '— Selecione —',
-        'cad_btn' => 'Criar conta e ir para o pagamento',
+        'cad_btn' => 'Criar conta gratuitamente',
         'cad_termos' => 'Ao criar a conta você concorda com os termos de uso. Seus dados são tratados com sigilo.',
         'cad_resumo' => 'Resumo',
-        'cad_pix_nota' => 'Pagamento rápido e seguro via PIX. Acesso liberado assim que confirmado.',
+        'cad_pix_nota' => 'Cadastro gratuito. Escolha um plano quando quiser para liberar emissão de faturas e configurações.',
+        'cad_gratis_t' => 'Conta gratuita',
+        'cad_gratis_d' => 'Painel liberado imediatamente. Escolha um plano para emitir faturas e liberar as configurações.',
         'cad_conta' => 'Já tem conta?',
         'cad_login' => 'Fazer login',
         'cad_e_nome' => 'Informe seu nome.',
@@ -301,6 +304,12 @@ function siteTrad() {
         'cad_e_usuario_uso' => 'Esse usuário já está em uso. Escolha outro.',
         'cad_e_email_uso' => 'Já existe uma conta cadastrada com esse e-mail.',
         'cad_e_falha' => 'Não foi possível concluir o cadastro: ',
+        'cad_passo3' => '3. Endereço do seu site',
+        'cad_subdominio' => 'Subdomínio do seu site *',
+        'cad_subdominio_ph' => 'ex.: minhaempresa',
+        'cad_subdominio_hint' => 'Seu painel e a área dos seus clientes ficam nesse endereço.',
+        'cad_e_subdominio' => 'O subdomínio deve ter de 3 a 30 caracteres: letras minúsculas, números e hífen (sem espaços).',
+        'cad_e_subdominio_uso' => 'Esse subdomínio já está em uso. Escolha outro.',
         // PÁGINA PAGAMENTO
         'pag_plano' => 'Pagamento do plano',
         'pag_plano_rot' => 'Plano',
@@ -496,7 +505,8 @@ function siteTrad() {
         // PÁGINA REGISTRO
         'cad_voltar' => 'Volver a los planes',
         'cad_titulo' => 'Crear mi cuenta',
-        'cad_sub1' => 'Completa en menos de 2 minutos. Al finalizar, sigues directo al pago por PIX del plan',
+        'cad_sub1' => 'Completa en menos de 2 minutos. Tu cuenta es gratuita — después eliges el plan',
+        'cad_sub1_livre' => 'Completa en menos de 2 minutos y crea tu cuenta gratuita.',
         'cad_erros_t' => 'Revisa los datos a continuación:',
         'cad_passo1' => '1. Datos de acceso',
         'cad_nome' => 'Nombre completo *',
@@ -523,10 +533,12 @@ function siteTrad() {
         'cad_cidade' => 'Ciudad',
         'cad_uf' => 'UF',
         'cad_uf_sel' => '— Selecciona —',
-        'cad_btn' => 'Crear cuenta e ir al pago',
+        'cad_btn' => 'Crear cuenta gratuita',
         'cad_termos' => 'Al crear la cuenta aceptas los términos de uso. Tus datos se tratan con confidencialidad.',
         'cad_resumo' => 'Resumen',
-        'cad_pix_nota' => 'Pago rápido y seguro por PIX. El acceso se libera apenas se confirma.',
+        'cad_pix_nota' => 'Registro gratuito. Elige un plan cuando quieras para liberar la emisión de facturas y la configuración.',
+        'cad_gratis_t' => 'Cuenta gratuita',
+        'cad_gratis_d' => 'Panel liberado de inmediato. Elige un plan para emitir facturas y liberar la configuración.',
         'cad_conta' => '¿Ya tienes cuenta?',
         'cad_login' => 'Iniciar sesión',
         'cad_e_nome' => 'Ingresa tu nombre.',
@@ -539,6 +551,12 @@ function siteTrad() {
         'cad_e_usuario_uso' => 'Ese usuario ya está en uso. Elige otro.',
         'cad_e_email_uso' => 'Ya existe una cuenta registrada con ese correo.',
         'cad_e_falha' => 'No fue posible completar el registro: ',
+        'cad_passo3' => '3. Dirección de tu sitio',
+        'cad_subdominio' => 'Subdominio de tu sitio *',
+        'cad_subdominio_ph' => 'ej.: miempresa',
+        'cad_subdominio_hint' => 'Tu panel y el área de tus clientes estarán en esa dirección.',
+        'cad_e_subdominio' => 'El subdominio debe tener de 3 a 30 caracteres: letras minúsculas, números y guion (sin espacios).',
+        'cad_e_subdominio_uso' => 'Ese subdominio ya está en uso. Elige otro.',
         // PÁGINA PAGO
         'pag_plano' => 'Pago del plan',
         'pag_plano_rot' => 'Plan',
@@ -653,11 +671,11 @@ function siteTrad() {
         'ft_pix' => 'Pago seguro con PIX.',
         'cad_voltar' => 'Volver a los planes',
         'cad_titulo' => 'Creá tu cuenta',
-        'cad_sub1' => 'Completá en menos de 2 minutos. Al finalizar, seguís directo al pago por PIX del plan',
+        'cad_sub1' => 'Completá en menos de 2 minutos. Tu cuenta es gratuita — después elegís el plan',
         'cad_nome_ph' => 'Cómo querés ser llamado',
         'cad_confirma_ph' => 'Repetí la contraseña',
         'cad_uf_sel' => '— Seleccioná —',
-        'cad_btn' => 'Creá tu cuenta e ir al pago',
+        'cad_btn' => 'Creá tu cuenta gratis',
         'cad_conta' => '¿Ya tenés cuenta?',
         'cad_login' => 'Iniciar sesión',
         'cad_e_usuario' => 'El usuario debe tener de 3 a 30 caracteres (letras, números, punto, guion).',
@@ -976,8 +994,7 @@ function siteHeader($secao = '') {
     <script type="application/ld+json"><?= json_encode($geoFaq, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?></script>
     <?php endif; ?>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
