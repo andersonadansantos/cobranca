@@ -12,16 +12,16 @@ if (isset($_GET['entrar'])) {
             SELECT a.*, ap.data_fim AS plano_fim
             FROM administradores a
             LEFT JOIN admin_planos ap ON ap.admin_id = a.id
-            WHERE a.usuario = 'demo' AND a.ativo = 1
+            WHERE a.usuario = ? AND a.ativo = 1
             ORDER BY ap.id DESC LIMIT 1
         ");
-        $stmt->execute();
+        $stmt->execute([DEMO_USUARIO]);
         $demo = $stmt->fetch();
 
         if ($demo && (!empty($demo['plano_fim']) && strtotime($demo['plano_fim']) > strtotime(date('Y-m-d')))) {
             session_regenerate_id(true);
             $_SESSION['admin_id']      = (int)$demo['id'];
-            $_SESSION['admin_usuario'] = 'demo';
+            $_SESSION['admin_usuario'] = DEMO_USUARIO;
             $_SESSION['admin_nome']    = $demo['nome'] ?: 'Conta Demo';
             $_SESSION['admin_nivel']   = 'admin';
             $_SESSION['admin_origem']  = 'demo';

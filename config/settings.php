@@ -16,6 +16,18 @@ if (!defined('APP_ROOT')) {
     define('APP_ROOT', realpath(__DIR__ . '/..') ?: __DIR__ . '/..');
 }
 
+// === REGRA: SUBDOMÍNIO DA DEMO ===
+// A conta de demonstração do site (usuario = 'demo', origem = 'demo') usa SEMPRE
+// o subdomínio fixo 'demo' -> https://demo.centraldefaturas.com.br
+// Por isso 'demo' é RESERVADO em api/check_subdominio.php e nenhum outro tenant
+// pode se cadastrar com esse subdomínio.
+if (!defined('DEMO_SUBDOMINIO')) {
+    define('DEMO_SUBDOMINIO', 'demo');
+}
+if (!defined('DEMO_USUARIO')) {
+    define('DEMO_USUARIO', 'demo');
+}
+
 // === UTF-8 global ===
 if (function_exists('mb_internal_encoding')) { mb_internal_encoding('UTF-8'); }
 if (function_exists('mb_http_output')) { mb_http_output('UTF-8'); }

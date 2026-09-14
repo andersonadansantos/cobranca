@@ -3,6 +3,7 @@
 // API: Verifica disponibilidade de subdomínio (AJAX)
 // =====================================================
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/settings.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -14,8 +15,10 @@ if (!preg_match('/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/', $sub)) {
     exit;
 }
 
-// Subdomínios reservados (não podem ser usados por tenants)
-$reservados = ['www', 'admin', 'superadmin', 'api', 'app', 'mail', 'ftp', 'smtp', 'pop', 'ns1', 'ns2', 'dns', 'cdn', 'blog', 'loja', 'shop', 'teste', 'test', 'demo', 'suporte', 'help', 'status', 'webmail', 'cpanel', 'pma', 'phpmyadmin', 'centraldefaturas'];
+// Subdomínios reservados (não podem ser usados por tenants).
+// REGRA: 'demo' é reservado porque a conta de demonstração do site usa
+// o subdomínio fixo demo.centraldefaturas.com.br (DEMO_SUBDOMINIO).
+$reservados = ['www', 'admin', 'superadmin', 'api', 'app', 'mail', 'ftp', 'smtp', 'pop', 'ns1', 'ns2', 'dns', 'cdn', 'blog', 'loja', 'shop', 'teste', 'test', DEMO_SUBDOMINIO, 'suporte', 'help', 'status', 'webmail', 'cpanel', 'pma', 'phpmyadmin', 'centraldefaturas'];
 if (in_array($sub, $reservados, true)) {
     echo json_encode(['disponivel' => false, 'motivo' => 'reservado']);
     exit;
