@@ -95,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Novo admin SEMPRE nasce 100% zerado: sem logo, sem configurações
             // de APIs (admin_evolution) e sem configurações globais copiadas.
-            $pdo->prepare("DELETE FROM configuracoes WHERE admin_id = ?")->execute([$novoId]);
             $pdo->prepare("DELETE FROM admin_evolution WHERE admin_id = ?")->execute([$novoId]);
+            zerarConfigAdminNovo($pdo, $novoId);
 
             // Concede 7 dias de acesso gratuito (plano trial).
             // Cria o plano "Período Gratuito" se não existir e insere em admin_planos.

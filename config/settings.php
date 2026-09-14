@@ -163,6 +163,39 @@ function getAllConfigForAdmin($adminId) {
     return $config;
 }
 
+// Novo admin nasce 100% zerado: remove quaisquer linhas existentes do admin e
+// insere valores vazios para todas as configurações globais administráveis, de
+// modo que getConfig()/getAllConfig() retornem '' (bloqueando a herança global).
+// Chaves de infraestrutura do sistema (base_domain, cron_token, plano, super_*,
+// tutorial_*, turnstile, isolamento etc.) continuam globais normalmente.
+function zerarConfigAdminNovo($pdo, $adminId) {
+    $adminId = (int)$adminId;
+    if (!$pdo || $adminId <= 0) return;
+
+    $pdo->prepare("DELETE FROM configuracoes WHERE admin_id = ?")->execute([$adminId]);
+
+    // Chaves globais que NAO devem ser bloqueadas no admin novo (infraestrutura/sistema).
+    $chavesSistema = [
+        'base_domain', 'cron_token', 'site_url',
+        'planos_limites', 'planos_utf8_fix',
+        'multitenant', 'isolamento_admin', 'usuarios_admin_isolado',
+        'turnstile_secret_key', 'google_client_id',
+    ];
+
+    $placeholders = implode(',', array_fill(0, count($chavesSistema), '?'));
+    $stmt = $pdo->prepare(
+        "INSERT INTO configuracoes (admin_id, chave, valor)
+         SELECT ?, chave, '' FROM configuracoes
+         WHERE admin_id IS NULL
+           AND chave NOT IN ($placeholders)
+           AND chave NOT LIKE 'super\\_%'
+           AND chave NOT LIKE 'tutorial\\_%'
+         ON DUPLICATE KEY UPDATE valor = ''"
+    );
+    $params = array_merge([$adminId], $chavesSistema);
+    $stmt->execute($params);
+}
+
 // Logo da empresa de um admin específico (logo_empresa_admin). Cai para a
 // marca global se o admin não tiver enviado logo própria.
 function getLogoEmpresaFatura($adminId) {
