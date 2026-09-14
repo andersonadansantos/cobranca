@@ -92,7 +92,7 @@ $nomeSistema = getNomeSistema();
                             <i class="fas fa-check-circle me-1"></i> <?= $mensagem ?>
                         </div>
                         <div class="text-center mt-3">
-                            <a href="/cobranca/usuario/login.php" class="btn btn-primary w-100">
+                            <a href="/cobranca/usuario/" class="btn btn-primary w-100">
                                 <i class="fas fa-sign-in-alt me-1"></i> Ir para o Login
                             </a>
                         </div>

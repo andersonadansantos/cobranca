@@ -152,7 +152,7 @@ if ($meuSubdominio !== '' && $baseDominioSite !== '') {
     $hostTenantSite = $meuSubdominio . '.' . $hostAtualSite;
 }
 $urlSubdominio = $protoSite . '://' . $hostTenantSite . $appBaseSite;
-$urlAreaUsuario = $urlSubdominio . '/usuario/login.php';
+$urlAreaUsuario = $urlSubdominio . '/usuario/';
 $subdominioCopiar = $protoSite . '://' . $hostTenantSite;
 $semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
 ?>

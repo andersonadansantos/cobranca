@@ -109,7 +109,7 @@ $nomeSistema = getNomeSistema();
                     </form>
 
                     <div class="text-center mt-3">
-                        <a href="/cobranca/usuario/login.php" class="text-decoration-none">
+                        <a href="/cobranca/usuario/" class="text-decoration-none">
                             <small><i class="fas fa-arrow-left me-1"></i> Voltar para o Login</small>
                         </a>
                     </div>

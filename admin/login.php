@@ -127,7 +127,7 @@ $nomeSistema = getNomeSistema();
                     <div class="text-center"><small class="text-muted" style="font-size:0.65rem;"><?= t('login.dev') ?></small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
 
                     <div class="text-center mt-3">
-                        <a href="/cobranca/usuario/login.php" class="text-decoration-none">
+                        <a href="/cobranca/usuario/" class="text-decoration-none">
                             <small><i class="fas fa-arrow-left me-1"></i> <?= t('login.voltar_cliente') ?></small>
                         </a>
                     </div>

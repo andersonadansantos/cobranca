@@ -1196,7 +1196,7 @@ function siteFooter() {
             <h4 class="font-bold text-white text-sm uppercase tracking-wider"><?= siteT('ft_acesso') ?></h4>
             <ul class="mt-4 space-y-2 text-sm">
                 <li><a href="/cobranca/admin/login.php" class="hover:text-brand-400 transition"><?= siteT('ft_painel') ?></a></li>
-                <li><a href="/cobranca/usuario/login.php" class="hover:text-brand-400 transition"><?= siteT('ft_pagador') ?></a></li>
+                <li><a href="/cobranca/usuario/" class="hover:text-brand-400 transition"><?= siteT('ft_pagador') ?></a></li>
                 <li><a href="<?= siteAsset('/cadastro.php') ?>" class="hover:text-brand-400 transition"><?= siteT('ft_criar') ?></a></li>
             </ul>
         </div>
