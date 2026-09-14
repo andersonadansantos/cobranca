@@ -196,6 +196,97 @@ function zerarConfigAdminNovo($pdo, $adminId) {
     $stmt->execute($params);
 }
 
+/**
+ * Exclusão TOTAL de um admin: remove todas as linhas em todas as tabelas que
+ * possuem a coluna admin_id (dados de clientes, faturas, configs, plano,
+ * livro caixa, recibos, etc.), além do cadastro em administradores. Com isso o
+ * subdomínio/usuário/email ficam livres para um recadastramento completo.
+ * Retorna true em caso de sucesso.
+ */
+function excluirAdminCompleto($pdo, $adminId) {
+    $adminId = (int)$adminId;
+    if (!$pdo || $adminId <= 0) return false;
+
+    // Tabelas que possuem coluna `admin_id` (isolamento por tenant).
+    $tabelas = [
+        'admin_certificados',
+        'admin_evolution',
+        'admin_planos',
+        'clientes',
+        'configuracoes',
+        'contratos',
+        'faturas',
+        'faturas_recorrentes',
+        'livro_caixa_custos',
+        'livro_caixa_entradas',
+        'livro_caixa_saidas',
+        'nfse_notas',
+        'pagamentos_log',
+        'planos_pagamentos',
+        'recibos',
+        'usuarios_admin',
+    ];
+
+    // Recupera caminhos de arquivos (logos, banners, avatar) para limpar órfãos.
+    $arquivos = [];
+    try {
+        $st = $pdo->prepare("SELECT chave, valor FROM configuracoes WHERE admin_id = ?");
+        $st->execute([$adminId]);
+        while ($row = $st->fetch()) {
+            $arquivos[] = $row['valor'];
+        }
+    } catch (PDOException $e) {}
+    try {
+        $st = $pdo->prepare("SELECT avatar FROM administradores WHERE id = ?");
+        $st->execute([$adminId]);
+        $avatar = (string)$st->fetchColumn();
+        if ($avatar !== '') $arquivos[] = $avatar;
+    } catch (PDOException $e) {}
+
+    try {
+        $pdo->beginTransaction();
+        // Desabilita FKs momentaneamente: algumas tabelas (faturas/clientes/
+        // contratos/faturas_recorrentes) têm FK entre si e a ordem de exclusão
+        // pode variar conforme o schema de cada ambiente.
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
+        foreach ($tabelas as $tbl) {
+            $existe = $pdo->query("SHOW TABLES LIKE " . $pdo->quote($tbl))->fetch();
+            if ($existe) {
+                $pdo->prepare("DELETE FROM `" . $tbl . "` WHERE admin_id = ?")->execute([$adminId]);
+            }
+        }
+        $pdo->prepare("DELETE FROM administradores WHERE id = ?")->execute([$adminId]);
+        $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) { try { $pdo->rollBack(); } catch (Throwable $e2) {} }
+        try { $pdo->exec("SET FOREIGN_KEY_CHECKS=1"); } catch (Throwable $e2) {}
+        return false;
+    }
+
+    // Remove arquivos órfãos (logos/banners/avatars) salvos em assets/.
+    foreach ($arquivos as $caminho) {
+        if (!is_string($caminho) || $caminho === '') continue;
+        $path = null;
+        if (preg_match('#^/cobranca/(assets/.+)$#', $caminho, $m)) {
+            $path = __DIR__ . '/..' . '/' . $m[1];
+        } elseif (preg_match('#^/cobranca/#', $caminho)) {
+            $path = __DIR__ . '/..' . substr($caminho, strlen('/cobranca'));
+        }
+        if ($path && strpos($path, 'assets/') !== false && is_file($path)) {
+            @unlink($path);
+        }
+    }
+    // Remove o diretório de certificados Inter/Sicoob do admin, se existir.
+    $certDir = __DIR__ . '/inter_certs/admin_' . $adminId;
+    if (is_dir($certDir)) {
+        foreach (glob($certDir . '/*') ?: [] as $f) @unlink($f);
+        @rmdir($certDir);
+    }
+
+    return true;
+}
+
 // Logo da empresa de um admin específico (logo_empresa_admin). Cai para a
 // marca global se o admin não tiver enviado logo própria.
 function getLogoEmpresaFatura($adminId) {

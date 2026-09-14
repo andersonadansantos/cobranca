@@ -9,11 +9,13 @@ $tipo = '';
 if (isset($_GET['excluir'])) {
     $id = intval($_GET['excluir']);
     try {
-        $pdo->prepare("DELETE FROM admin_evolution WHERE admin_id = ?")->execute([$id]);
-        $pdo->prepare("DELETE FROM admin_planos WHERE admin_id = ?")->execute([$id]);
-        $pdo->prepare("DELETE FROM administradores WHERE id = ?")->execute([$id]);
-        $mensagem = 'Admin excluído com sucesso!';
-        $tipo = 'success';
+        if (excluirAdminCompleto($pdo, $id)) {
+            $mensagem = 'Admin excluído completamente (sistema e banco de dados)!';
+            $tipo = 'success';
+        } else {
+            $mensagem = 'Erro ao excluir admin.';
+            $tipo = 'danger';
+        }
     } catch (Exception $e) {
         $mensagem = 'Erro ao excluir admin.';
         $tipo = 'danger';
