@@ -105,31 +105,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         }
 
-        $avatarPath = $admin['avatar'] ?? null;
-        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
-                $dir = __DIR__ . '/../assets/img/avatars';
-                if (!is_dir($dir)) mkdir($dir, 0777, true);
-                $filename = 'admin_' . $adminId . '.' . $ext;
-                if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dir . '/' . $filename)) {
-                    $avatarPath = '/cobranca/assets/img/avatars/' . $filename;
-                    $stmt = $pdo->prepare("UPDATE administradores SET avatar=? WHERE id=?");
-                    $stmt->execute([$avatarPath, $adminId]);
-                    $_SESSION['admin_avatar'] = $avatarPath;
+$avatarPath = $admin['avatar'] ?? null;
+        $avisoFoto = '';
+        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $errFoto = (int)($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($errFoto === UPLOAD_ERR_INI_SIZE || $errFoto === UPLOAD_ERR_FORM_SIZE) {
+                $avisoFoto = 'A imagem excede o tamanho máximo permitido (2MB).';
+            } elseif ($errFoto !== UPLOAD_ERR_OK) {
+                $avisoFoto = 'Falha no envio da imagem (código ' . $errFoto . ').';
+            } else {
+                $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
+                    $dir = __DIR__ . '/../assets/img/avatars';
+                    if (!is_dir($dir)) @mkdir($dir, 0777, true);
+                    $filename = 'admin_' . (int)$adminId . '.' . $ext;
+                    if (@move_uploaded_file($_FILES['avatar']['tmp_name'], $dir . '/' . $filename)) {
+                        $avatarPath = '/cobranca/assets/img/avatars/' . $filename;
+                        $stmt = $pdo->prepare("UPDATE administradores SET avatar=? WHERE id=?");
+                        $stmt->execute([$avatarPath, $adminId]);
+                        $_SESSION['admin_avatar'] = $avatarPath;
+                    } else {
+                        $avisoFoto = 'Não foi possível salvar a nova imagem de perfil (verifique permissões de escrita).';
+                    }
+                } else {
+                    $avisoFoto = 'Formato de imagem não permitido (use JPG, PNG, GIF ou WEBP).';
                 }
             }
+        }
+        if ($avisoFoto !== '') {
+            $mensagem .= ($mensagem !== '' ? ' ' : '') . $avisoFoto;
+            if ($tipo !== 'danger') $tipo = 'warning';
         }
 
         $stmt = $pdo->prepare("SELECT * FROM administradores WHERE id = ?");
         $stmt->execute([$adminId]);
         $admin = $stmt->fetch();
 
-    } catch (PDOException $e) {
+} catch (PDOException $e) {
         $mensagem = 'Erro ao atualizar: ' . $e->getMessage();
         $tipo = 'danger';
     }
 }
+
+$avatarSrc = $admin['avatar'] ?: '/cobranca/assets/img/avatars/admin.svg';
+$avatarLocal = __DIR__ . '/..' . (strncmp($avatarSrc, '/cobranca/', 10) === 0 ? substr($avatarSrc, 8) : $avatarSrc);
+$avatarLocal = str_contains($avatarLocal, '?') ? strtok($avatarLocal, '?') : $avatarLocal;
+if (is_file($avatarLocal)) $avatarSrc .= '?v=' . filemtime($avatarLocal);
 
 $pageTitle = 'Meu Perfil';
 include __DIR__ . '/../includes/header.php';
@@ -168,7 +189,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             <div class="row">
                 <div class="col-lg-4">
                     <div class="form-card text-center">
-                        <img src="<?= htmlspecialchars($admin['avatar'] ?: '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle mb-3" width="120" height="120" style="object-fit:cover; border: 3px solid var(--cor-primaria);">
+                        <img src="<?= htmlspecialchars($avatarSrc) ?>" alt="Avatar" class="rounded-circle mb-3" width="120" height="120" style="object-fit:cover; border: 3px solid var(--cor-primaria);">
                         <h5><?= htmlspecialchars($admin['nome']) ?></h5>
                         <small class="text-muted"><?= htmlspecialchars($admin['email']) ?></small>
                     </div>
