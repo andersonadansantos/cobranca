@@ -456,6 +456,74 @@ body {
     border: 1px solid var(--app-card-border);
 }
 
+/* CARDS DE LINKS (dashboard do admin) */
+.link-card {
+    background: var(--app-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--app-card-border);
+    box-shadow: var(--shadow-sm);
+    padding: 22px 20px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+
+.link-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--app-card-border);
+}
+
+.link-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--link-card-accent, var(--cor-primaria));
+    opacity: 0.85;
+}
+
+.link-card .link-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    color: #fff;
+    background: var(--link-card-accent, var(--cor-primaria));
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    flex-shrink: 0;
+}
+
+.link-card .link-card-title {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--app-text-muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.link-card .link-card-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--app-text);
+    word-break: break-all;
+}
+
+.link-card .btn {
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
 .form-card .form-label {
     font-weight: 600;
     font-size: 0.82rem;

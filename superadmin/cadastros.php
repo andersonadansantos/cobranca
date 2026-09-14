@@ -122,6 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $emp['razao_social'], $emp['nome_fantasia'], $emp['cnpj'], $emp['cpf'], $emp['inscricao_estadual'], $emp['inscricao_municipal'], $emp['telefone_comercial'], $emp['email_comercial'],
                         $emp['cep'], $emp['logradouro'], $emp['numero'], $emp['complemento'], $emp['bairro'], $emp['cidade'], $emp['estado']]);
                 $novoId = (int)$pdo->lastInsertId();
+                // Novo admin SEMPRE nasce 100% zerado: sem logo, sem configurações
+                // de APIs (admin_evolution) e sem configurações globais copiadas.
+                $pdo->prepare("DELETE FROM configuracoes WHERE admin_id = ?")->execute([$novoId]);
+                $pdo->prepare("DELETE FROM admin_evolution WHERE admin_id = ?")->execute([$novoId]);
                 if ($plano_id > 0) {
                     $pdo->prepare("INSERT INTO admin_planos (admin_id, plano_id, data_inicio, data_fim) VALUES (?, ?, CURDATE(), ?)")
                         ->execute([$novoId, $plano_id, $data_fim ?: null]);

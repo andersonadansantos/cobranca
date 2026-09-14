@@ -93,6 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $novoId = (int)$pdo->lastInsertId();
 
+            // Novo admin SEMPRE nasce 100% zerado: sem logo, sem configurações
+            // de APIs (admin_evolution) e sem configurações globais copiadas.
+            $pdo->prepare("DELETE FROM configuracoes WHERE admin_id = ?")->execute([$novoId]);
+            $pdo->prepare("DELETE FROM admin_evolution WHERE admin_id = ?")->execute([$novoId]);
+
             // Concede 7 dias de acesso gratuito (plano trial).
             // Cria o plano "Período Gratuito" se não existir e insere em admin_planos.
             $trialPlanoId = $pdo->query("SELECT id FROM planos WHERE slug = 'trial' LIMIT 1")->fetchColumn();

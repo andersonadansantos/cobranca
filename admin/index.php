@@ -163,40 +163,6 @@ $semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
             <button class="btn d-md-none" id="sidebarToggle"><i class="fas fa-bars"></i></button>
             <h5><?= t('dash.titulo') ?></h5>
         </div>
-        <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
-        <span class="d-inline-flex align-items-center gap-2 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px solid #dee2e6;background:#f8f9fa;color:#1e293b;" title="<?= t('tb.copiar_subdominio') ?>">
-            <i class="fas fa-globe me-1"></i>
-            <strong><?= htmlspecialchars($hostTenantSite) ?></strong>
-            <a href="javascript:void(0)" onclick="copiarSubdominio(this)" data-copiar="<?= htmlspecialchars($subdominioCopiar) ?>" class="text-decoration-none" title="<?= t('tb.copiar_subdominio') ?>"><i class="fas fa-copy text-muted"></i></a>
-        </span>
-        <a href="<?= htmlspecialchars($urlAreaUsuario) ?>" target="_blank" rel="noopener" class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill text-decoration-none" style="font-size:0.78rem;border:1px solid #dee2e6;background:#e8f5ee;color:#0f7b5c;">
-            <i class="fas fa-external-link-alt me-1"></i><?= t('tb.area_usuario') ?>
-        </a>
-        <?php else: ?>
-        <span class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px dashed #dee2e6;background:#f8f9fa;color:#6c757d;">
-            <i class="fas fa-info-circle me-1"></i><?= t('tb.sem_subdominio') ?>
-        </span>
-        <?php endif; ?>
-        <?php if (!empty($meuPlanoInfo)): ?>
-        <span class="d-inline-flex align-items-center gap-1 me-2 py-1 px-2 rounded-pill" style="font-size:0.78rem;border:1px solid #dee2e6;<?= ($diasRestantes !== null && $diasRestantes <= 7) ? 'background:#fff3cd;color:#856404;border-color:#ffc107;' : 'background:#e8f5ee;color:#0f7b5c;' ?>">
-            <i class="fas fa-hourglass-half me-1"></i>
-            <?php if ($diasRestantes === null): ?>
-                <?= t('tb.plano') ?> <strong class="ms-1"><?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></strong>
-            <?php elseif ($diasRestantes <= 0): ?>
-                <strong class="ms-1"><?= t('tb.plano_vencido') ?></strong> · <a href="/cobranca/admin/minhas_faturas.php" class="fw-bold" style="text-decoration:underline;"><?= t('tb.renovar') ?></a>
-            <?php elseif ($diasRestantes === 1): ?>
-                <strong class="ms-1"><?= t('tb.vence_hoje') ?></strong>
-                <span class="text-muted">· <?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></span>
-                <a href="/cobranca/admin/minhas_faturas.php" class="btn btn-sm btn-warning fw-bold ms-1" style="font-size:0.7rem;"><?= t('tb.renovar') ?></a>
-            <?php else: ?>
-                <strong class="ms-1"><?= t('tb.dias_restantes', [$diasRestantes]) ?></strong>
-                <span class="text-muted">· <?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></span>
-                <?php if ($diasRestantes <= 7): ?>
-                    <a href="/cobranca/admin/minhas_faturas.php" class="btn btn-sm btn-warning fw-bold ms-1" style="font-size:0.7rem;"><?= t('tb.renovar') ?></a>
-                <?php endif; ?>
-            <?php endif; ?>
-        </span>
-        <?php endif; ?>
         <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> <?= t('tb.suporte') ?></a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
@@ -212,6 +178,90 @@ $semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
     </div>
 
     <div class="content-area fade-in">
+        <!-- Área do cliente: Subdomínio, Área do usuário e 7 dias gratuitos -->
+        <div class="row g-3 mb-4" style="--bs-gutter-y: 1rem;">
+            <div class="col-md-4 d-flex">
+                <div class="w-100" style="--link-card-accent: var(--cor-primaria);">
+                    <div class="link-card">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="link-card-icon"><i class="fas fa-earth-americas"></i></div>
+                            <div>
+                                <div class="link-card-title"><?= t('tb.meu_subdominio') ?></div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
+                                        <a href="<?= htmlspecialchars($subdominioCopiar) ?>" target="_blank" rel="noopener" class="link-card-value text-decoration-none"><?= htmlspecialchars($hostTenantSite) ?></a>
+                                        <a href="javascript:void(0)" onclick="copiarSubdominio(this)" data-copiar="<?= htmlspecialchars($subdominioCopiar) ?>" class="text-decoration-none flex-shrink-0" title="<?= t('tb.copiar_subdominio') ?>"><i class="fas fa-copy text-muted"></i></a>
+                                    <?php else: ?>
+                                        <span class="link-card-value text-muted"><?= t('tb.sem_subdominio') ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
+                            <a href="<?= htmlspecialchars($subdominioCopiar) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-primary w-100 mt-auto"><i class="fas fa-external-link-alt me-1"></i><?= t('tb.abrir_subdominio') ?></a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 d-flex">
+                <div class="w-100" style="--link-card-accent: var(--cor-sucesso);">
+                    <div class="link-card">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="link-card-icon"><i class="fas fa-user-group"></i></div>
+                            <div>
+                                <div class="link-card-title"><?= t('tb.area_usuario') ?></div>
+                                <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
+                                    <div class="link-card-value text-muted" style="font-weight:500;font-size:0.85rem;"><?= htmlspecialchars($urlAreaUsuario) ?></div>
+                                <?php else: ?>
+                                    <span class="link-card-value text-muted"><?= t('tb.sem_subdominio') ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
+                            <a href="<?= htmlspecialchars($urlAreaUsuario) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-primary w-100 mt-auto"><i class="fas fa-external-link-alt me-1"></i><?= t('tb.abrir_area_usuario') ?></a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 d-flex">
+                <div class="w-100" style="--link-card-accent: var(--cor-aviso);">
+                    <div class="link-card">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="link-card-icon"><i class="fas fa-gift"></i></div>
+                            <div>
+                                <div class="link-card-title"><?= t('tb.gratuito') ?></div>
+                                <?php if (!empty($meuPlanoInfo)): ?>
+                                    <div class="link-card-value"><?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></div>
+                                <?php else: ?>
+                                    <span class="link-card-value text-muted"><?= t('tb.sem_subdominio') ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if (!empty($meuPlanoInfo)): ?>
+                            <div class="mt-auto">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <?php if ($diasRestantes === null): ?>
+                                        <span class="text-muted small"><?= t('tb.sem_vencimento') ?></span>
+                                    <?php elseif ($diasRestantes <= 0): ?>
+                                        <span class="text-danger fw-semibold small"><i class="fas fa-circle-exclamation me-1"></i><?= t('tb.plano_vencido') ?></span>
+                                    <?php elseif ($diasRestantes === 1): ?>
+                                        <span class="text-warning fw-semibold small"><i class="fas fa-circle-exclamation me-1"></i><?= t('tb.vence_hoje') ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted small"><?= t('tb.dias_restantes', [$diasRestantes]) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if ($diasRestantes !== null && $diasRestantes <= 7): ?>
+                                    <a href="/cobranca/admin/minhas_faturas.php" class="btn btn-sm btn-warning fw-bold w-100" style="color:#1f2937;"><?= t('tb.renovar') ?> <i class="fas fa-arrow-right ms-1"></i></a>
+                                <?php else: ?>
+                                    <div class="badge" style="background:#e8f5ee;color:#0f7b5c;font-weight:600;width:100%;padding:7px 10px;"><?= t('tb.plano_contratado') ?></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <?php if ($semPlano): ?>
         <div class="alert alert-warning d-flex align-items-center mb-4" role="alert" style="border-left:4px solid #ffc107;">
             <i class="fas fa-rocket me-3" style="font-size:1.2rem;"></i>

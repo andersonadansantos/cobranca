@@ -112,6 +112,11 @@ $GLOBALS['painel_pt'] = [
     'tb.copiar_subdominio' => 'Copiar endereço do seu subdomínio',
     'tb.area_usuario' => 'Área do usuário',
     'tb.sem_subdominio' => 'Sem subdomínio definido',
+    'tb.abrir_subdominio' => 'Abrir subdomínio',
+    'tb.abrir_area_usuario' => 'Abrir área do usuário',
+    'tb.gratuito' => '7 dias gratuitos',
+    'tb.sem_vencimento' => 'Acesso contínuo',
+    'tb.plano_contratado' => 'Plano contratado, sem vencimento próximo.',
 
     // Login
     'login.titulo' => 'Login Admin',
@@ -378,6 +383,11 @@ $GLOBALS['painel_es'] = [
     'tb.copiar_subdominio' => 'Copiar dirección de tu subdominio',
     'tb.area_usuario' => 'Área del usuario',
     'tb.sem_subdominio' => 'Sin subdominio definido',
+    'tb.abrir_subdominio' => 'Abrir subdominio',
+    'tb.abrir_area_usuario' => 'Abrir área del usuario',
+    'tb.gratuito' => '7 días gratuitos',
+    'tb.sem_vencimento' => 'Acceso continuo',
+    'tb.plano_contratado' => 'Plan contratado, sin vencimiento próximo.',
 
     // Login
     'login.titulo' => 'Login Admin',
