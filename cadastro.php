@@ -93,6 +93,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $novoId = (int)$pdo->lastInsertId();
 
+            // Concede 7 dias de acesso gratuito (plano trial).
+            // Cria o plano "Período Gratuito" se não existir e insere em admin_planos.
+            $trialPlanoId = $pdo->query("SELECT id FROM planos WHERE slug = 'trial' LIMIT 1")->fetchColumn();
+            if (!$trialPlanoId) {
+                $pdo->exec("INSERT IGNORE INTO planos (nome, slug, preco, descricao, cor, icon, ordem, ativo, beneficios, max_clientes, max_usuarios, max_faturas_mensais)
+                    VALUES ('Período Gratuito', 'trial', 0.00, 'Acesso gratuito por 7 dias', 'success', 'fa-gift', 0, 0,
+                    'Acesso completo ao painel por 7 dias\nEmissão de faturas: Liberado\nConfigurações: Liberado\nDepois, escolha um plano para continuar', 100, 1, 500)");
+                $trialPlanoId = (int)$pdo->query("SELECT id FROM planos WHERE slug = 'trial' LIMIT 1")->fetchColumn();
+            }
+            if ($trialPlanoId) {
+                $pdo->prepare("INSERT INTO admin_planos (admin_id, plano_id, data_inicio, data_fim) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY))
+                    ON DUPLICATE KEY UPDATE plano_id=VALUES(plano_id), data_inicio=VALUES(data_inicio), data_fim=VALUES(data_fim)")
+                    ->execute([$novoId, (int)$trialPlanoId]);
+            }
+
             // Garante o domínio base global p/ resolução por subdomínio (criado na 1ª vez)
             if (function_exists('salvarConfigGlobal') && function_exists('getConfigGlobal')) {
                 if (trim((string)getConfigGlobal('base_domain')) === '' && $hostCadastro !== '') {
@@ -100,8 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Auto-login e redirect direto ao painel (cadastro gratuito).
-            // O plano pode ser escolhido depois em Meu Plano.
+            // Auto-login e redirect direto ao painel (cadastro gratuito com 7 dias).
             session_regenerate_id(true);
             $_SESSION['admin_id']      = $novoId;
             $_SESSION['admin_usuario'] = $d['usuario'];
@@ -109,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['admin_nivel']   = 'admin';
             $_SESSION['admin_origem']  = 'site';
 
-            notificarSuperCadastro($d['nome'], $d['usuario'], $d['email'], $p['id'] > 0 ? $p['nome'] : 'Sem plano');
+            notificarSuperCadastro($d['nome'], $d['usuario'], $d['email'], $p['id'] > 0 ? $p['nome'] : 'Período Gratuito');
 
             header('Location: ' . siteAsset('/admin/index.php'));
             exit;
@@ -189,6 +203,7 @@ siteHeader();
                             </div>
                             <p class="mt-1.5 text-xs text-slate-500"><?= siteT('cad_subdominio_hint') ?></p>
                             <p class="mt-1 text-xs font-semibold text-brand-700">https://<span id="previaSubdominio"><?= htmlspecialchars(strtolower(trim($d['subdominio'] ?? ''))) ?></span>.<span id="previaHost"><?= htmlspecialchars(ltrim(preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? ''))), '.')) ?></span></p>
+                            <div id="subStatus" class="mt-1.5 text-xs font-semibold hidden"></div>
                         </div>
                     </div>
                 </fieldset>
@@ -270,6 +285,9 @@ siteHeader();
                     <span class="font-bold text-slate-800"><?= siteT('cad_gratis_t') ?></span>
                     <span class="text-xs font-semibold text-slate-400 block mt-0.5"><?= siteT('cad_gratis_d') ?></span>
                 </div>
+                <div class="mt-3 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+                    <p class="text-sm font-bold text-emerald-700">🎁 <?= siteT('cad_sub_7dias') ?></p>
+                </div>
                 <?php endif; ?>
                 <div class="mt-6 rounded-2xl bg-gradient-to-r from-brand-600 to-brand-800 text-white p-4 flex items-center gap-3">
                     <svg class="w-8 h-8 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
@@ -290,6 +308,73 @@ function siteAtualizarSubdominio() {
         if (input.value !== v) input.value = v;
     }
 }
+
+var _subTimer = null;
+var _subDisponivel = false;
+
+function siteVerificarSubdominio() {
+    var input = document.getElementById('campoSubdominio');
+    var status = document.getElementById('subStatus');
+    var val = (input.value || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (val.length < 3) {
+        status.className = 'mt-1.5 text-xs font-semibold hidden';
+        status.textContent = '';
+        _subDisponivel = false;
+        return;
+    }
+    if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(val)) {
+        status.className = 'mt-1.5 text-xs font-semibold text-slate-400';
+        status.textContent = <?= json_encode(siteT('cad_e_subdominio')) ?>;
+        _subDisponivel = false;
+        return;
+    }
+    status.className = 'mt-1.5 text-xs font-semibold text-slate-400';
+    status.textContent = <?= json_encode(siteT('cad_sub_verificando')) ?>;
+    if (_subTimer) clearTimeout(_subTimer);
+    _subTimer = setTimeout(function() {
+        fetch('/api/check_subdominio.php?subdominio=' + encodeURIComponent(val))
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.disponivel) {
+                    status.className = 'mt-1.5 text-xs font-semibold text-emerald-600';
+                    status.textContent = <?= json_encode(siteT('cad_sub_disponivel')) ?>;
+                    _subDisponivel = true;
+                } else {
+                    status.className = 'mt-1.5 text-xs font-semibold text-rose-600';
+                    status.textContent = <?= json_encode(siteT('cad_sub_indisponivel')) ?>;
+                    _subDisponivel = false;
+                }
+            })
+            .catch(function() {
+                status.className = 'mt-1.5 text-xs font-semibold text-slate-400';
+                status.textContent = '';
+                _subDisponivel = false;
+            });
+    }, 350);
+}
+
+(function() {
+    var input = document.getElementById('campoSubdominio');
+    if (!input) return;
+    input.addEventListener('input', function() {
+        siteAtualizarSubdominio();
+        siteVerificarSubdominio();
+    });
+    input.addEventListener('blur', function() {
+        siteVerificarSubdominio();
+    });
+    var form = input.closest('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!_subDisponivel && input.value.length >= 3) {
+                e.preventDefault();
+                input.focus();
+                return false;
+            }
+        });
+    }
+    if (input.value.length >= 3) siteVerificarSubdominio();
+})();
 </script>
 
 <?php siteFooter(); ?>

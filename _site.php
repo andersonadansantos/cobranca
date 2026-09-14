@@ -310,6 +310,10 @@ function siteTrad() {
         'cad_subdominio_hint' => 'Seu painel e a área dos seus clientes ficam nesse endereço.',
         'cad_e_subdominio' => 'O subdomínio deve ter de 3 a 30 caracteres: letras minúsculas, números e hífen (sem espaços).',
         'cad_e_subdominio_uso' => 'Esse subdomínio já está em uso. Escolha outro.',
+        'cad_sub_verificando' => 'Verificando disponibilidade...',
+        'cad_sub_disponivel' => 'Subdomínio disponível!',
+        'cad_sub_indisponivel' => 'Esse subdomínio não está disponível.',
+        'cad_sub_7dias' => 'Acesso gratuito por 7 dias. Depois, escolha um plano.',
         // PÁGINA PAGAMENTO
         'pag_plano' => 'Pagamento do plano',
         'pag_plano_rot' => 'Plano',
@@ -557,6 +561,10 @@ function siteTrad() {
         'cad_subdominio_hint' => 'Tu panel y el área de tus clientes estarán en esa dirección.',
         'cad_e_subdominio' => 'El subdominio debe tener de 3 a 30 caracteres: letras minúsculas, números y guion (sin espacios).',
         'cad_e_subdominio_uso' => 'Ese subdominio ya está en uso. Elige otro.',
+        'cad_sub_verificando' => 'Verificando disponibilidad...',
+        'cad_sub_disponivel' => '¡Subdominio disponible!',
+        'cad_sub_indisponivel' => 'Ese subdominio no está disponible.',
+        'cad_sub_7dias' => 'Acceso gratuito por 7 días. Después, elige un plan.',
         // PÁGINA PAGO
         'pag_plano' => 'Pago del plan',
         'pag_plano_rot' => 'Plan',
