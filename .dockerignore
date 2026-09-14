@@ -4,4 +4,3 @@
 *.log
 api/cron_log.txt
 cobranca.zip
-config/database.php
