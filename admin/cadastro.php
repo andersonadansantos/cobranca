@@ -31,7 +31,7 @@ if (isset($_GET['logar_como'])) {
         $_SESSION['user_nome'] = $cli['nome_razao'];
         $_SESSION['user_email'] = $cli['email'];
         $_SESSION['user_avatar'] = null;
-        header('Location: /cobranca/usuario/index.php');
+        header('Location: ' . APP_BASE . '/usuario/index.php');
         exit;
     }
 }

@@ -7,7 +7,7 @@ requireUser();
 
 if (isMobileDevice()) {
     $redirToken = !empty($_GET['token']) ? '&token=' . urlencode($_GET['token']) : '';
-    header('Location: /cobranca/app/fatura.php?id=' . intval($_GET['id'] ?? 0) . $redirToken);
+    header('Location: ' . APP_BASE . '/app/fatura.php?id=' . intval($_GET['id'] ?? 0) . $redirToken);
     exit;
 }
 require_once __DIR__ . '/../config/database.php';

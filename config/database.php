@@ -11,6 +11,44 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
 
+// =====================================================
+// BASE DA URL PÚBLICA DA APLICAÇÃO
+// ''           -> raiz do domínio (produção: /admin, /superadmin, /usuario)
+// '/cobranca'  -> quando acessado dentro do subdiretório /cobranca (XAMPP local)
+// =====================================================
+if (!defined('APP_BASE')) {
+    $__req  = (string)($_SERVER['REQUEST_URI']  ?? '');
+    $__req  = parse_url($__req, PHP_URL_PATH) ?: '';
+    $__base = '';
+    if (preg_match('#^(?:/[^/]+|)(/cobranca)(?:/|$)#', $__req, $__m)) {
+        $__base = $__m[1];
+    } elseif (isset($_SERVER['SCRIPT_NAME']) && preg_match('#(/cobranca)(?:/|$)#', (string)$_SERVER['SCRIPT_NAME'])) {
+        $__base = '/cobranca';
+    }
+    define('APP_BASE', $__base);
+    unset($__req, $__base, $__m);
+}
+
+// Reescreve /cobranca/ → APP_BASE/ em todo HTML renderizado,
+// para que links/JS/atributos legados apontem para a raiz (produção)
+// ou mantenham o subdiretório local (XAMPP).
+// Não afeta CLI (crons), header() (redirects) nem corpos de e-mail.
+// Só reescreve quando o Content-Type for text/html (ou indefinido), para
+// nãos corromper PDFs, imagens e binários gerados por PHP.
+if (PHP_SAPI !== 'cli' && function_exists('ob_start') && !defined('APP_BASE_OBS')) {
+    define('APP_BASE_OBS', true);
+    ob_start(function ($html) {
+        $ehHtml = true;
+        foreach (headers_list() as $h) {
+            if (stripos($h, 'Content-Type:') === 0) {
+                $ehHtml = stripos($h, 'text/html') !== false;
+                break;
+            }
+        }
+        return $ehHtml ? str_replace('/cobranca/', APP_BASE . '/', $html) : $html;
+    });
+}
+
 function getConnection() {
     try {
         $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";charset=" . DB_CHARSET;

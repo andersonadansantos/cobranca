@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 
 if (isMobileDevice()) {
-    header('Location: /cobranca/app/');
+    header('Location: ' . APP_BASE . '/app/');
     exit;
 }
 

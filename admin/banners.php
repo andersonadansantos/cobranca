@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     unlink($antigoPath);
                 }
                 if (move_uploaded_file($file['tmp_name'], $dir . '/' . $filename)) {
-                    saveConfig($chave, '/cobranca/assets/img/banners/' . $bannerSub . '/' . $filename);
+                    saveConfig($chave, APP_BASE . '/assets/img/banners/' . $bannerSub . '/' . $filename);
                     $mensagem = 'Banner ' . $tipoBanner . ' slot ' . $slot . ' salvo com sucesso!';
                     $tipo = 'success';
                 }

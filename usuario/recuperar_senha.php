@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/email_helpers.php';
 
 if (isMobileDevice()) {
-    header('Location: /cobranca/app/recuperar_senha.php');
+    header('Location: ' . APP_BASE . '/app/recuperar_senha.php');
     exit;
 }
 
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upd->execute([$hash, $cliente['id']]);
 
             $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $link = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/cobranca/usuario/redefinir_senha.php?token=' . $token;
+            $link = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . APP_BASE . '/usuario/redefinir_senha.php?token=' . $token;
 
             if (enviarEmailRecuperacaoSenha($cliente['email'], $cliente['nome_razao'], $link, 'usuario')) {
                 $mensagem = 'Enviamos um link de recuperação para o e-mail informado.';

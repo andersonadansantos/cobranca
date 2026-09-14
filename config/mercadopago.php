@@ -948,7 +948,7 @@ function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cl
                 }
                 $pdfFile = $pdfDir . '/' . $codigo . '.pdf';
                 file_put_contents($pdfFile, base64_decode($pdfBase64));
-                $pdfUrl = '/cobranca/assets/boletos_inter/' . $codigo . '.pdf';
+                $pdfUrl = APP_BASE . '/assets/boletos_inter/' . $codigo . '.pdf';
             }
             file_put_contents(__DIR__ . '/../inter_debug.log', date('Y-m-d H:i:s') . " | BOL CODIGO={$codigo} | LINHA=" . ($linhaDigitavel ?: 'VAZIO') . " | PDF=" . ($pdfUrl ?: 'VAZIO') . "\n", FILE_APPEND);
             return [
@@ -1507,7 +1507,7 @@ function criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clien
                 }
                 $pdfFile = $pdfDir . '/' . $nossoNumero . '.pdf';
                 file_put_contents($pdfFile, base64_decode($pdfBase64));
-                $pdfUrl = '/cobranca/assets/boletos_bb/' . $nossoNumero . '.pdf';
+                $pdfUrl = APP_BASE . '/assets/boletos_bb/' . $nossoNumero . '.pdf';
             }
             return [
                 'sucesso' => true,

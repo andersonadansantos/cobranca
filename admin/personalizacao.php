@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         unlink($logoAntigaPath);
                     }
                     
-                    saveConfig('logo_empresa', '/cobranca/assets/img/' . $nome);
+                    saveConfig('logo_empresa', APP_BASE . '/assets/img/' . $nome);
                     
                     $mensagem = 'Logo atualizada com sucesso!';
                     $tipo = 'success';
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         unlink($logoAntigaPath);
                     }
                     
-                    saveConfig('logo_mobile', '/cobranca/assets/img/' . $nome);
+                    saveConfig('logo_mobile', APP_BASE . '/assets/img/' . $nome);
                     
                     $mensagem = 'Logo mobile atualizada com sucesso!';
                     $tipo = 'success';
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             @unlink($logoAntigaPath);
                         }
                     }
-                    saveConfig('logo_empresa_admin', '/cobranca/assets/img/' . $nome);
+                    saveConfig('logo_empresa_admin', APP_BASE . '/assets/img/' . $nome);
                     $mensagem = 'Logo da empresa atualizada com sucesso!';
                     $tipo = 'success';
                 }

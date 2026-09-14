@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 requireUser();
 
 if (isMobileDevice()) {
-    header('Location: /cobranca/app/dashboard.php');
+    header('Location: ' . APP_BASE . '/app/dashboard.php');
     exit;
 }
 require_once __DIR__ . '/../config/database.php';

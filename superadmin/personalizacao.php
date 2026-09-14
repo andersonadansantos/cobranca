@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         unlink($logoAntigaPath);
                     }
 
-                    salvarConfigGlobal('logo_login', '/cobranca/assets/img/' . $nome);
+                    salvarConfigGlobal('logo_login', APP_BASE . '/assets/img/' . $nome);
 
                     $mensagem = 'Logo de login atualizada com sucesso!';
                     $tipo = 'success';

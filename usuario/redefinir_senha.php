@@ -3,7 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 
 if (isMobileDevice()) {
     $tok = trim($_GET['token'] ?? $_POST['token'] ?? '');
-    header('Location: /cobranca/app/redefinir_senha.php?token=' . urlencode($tok));
+    header('Location: ' . APP_BASE . '/app/redefinir_senha.php?token=' . urlencode($tok));
     exit;
 }
 

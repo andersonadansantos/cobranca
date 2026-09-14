@@ -126,9 +126,9 @@ if (!function_exists('getLinkFatura')) {
             }
         }
         if ($token) {
-            return "{$protocolo}://{$host}/cobranca/usuario/fatura.php?id={$faturaId}&token={$token}";
+            return "{$protocolo}://{$host}" . APP_BASE . "/usuario/fatura.php?id={$faturaId}&token={$token}";
         }
-        return "{$protocolo}://{$host}/cobranca/usuario/fatura.php?id={$faturaId}";
+        return "{$protocolo}://{$host}" . APP_BASE . "/usuario/fatura.php?id={$faturaId}";
     }
 }
 

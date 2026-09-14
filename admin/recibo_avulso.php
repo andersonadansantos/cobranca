@@ -44,15 +44,14 @@ if (empty($empresaLogo) || !logoPathValido($empresaLogo)) {
     $empresaLogo = getLogoLogin();
 }
 if (empty($empresaLogo) || !logoPathValido($empresaLogo)) {
-    $empresaLogo = '/cobranca/assets/img/logo_color.png';
+    $empresaLogo = APP_BASE . '/assets/img/logo_color.png';
 }
 $logoAbs = $empresaLogo;
 if (strpos($empresaLogo, 'http') !== 0 && strpos($empresaLogo, 'data:') !== 0) {
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $base = dirname($_SERVER['SCRIPT_NAME']);
-    $base = preg_replace('#/cobranca/admin$#', '', $base);
-    $logoAbs = $proto . '://' . $host . $base . $empresaLogo;
+    $empresaLogoRel = '/' . ltrim(preg_replace('#^/cobranca#', '', $empresaLogo), '/');
+    $logoAbs = $proto . '://' . $host . APP_BASE . $empresaLogoRel;
 }
 
 $emitNome = trim($admin['nome_fantasia'] ?? '') ?: (trim($admin['razao_social'] ?? '') ?: getNomeSistema());

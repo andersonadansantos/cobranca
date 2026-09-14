@@ -88,7 +88,7 @@ $nomeSistema = getNomeSistema();
                                 <i class="fas fa-redo me-1"></i> Tentar Novamente
                             </a>
                         <?php else: ?>
-                            <a href="<?= 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/cobranca/admin/login_certificado.php' ?>" class="btn btn-primary">
+                            <a href="<?= 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . APP_BASE . '/admin/login_certificado.php' ?>" class="btn btn-primary">
                                 <i class="fas fa-lock me-1"></i> Acessar via HTTPS
                             </a>
                         <?php endif; ?>

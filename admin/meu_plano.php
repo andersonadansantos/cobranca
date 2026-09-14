@@ -242,12 +242,12 @@ function hexToRgba($hex, $alpha) {
                 <div class="col-12 text-center text-muted py-5">Nenhum plano disponível no momento. Entre em contato com o suporte.</div>
             <?php else:
                 $gwLogos = [
-                    'mercado pago' => '/cobranca/assets/img/mercado-pago-logo.png',
-                    'banco inter'  => '/cobranca/assets/img/banco-inter-logo-0-1.png',
-                    'inter'        => '/cobranca/assets/img/banco-inter-logo-0-1.png',
-                    'asaas'        => '/cobranca/assets/img/asaas-logo.svg',
-                    'pix'          => '/cobranca/assets/img/pix-logo.svg',
-                    'pix manual'   => '/cobranca/assets/img/pix-logo.svg',
+                    'mercado pago' => APP_BASE . '/assets/img/mercado-pago-logo.png',
+                    'banco inter'  => APP_BASE . '/assets/img/banco-inter-logo-0-1.png',
+                    'inter'        => APP_BASE . '/assets/img/banco-inter-logo-0-1.png',
+                    'asaas'        => APP_BASE . '/assets/img/asaas-logo.svg',
+                    'pix'          => APP_BASE . '/assets/img/pix-logo.svg',
+                    'pix manual'   => APP_BASE . '/assets/img/pix-logo.svg',
                 ];
                 foreach ($planos as $p):
                     $isCurrent = ($meuPlano && $p['id'] == $meuPlano['id']);

@@ -43,9 +43,9 @@ if ($pdo) {
             <?php
             exit;
         }
-        header('Location: /cobranca/admin/login.php');
+        header('Location: ' . APP_BASE . '/admin/login.php');
         exit;
     }
 }
-header('Location: /cobranca/install/');
+header('Location: ' . APP_BASE . '/install/');
 exit;

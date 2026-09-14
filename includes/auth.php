@@ -41,7 +41,7 @@ function isLoggedInUser() {
 
 function requireAdmin() {
     if (!isLoggedInAdmin()) {
-        header('Location: /cobranca/admin/login.php');
+        header('Location: ' . APP_BASE . '/admin/login.php');
         exit;
     }
     // Admin desativado manualmente (super admin): acesso apenas à página de planos e faturas.
@@ -50,7 +50,7 @@ function requireAdmin() {
     if (!adminEstaAtivo()) {
         $pagina = basename($_SERVER['PHP_SELF'] ?? '');
         if (!in_array($pagina, ['meu_plano.php', 'minhas_faturas.php'])) {
-            header('Location: /cobranca/admin/meu_plano.php');
+            header('Location: ' . APP_BASE . '/admin/meu_plano.php');
             exit;
         }
     }
@@ -103,14 +103,14 @@ function adminTemPlanoAtivo() {
 // Bloqueia páginas que exigem plano ativo (emissão de faturas e configurações).
 function requirePlanoAtivo() {
     if (!adminTemPlanoAtivo()) {
-        header('Location: /cobranca/admin/meu_plano.php?precisa_plano=1');
+        header('Location: ' . APP_BASE . '/admin/meu_plano.php?precisa_plano=1');
         exit;
     }
 }
 
 function requireUser() {
     if (!isLoggedInUser()) {
-        header('Location: /cobranca/usuario/login.php');
+        header('Location: ' . APP_BASE . '/usuario/login.php');
         exit;
     }
 }
@@ -210,7 +210,7 @@ function logoutAdmin() {
         setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
     }
     session_destroy();
-    header('Location: /cobranca/admin/login.php');
+    header('Location: ' . APP_BASE . '/admin/login.php');
     exit;
 }
 
@@ -221,7 +221,7 @@ function logoutUser() {
         setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
     }
     session_destroy();
-    header('Location: /cobranca/usuario/login.php');
+    header('Location: ' . APP_BASE . '/usuario/login.php');
     exit;
 }
 

@@ -25,7 +25,7 @@ if (isset($_GET['entrar'])) {
             $_SESSION['admin_nome']    = $demo['nome'] ?: 'Conta Demo';
             $_SESSION['admin_nivel']   = 'admin';
             $_SESSION['admin_origem']  = 'demo';
-            header('Location: /cobranca/admin/index.php');
+            header('Location: ' . APP_BASE . '/admin/index.php');
             exit;
         }
     }

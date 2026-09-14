@@ -143,8 +143,7 @@ $protoSite = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strt
 $hostAtualSite = strtolower(preg_replace('/:\d+$/', '', trim($_SERVER['HTTP_HOST'] ?? '')));
 $baseDominioSite = function_exists('getBaseDomain') ? strtolower(ltrim((string)getBaseDomain(), '.')) : '';
 if ($baseDominioSite === '') $baseDominioSite = $hostAtualSite;
-$appBaseSite = rtrim(str_replace('\\', '/', dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/cobranca/admin/index.php'))), '/');
-if ($appBaseSite === '' || $appBaseSite === '.') $appBaseSite = '/cobranca';
+$appBaseSite = defined('APP_BASE') ? APP_BASE : '';
 
 $hostTenantSite = $hostAtualSite;
 if ($meuSubdominio !== '' && $baseDominioSite !== '') {

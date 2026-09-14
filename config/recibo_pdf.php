@@ -70,13 +70,13 @@ if (!function_exists('garantirReciboFatura')) {
         // Logo do recibo = logo da empresa responsável pela fatura (qualquer recibo).
         $empresaLogo = getLogoEmpresaFatura($adminId);
         if (!logoPathValido($empresaLogo)) {
-            $empresaLogo = '/cobranca/assets/img/logo_color.png';
+            $empresaLogo = APP_BASE . '/assets/img/logo_color.png';
         }
         $logoAbs = $empresaLogo;
         if (strpos($empresaLogo, 'http') !== 0 && strpos($empresaLogo, 'data:') !== 0) {
             $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
             $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $logoAbs = $proto . '://' . $host . $empresaLogo;
+            $logoAbs = $proto . '://' . $host . APP_BASE . '/' . ltrim(preg_replace('#^/cobranca#', '', $empresaLogo), '/');
         }
         $logoImgHtml = '<img src="' . htmlspecialchars($logoAbs) . '" style="max-width:250px;">';
 
@@ -209,7 +209,7 @@ if (!function_exists('gerarReciboPdfFatura')) {
 
         $config = getAllConfigForAdmin($adminId);
         $empresaLogo = getLogoEmpresaFatura($adminId);
-        if (!logoPathValido($empresaLogo)) $empresaLogo = '/cobranca/assets/img/logo_color.png';
+        if (!logoPathValido($empresaLogo)) $empresaLogo = APP_BASE . '/assets/img/logo_color.png';
 
         $corPrimaria = $config['cor_primaria'] ?? getCorPrimaria();
         $nomeSistema = $config['nome_sistema'] ?? getNomeSistema();

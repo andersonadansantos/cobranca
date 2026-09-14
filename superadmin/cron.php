@@ -46,7 +46,7 @@ if (empty($cronToken)) {
 
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $siteUrlDisplay = $siteUrl !== '' ? rtrim($siteUrl, '/') : $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-$cronUrl = rtrim($siteUrlDisplay, '/') . '/cobranca/api/cron_envio.php?token=' . urlencode($cronToken);
+$cronUrl = rtrim($siteUrlDisplay, '/') . APP_BASE . '/api/cron_envio.php?token=' . urlencode($cronToken);
 
 $pageTitle = 'Cron Job';
 include __DIR__ . '/includes/header.php';

@@ -61,7 +61,7 @@ if (empty($logoUrl) || !logoPathValido($logoUrl)) {
     $logoUrl = getLogoLogin();
 }
 if (empty($logoUrl) || !logoPathValido($logoUrl)) {
-    $logoUrl = '/cobranca/assets/img/logo_color.png';
+    $logoUrl = APP_BASE . '/assets/img/logo_color.png';
 }
 
 $admin = [];

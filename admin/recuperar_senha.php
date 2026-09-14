@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upd->execute([$hash, $admin['id']]);
 
             $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $link = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/cobranca/admin/redefinir_senha.php?token=' . $token;
+            $link = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . APP_BASE . '/admin/redefinir_senha.php?token=' . $token;
 
             if (enviarEmailRecuperacaoSenha($admin['email'], $admin['nome'], $link, 'admin')) {
                 $mensagem = 'Enviamos um link de recuperação para o e-mail informado.';

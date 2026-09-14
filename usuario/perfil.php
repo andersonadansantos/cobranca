@@ -3,7 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 requireUser();
 
 if (isMobileDevice()) {
-    header('Location: /cobranca/app/perfil.php');
+    header('Location: ' . APP_BASE . '/app/perfil.php');
     exit;
 }
 require_once __DIR__ . '/../config/database.php';
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!is_dir($dir)) mkdir($dir, 0777, true);
                 $filename = 'user_' . $userId . '.' . $ext;
                 if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dir . '/' . $filename)) {
-                    $avatarPath = '/cobranca/assets/img/avatars/' . $filename;
+                    $avatarPath = APP_BASE . '/assets/img/avatars/' . $filename;
                     $stmt = $pdo->prepare("UPDATE clientes SET avatar=? WHERE id=?");
                     $stmt->execute([$avatarPath, $userId]);
                     $_SESSION['user_avatar'] = $avatarPath;

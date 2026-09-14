@@ -256,7 +256,7 @@ function criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfC
             if ($pdfContent !== false) {
                 $pdfFile = $pdfDir . '/' . $orderRef . '.pdf';
                 file_put_contents($pdfFile, $pdfContent);
-                $boletoLocalUrl = '/cobranca/assets/boletos_pagbank/' . $orderRef . '.pdf';
+                $boletoLocalUrl = APP_BASE . '/assets/boletos_pagbank/' . $orderRef . '.pdf';
             }
         }
 

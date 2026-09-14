@@ -11,7 +11,7 @@ $pdoTest = getConnection();
 if ($pdoTest) {
     $tabela = $pdoTest->query("SHOW TABLES LIKE 'configuracoes'")->fetch();
     if ($tabela) {
-        header('Location: /cobranca/admin/login.php');
+        header('Location: ' . APP_BASE . '/admin/login.php');
         exit;
     }
 }
