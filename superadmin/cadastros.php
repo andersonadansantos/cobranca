@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/auth.php';
 requireSuper();
+require_once __DIR__ . '/../config/settings.php';
+require_once __DIR__ . '/../config/email_helpers.php';
 $pdo = getConnection();
 
 $mensagem = '';
@@ -134,6 +136,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             $pdo->commit();
+            if ($id_edit === 0 && !empty($email)) {
+                $boasVindas = false;
+                try {
+                    $boasVindas = enviarEmailBoasVindasAdmin([
+                        'nome' => $nome,
+                        'usuario' => $usuario,
+                        'senha' => $senha,
+                        'email' => $email,
+                        'subdominio' => $subdominio,
+                    ]);
+                } catch (Throwable $e) {
+                    $boasVindas = false;
+                }
+                header('Location: cadastros.php?msg=' . ($boasVindas ? 'salvo_email' : 'salvo_sem_email'));
+                exit;
+            }
             header('Location: cadastros.php?msg=salvo');
             exit;
         } catch (PDOException $e) {
@@ -147,6 +165,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['msg'])) {
     $msgs = [
         'salvo' => ['Admin salvo com sucesso!', 'success'],
+        'salvo_email' => ['Admin salvo e e-mail de boas-vindas enviado!', 'success'],
+        'salvo_sem_email' => ['Admin salvo! (e-mail de boas-vindas não enviado — confira o SMTP global)', 'warning'],
         'nao_encontrado' => ['Admin não encontrado.', 'danger'],
     ];
     if (isset($msgs[$_GET['msg']])) {

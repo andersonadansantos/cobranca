@@ -5,7 +5,7 @@ $basePath = '/cobranca/superadmin';
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <?php if ($logo): ?>
-            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 180px; max-height: 60px;">
+            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 315px; max-height: 105px;">
         <?php endif; ?>
         <h4><i class="fas fa-crown me-2"></i><?= t('layout.super_admin') ?></h4>
     </div>
@@ -37,6 +37,12 @@ $basePath = '/cobranca/superadmin';
         </a>
         <a href="<?= $basePath ?>/cron.php" class="nav-link <?= $currentPage === 'cron' ? 'active' : '' ?>">
             <i class="fas fa-clock"></i> <?= t('nav.cron_job') ?>
+        </a>
+        <a href="<?= $basePath ?>/smtp.php" class="nav-link <?= $currentPage === 'smtp' ? 'active' : '' ?>">
+            <i class="fas fa-server"></i> SMTP
+        </a>
+        <a href="<?= $basePath ?>/template_email.php" class="nav-link <?= $currentPage === 'template_email' ? 'active' : '' ?>">
+            <i class="fas fa-envelope-open-text"></i> Template de email
         </a>
 
         <div class="nav-section"><?= t('layout.conta') ?></div>

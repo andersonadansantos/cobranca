@@ -794,3 +794,140 @@ if (!function_exists('enviarEmailRecuperacaoSenha')) {
         return enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt);
     }
 }
+
+// =====================================================
+// E-MAIL DE BOAS-VINDAS PARA NOVO ADMIN (Super Admin)
+// Usa SMTP GLOBAL (admin_id NULL) e o template global
+// template_email_corpo_boasvindas com placeholders.
+// =====================================================
+
+if (!function_exists('montarMensagemBoasVindasHtml')) {
+    function montarMensagemBoasVindasHtml($dados) {
+        $dados = is_array($dados) ? $dados : [];
+        $nomeSistema = getNomeSistema();
+        $corPrimaria = getCorPrimaria();
+        $logo = getLogoEmail();
+        $logoHtml = '';
+        if ($logo) {
+            $logoHtml = '<div style="text-align:center;margin:0 0 14px;"><img src="' . htmlspecialchars($logo) . '" alt="' . htmlspecialchars($nomeSistema) . '" style="max-width:250px;max-height:120px;width:auto;height:auto;display:block;margin:0 auto;border:0;outline:none;text-decoration:none;"></div>';
+        }
+
+        $templateHtml = getConfigGlobal('template_email_corpo_boasvindas', '');
+        if (empty($templateHtml)) {
+            $templateHtml = '<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;">
+  <div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+    <div style="background:' . $corPrimaria . ';height:50px;"></div>
+    <div style="padding:30px 30px 0 30px;text-align:center;">
+      {{LOGO}}
+    </div>
+    <div style="padding:20px 30px 30px 30px;">
+      {{CONTEUDO}}
+    </div>
+  </div>
+</body>
+</html>';
+        }
+
+        $conteudo = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
+        $conteudo .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#1a1a2e;">Seja bem-vindo(a)!</h2>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>' . htmlspecialchars($dados['nome'] ?? '') . '</strong>,</p>';
+        $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Sua conta no <strong>' . htmlspecialchars($nomeSistema) . '</strong> foi criada com sucesso. Veja seus dados de acesso abaixo:</p>';
+        $conteudo .= '</div>';
+        $conteudo .= '<div style="background:#f8f9fa;border:1px solid #e8edf5;border-radius:12px;padding:20px;margin-bottom:24px;">';
+        $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso</h4>';
+        $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Usuário: <strong style="color:#333;">' . htmlspecialchars($dados['usuario'] ?? '') . '</strong></p>';
+        $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Senha: <strong style="color:#333;">' . htmlspecialchars($dados['senha'] ?? '') . '</strong></p>';
+        if (!empty($dados['link_acesso'])) {
+            $conteudo .= '<div style="text-align:center;margin-top:16px;"><a href="' . htmlspecialchars($dados['link_acesso']) . '" style="display:inline-block;background:' . $corPrimaria . ';color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Acessar Painel →</a></div>';
+        }
+        $conteudo .= '<p style="margin:10px 0 0 0;font-size:12px;color:#999;text-align:center;">Por segurança, altere sua senha após o primeiro acesso.</p>';
+        $conteudo .= '</div>';
+        $conteudo .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars($nomeSistema) . '</strong></p>';
+
+        $mensagemHtml = $templateHtml;
+        if (strpos($mensagemHtml, '{{CONTEUDO}}') !== false) {
+            $mensagemHtml = str_replace('{{CONTEUDO}}', $conteudo, $mensagemHtml);
+        }
+
+        $placeholders = [
+            '{nome}'        => $dados['nome'] ?? '',
+            '{usuario}'     => $dados['usuario'] ?? '',
+            '{senha}'       => $dados['senha'] ?? '',
+            '{email}'       => $dados['email'] ?? '',
+            '{subdominio}'  => $dados['subdominio'] ?? '',
+            '{link_acesso}' => $dados['link_acesso'] ?? '',
+        ];
+        $mensagemHtml = str_replace(array_keys($placeholders), array_values($placeholders), $mensagemHtml);
+
+        if (strpos($mensagemHtml, '{{LOGO}}') !== false) {
+            $mensagemHtml = str_replace('{{LOGO}}', $logoHtml, $mensagemHtml);
+        } elseif ($logoHtml !== '' && stripos($mensagemHtml, '<img') === false) {
+            $mensagemHtml = preg_replace('#(<body[^>]*>)#i', '$1<div style="text-align:center;padding:24px 24px 0 24px;">' . $logoHtml . '</div>', $mensagemHtml, 1);
+        }
+
+        return $mensagemHtml;
+    }
+}
+
+if (!function_exists('montarMensagemBoasVindasTxt')) {
+    function montarMensagemBoasVindasTxt($dados) {
+        $dados = is_array($dados) ? $dados : [];
+        $nomeSistema = getNomeSistema();
+        $msg = "Olá, " . ($dados['nome'] ?? '') . "!\n\n";
+        $msg .= "Sua conta no {$nomeSistema} foi criada com sucesso.\n\n";
+        $msg .= "--- Dados de Acesso ---\n";
+        $msg .= "Usuário: " . ($dados['usuario'] ?? '') . "\n";
+        $msg .= "Senha: " . ($dados['senha'] ?? '') . "\n";
+        if (!empty($dados['link_acesso'])) {
+            $msg .= "Acesso ao painel: {$dados['link_acesso']}\n";
+        }
+        $msg .= "\n(Por segurança, altere sua senha após o primeiro acesso.)\n\n";
+        $msg .= "Atenciosamente,\n{$nomeSistema}";
+        return $msg;
+    }
+}
+
+if (!function_exists('enviarEmailBoasVindasAdmin')) {
+    function enviarEmailBoasVindasAdmin($dados) {
+        $dados = is_array($dados) ? $dados : [];
+        $paraEmail = trim($dados['email'] ?? '');
+        if (empty($paraEmail)) return false;
+
+        $smtpHost = getConfigGlobal('smtp_host', '');
+        $smtpPort = getConfigGlobal('smtp_port', '587');
+        $smtpUser = getConfigGlobal('smtp_usuario', '');
+        $smtpPass = getConfigGlobal('smtp_senha', '');
+        $smtpFrom = getConfigGlobal('smtp_from_email', '');
+        $smtpNome = getConfigGlobal('smtp_from_nome', getNomeSistema());
+        $smtpSsl  = getConfigGlobal('smtp_ssl', 'tls');
+
+        if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) return false;
+
+        if (empty($dados['link_acesso'])) {
+            $protocolo = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') ? 'https' : 'http';
+            $host = preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? ''));
+            $sub = trim($dados['subdominio'] ?? '');
+            if ($sub !== '') {
+                $dados['link_acesso'] = $protocolo . '://' . $sub . '.' . $host . '/admin/';
+            } else {
+                $dados['link_acesso'] = $protocolo . '://' . $host . APP_BASE . '/admin/';
+            }
+        }
+
+        $subject = getConfigGlobal('template_email_assunto_boasvindas', '');
+        if (empty($subject)) $subject = 'Seja bem-vindo(a) ao ' . getNomeSistema() . '!';
+        $subject = str_replace(['{nome}', '{usuario}', '{senha}', '{email}', '{subdominio}', '{link_acesso}'], [
+            $dados['nome'] ?? '', $dados['usuario'] ?? '', $dados['senha'] ?? '', $dados['email'] ?? '', $dados['subdominio'] ?? '', $dados['link_acesso'] ?? ''
+        ], $subject);
+
+        $msgHtml = montarMensagemBoasVindasHtml($dados);
+        $msgTxt  = montarMensagemBoasVindasTxt($dados);
+
+        return enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $paraEmail, $dados['nome'] ?? $paraEmail, $subject, $msgHtml, $msgTxt);
+    }
+}
