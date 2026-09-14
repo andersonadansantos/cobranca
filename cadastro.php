@@ -3,6 +3,7 @@
 // CADASTRO NO SITE (cliente final) -> painel liberado na hora
 // =====================================================
 require_once __DIR__ . '/_site.php';
+require_once __DIR__ . '/config/email_helpers.php';
 
 $pdo = getConnection();
 $erros = [];
@@ -135,6 +136,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $basePanel  = function_exists('getBaseDomain') ? strtolower(ltrim((string)getBaseDomain(), '.')) : '';
             if ($basePanel === '') $basePanel = ltrim($hostCadastro, '.');
             $urlPainel = $protoPanel . '://' . $d['subdominio'] . '.' . $basePanel . APP_BASE . '/admin/index.php';
+
+            // E-mail de boas-vindas ao novo admin (melhor esforço — nunca bloqueia o cadastro).
+            try {
+                if (function_exists('enviarEmailBoasVindasAdmin')) {
+                    enviarEmailBoasVindasAdmin([
+                        'nome'        => $d['nome'],
+                        'usuario'     => $d['usuario'],
+                        'senha'       => $d['senha'],
+                        'email'       => $d['email'],
+                        'subdominio'  => $d['subdominio'],
+                        'link_acesso' => $urlPainel,
+                    ]);
+                }
+            } catch (Throwable $ex) {
+                error_log('cadastro.php: e-mail de boas-vindas falhou: ' . $ex->getMessage());
+            }
 
             header('Location: ' . $urlPainel);
             exit;
