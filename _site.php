@@ -39,6 +39,44 @@ if (!headers_sent()) {
 }
 
 // =====================================================
+// REGRA DE SUBDOMÍNIO -> PAINEL ADMIN (/admin)
+// O subdomínio criado no cadastro NÃO tem site público. Todo visitante em
+// qualquer página pública do subdomínio (raiz, planos, cadastro, demo,
+// pagamento) é redirecionado DIRETO para o /admin do painel daquele tenant.
+// As áreas do tenant continuam apenas em {subdominio}/admin e {subdominio}/usuario.
+// =====================================================
+function siteEhTenantSubdominio() {
+    $host = preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? '')));
+    if ($host === '') return false;
+
+    $base = strtolower(ltrim((string)getBaseDomain(), '.'));
+    if ($base === '' || $host === $base) return false;
+    if (substr($host, -strlen($base)) !== $base) return false;
+
+    $sub = rtrim(substr($host, 0, -strlen($base)), '.');
+    if ($sub === '') return false;
+
+    $pdo = getConnection();
+    if (!$pdo) return false;
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM administradores WHERE ativo = 1 AND subdominio = ?");
+        $stmt->execute([$sub]);
+        return ((int)$stmt->fetchColumn() > 0) ? $sub : false;
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+$__siteTenant = siteEhTenantSubdominio();
+if ($__siteTenant !== false) {
+    $__script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    if (in_array($__script, ['index.php', 'planos.php', 'cadastro.php', 'demo.php', 'pagamento.php'], true)) {
+        header('Location: ' . APP_BASE . '/admin/index.php');
+        exit;
+    }
+}
+
+// =====================================================
 // IDIOMAS DO SITE
 // =====================================================
 function siteIdiomas() {

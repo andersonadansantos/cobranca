@@ -115,7 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Auto-login e redirect direto ao painel (cadastro gratuito com 7 dias).
+            // Auto-login e redirect DIRETO ao painel do admin no subdomínio criado.
+            // Regra: conta "admin" criada abre DIRETAMENTE em {subdominio}/admin.
             session_regenerate_id(true);
             $_SESSION['admin_id']      = $novoId;
             $_SESSION['admin_usuario'] = $d['usuario'];
@@ -125,7 +126,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             notificarSuperCadastro($d['nome'], $d['usuario'], $d['email'], $p['id'] > 0 ? $p['nome'] : 'Período Gratuito');
 
-            header('Location: ' . siteAsset('/admin/index.php'));
+            $protoPanel = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') ? 'https' : 'http';
+            $basePanel  = function_exists('getBaseDomain') ? strtolower(ltrim((string)getBaseDomain(), '.')) : '';
+            if ($basePanel === '') $basePanel = ltrim($hostCadastro, '.');
+            $urlPainel = $protoPanel . '://' . $d['subdominio'] . '.' . $basePanel . APP_BASE . '/admin/index.php';
+
+            header('Location: ' . $urlPainel);
             exit;
         } catch (Throwable $ex) {
             $erros[] = siteT('cad_e_falha') . $ex->getMessage();

@@ -24,6 +24,19 @@ if (isset($_SESSION['super_last_activity']) && (time() - $_SESSION['super_last_a
 $_SESSION['super_last_activity'] = time();
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/tenant.php';
+
+// REGRA: o painel /superadmin existe apenas no DOMÍNIO PRINCIPAL (raiz do SaaS).
+// Em subdomínio de cliente (tenant) NÃO existe /superadmin: leva ao superadmin
+// do domínio principal. Os painéis do tenant são apenas {subdominio}/admin e
+// {subdominio}/usuario.
+$superHostAtual = preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? '')));
+$superBaseAtual = function_exists('getBaseDomain') ? strtolower(ltrim((string)getBaseDomain(), '.')) : '';
+if ($superBaseAtual !== '' && $superHostAtual !== $superBaseAtual && substr($superHostAtual, -strlen($superBaseAtual)) === $superBaseAtual) {
+    $superProto = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') ? 'https' : 'http';
+    header('Location: ' . $superProto . '://' . $superBaseAtual . '/superadmin/login.php');
+    exit;
+}
 
 function isLoggedInSuper() {
     return isset($_SESSION['super_id']) && $_SESSION['super_id'] > 0;
