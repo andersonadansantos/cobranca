@@ -14,6 +14,13 @@ if (!function_exists('getLogoEmail')) {
     }
 }
 
+// Assinatura padrão no rodapé de todos os e-mails de cobrança
+// (vale para todo admin e para qualquer template de e-mail).
+if (!defined('ASSINATURA_CENTRAL_HTML')) {
+    define('ASSINATURA_CENTRAL_HTML', '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eef0f3;text-align:center;font-size:10px;font-family:\'Inter\',Arial,sans-serif;color:#9ca3af;line-height:1.5;">Sistema de cobrança CENTRAL DE FATURAS.<br>Acesse: <a href="https://www.centraldefaturas.com.br" style="color:#9ca3af;text-decoration:none;">www.centraldefaturas.com.br</a></div>');
+    define('ASSINATURA_CENTRAL_TXT', "\n\n--------------------\nSistema de cobrança CENTRAL DE FATURAS.\nAcesse: www.centraldefaturas.com.br");
+}
+
 if (!function_exists('getLogoBase64')) {
     function getLogoBase64() {
         $logo = getLogo();
@@ -231,7 +238,7 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars($nomeSistema) . '</strong></p>';
         }
 
-        $mensagemHtml = str_replace('{{CONTEUDO}}', $conteudo, $mensagemHtml);
+        $mensagemHtml = str_replace('{{CONTEUDO}}', $conteudo . ASSINATURA_CENTRAL_HTML, $mensagemHtml);
         return $mensagemHtml;
     }
 }
@@ -286,7 +293,7 @@ if (!function_exists('montarMensagemTxt')) {
             $msg .= "Atenciosamente,\n{$nomeSistema}";
         }
 
-        return $msg;
+        return $msg . ASSINATURA_CENTRAL_TXT;
     }
 }
 
@@ -650,7 +657,7 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
         $conteudo .= '</div>';
         $conteudo .= '<p style="color:#999;font-size:12px;text-align:center;margin:0;">Atenciosamente,<br><strong>' . htmlspecialchars($nomeSistema) . '</strong></p>';
 
-        $mensagemHtml = str_replace('{{CONTEUDO}}', $conteudo, $mensagemHtml);
+        $mensagemHtml = str_replace('{{CONTEUDO}}', $conteudo . ASSINATURA_CENTRAL_HTML, $mensagemHtml);
         return $mensagemHtml;
     }
 }
@@ -670,7 +677,7 @@ if (!function_exists('montarMensagemPagamentoTxt')) {
         $msg .= "Acesse sua conta: {$linkFatura}\n\n";
         $msg .= "Atenciosamente,\n{$nomeSistema}";
 
-        return $msg;
+        return $msg . ASSINATURA_CENTRAL_TXT;
     }
 }
 

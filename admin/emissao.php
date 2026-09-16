@@ -708,12 +708,8 @@ $statusClasses = [
                                     <input class="form-check-input bulk-check" type="checkbox" name="ids[]" value="<?= (int)$fr['id'] ?>" id="ck<?= (int)$fr['id'] ?>">
                                     <label class="form-check-label" for="ck<?= (int)$fr['id'] ?>"></label>
                                 </div>
-                                <?php
-                                $proxVenc = $fr['proximo_vencimento'] ?? null;
-                                $ultVenc  = $fr['ultimo_vencimento'] ?? null;
-                                $vencData = $proxVenc ? date('d/m/Y', strtotime($proxVenc)) : ($ultVenc ? date('d/m/Y', strtotime($ultVenc)) : 'Dia ' . (int)$fr['dia_vencimento']);
-                                ?>
                                 <div class="fr-cliente">
+                                    <span class="fr-dado-label">Nome do Cliente</span>
                                     <strong><?= htmlspecialchars($fr['nome_razao']) ?></strong>
                                     <small class="d-block text-muted"><?= htmlspecialchars($fr['descricao']) ?></small>
                                 </div>
@@ -722,8 +718,8 @@ $statusClasses = [
                                     <span class="badge bg-info"><?= ucfirst($fr['frequencia']) ?></span>
                                 </div>
                                 <div class="fr-dado">
-                                    <span class="fr-dado-label">Vencimento</span>
-                                    <strong><?= htmlspecialchars($vencData) ?></strong>
+                                    <span class="fr-dado-label">Dia do Vencimento</span>
+                                    <strong><?= sprintf('%02d/mês', (int)$fr['dia_vencimento']) ?></strong>
                                 </div>
                                 <div class="fr-acoes">
                                     <span class="fr-chevron text-muted"><i class="bi bi-chevron-down"></i></span>
