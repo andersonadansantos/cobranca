@@ -2,11 +2,59 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 
+// Resolve a configuração de WhatsApp do tenant/admin para envio.
+// Prioridade: 1) tabela admin_evolution do admin; 2) configurações por admin
+// (configuracoes) quando preenchidas; 3) configurações globais. Linhas vazias
+// são tratadas como "não configuradas" para permitir o fallback.
+function getWhatsAppConfig() {
+    $pdo = getConnection();
+    $adminId = getConfigAdminId();
+
+    // 1) Preferência: config por admin na tabela admin_evolution (painel/superadmin).
+    if ($pdo && $adminId > 0) {
+        $stmt = $pdo->prepare("SELECT url_api, api_key, instance, ativo FROM admin_evolution WHERE admin_id = ?");
+        $stmt->execute([$adminId]);
+        $evo = $stmt->fetch();
+        if ($evo && trim((string)$evo['url_api']) !== '' && trim((string)$evo['instance']) !== '') {
+            return [
+                'url_api'  => (string)$evo['url_api'],
+                'api_key'  => (string)($evo['api_key'] ?? ''),
+                'instance' => (string)$evo['instance'],
+                'ativo'    => (string)($evo['ativo'] ?? '1'),
+            ];
+        }
+    }
+
+    // 2) Fallback: configurações por admin em `configuracoes`; se vazias, usa as globais.
+    $cfg = ['url_api' => '', 'api_key' => '', 'instance' => '', 'ativo' => '0'];
+    $chaves = [
+        'url_api'  => 'whatsapp_api_url',
+        'api_key'  => 'whatsapp_api_key',
+        'instance' => 'whatsapp_instance',
+        'ativo'    => 'whatsapp_ativo',
+    ];
+    foreach ($chaves as $campo => $chave) {
+        $valor = '';
+        if ($pdo && $adminId > 0) {
+            $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = ?");
+            $stmt->execute([$adminId, $chave]);
+            $row = $stmt->fetch();
+            if ($row && trim((string)$row['valor']) !== '') $valor = (string)$row['valor'];
+        }
+        if (trim($valor) === '') {
+            $valor = getConfigGlobal($chave, '');
+        }
+        $cfg[$campo] = (string)$valor;
+    }
+    return $cfg;
+}
+
 function enviarWhatsApp($telefone, $mensagem) {
-    $apiUrl = rtrim(getConfig('whatsapp_api_url', ''), '/');
-    $apiKey = getConfig('whatsapp_api_key', '');
-    $instance = getConfig('whatsapp_instance', '');
-    $whatsappAtivo = getConfig('whatsapp_ativo', '0');
+    $wa = getWhatsAppConfig();
+    $apiUrl = rtrim($wa['url_api'], '/');
+    $apiKey = $wa['api_key'];
+    $instance = $wa['instance'];
+    $whatsappAtivo = $wa['ativo'];
 
     if ($whatsappAtivo !== '1') return false;
     if (empty($apiUrl) || empty($apiKey) || empty($instance)) return false;

@@ -49,10 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$semInstancia && !$demoBloqueado) 
         $tipo = 'success';
     }
 
-    if ($acao === 'testar') {
-        $apiUrl = rtrim(getConfig('whatsapp_api_url', ''), '/');
-        $apiKey = getConfig('whatsapp_api_key', '');
-        $instance = getConfig('whatsapp_instance', '');
+if ($acao === 'testar') {
+        if (!function_exists('getWhatsAppConfig')) {
+            require_once __DIR__ . '/../api/whatsapp_send.php';
+        }
+        $wa = getWhatsAppConfig();
+        $apiUrl = rtrim($wa['url_api'], '/');
+        $apiKey = $wa['api_key'];
+        $instance = $wa['instance'];
 
         if (empty($apiUrl) || empty($apiKey) || empty($instance)) {
             $mensagem = 'Preencha URL, API Key e nome da instância.';
