@@ -104,6 +104,10 @@ if ($apiAtiva === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
                 $dataPagamento = date('Y-m-d');
                 break;
             case 'cancelled':
+            case 'rejected':
+                // PIX expirado/recusado: não cancela a fatura aqui — a regeneração
+                // automática do PIX acontece no cron e no webhook do Mercado Pago.
+                break;
             case 'refunded':
                 $novoStatus = 'cancelado';
                 break;

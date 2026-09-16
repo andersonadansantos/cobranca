@@ -41,6 +41,7 @@ function cronTenantContext($adminId) {
 foreach ($pendentes as $fat) {
     $novoStatus = null;
     $dataPagamento = null;
+    $regenerarPix = false;
     cronTenantContext($fat['admin_id'] ?? 0);
     $apiAtiva = $fat['api_pagamento'] ?: $apiAtivaGlobal;
 
@@ -73,7 +74,16 @@ foreach ($pendentes as $fat) {
         if ($pagamento) {
             $statusMP = $pagamento['status'] ?? '';
             if ($statusMP === 'approved') { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
-            elseif (in_array($statusMP, ['cancelled','refunded'])) { $novoStatus = 'cancelado'; }
+            // PIX expirado/recusado: não cancela a fatura; enquanto não vencer,
+            // um novo PIX é gerado automaticamente a cada execução do cron.
+            elseif ($statusMP === 'refunded') { $novoStatus = 'cancelado'; }
+            elseif (in_array($statusMP, ['cancelled', 'rejected'])) {
+                if (($fat['data_vencimento'] ?? '') >= date('Y-m-d')) {
+                    $regenerarPix = true;
+                } else {
+                    $novoStatus = 'vencido';
+                }
+            }
         }
     }
 
@@ -93,6 +103,15 @@ foreach ($pendentes as $fat) {
             }
         $log[] = "[baixa] {$fat['numero']} -> {$novoStatus}";
     }
+
+        // PIX do Mercado Pago expirado/recusado: gera novo código de pagamento
+        if (!empty($regenerarPix)) {
+            if (regenerarPixFaturaMP($pdo, $fat)) {
+                $log[] = "[pix_regerado] {$fat['numero']} (MP expirado)";
+            } else {
+                $log[] = "[pix_regerado_erro] {$fat['numero']}";
+            }
+        }
 }
 
 $cronAtivoGlobal = getConfigGlobal('cron_envio_ativo', '');

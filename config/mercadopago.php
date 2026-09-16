@@ -216,6 +216,38 @@ function criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNo
     }
 }
 
+// Regenera automaticamente o PIX do Mercado Pago quando o anterior expirou
+// (status 'cancelled'/'rejected' do MP). Mantém a fatura em aberto: o pagamento
+// antigo morre no MP e um novo código é gravado na fatura.
+// Retorna true se um novo PIX foi gerado.
+function regenerarPixFaturaMP($pdo, $fatura) {
+    try {
+        if (!isset($pdo, $fatura['id'])) return false;
+        if (($fatura['status'] ?? '') === 'pago' || ($fatura['status'] ?? '') === 'cancelado') return false;
+
+        $api = ($fatura['api_pagamento'] ?? '') ?: getApiAtiva();
+        if ($api !== 'mercadopago') return false;
+
+        $result = criarPagamento(
+            (string) ($fatura['descricao'] ?? ''),
+            (float) ($fatura['valor_final'] ?? 0),
+            (string) ($fatura['email'] ?? ''),
+            (string) ($fatura['nome_razao'] ?? '')
+        );
+
+        if (isset($result['sucesso']) && $result['sucesso'] && !empty($result['payment_id'])) {
+            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ? AND status != 'pago'");
+            $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $fatura['id']]);
+            return $stmt->rowCount() > 0;
+        }
+
+        error_log("[PIX REGEN] falha ao gerar novo PIX fat={$fatura['id']}: " . ($result['erro'] ?? json_encode($result)));
+    } catch (Throwable $e) {
+        error_log("[PIX REGEN] excessao fat={$fatura['id']}: " . $e->getMessage());
+    }
+    return false;
+}
+
 // === MERCADO PAGO: CARTÃO (CRÉDITO/DÉBITO) ===
 
 // O admin libera o cartão de crédito na página de configuração da API (Mercado Pago).

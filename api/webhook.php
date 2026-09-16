@@ -68,12 +68,14 @@ if ($tipo === 'payment' && $dataId) {
                     case 'pending':
                         $novoStatus = 'pendente';
                         break;
-                    case 'cancelled':
                     case 'refunded':
                         $novoStatus = 'cancelado';
                         break;
+                    case 'cancelled':
                     case 'rejected':
-                        $novoStatus = 'pendente';
+                        // PIX expirado/recusado: NÃO cancela a fatura. Mantém em aberto
+                        // e um novo PIX é gerado automaticamente logo abaixo.
+                        $novoStatus = (($fatura['data_vencimento'] ?? '') < date('Y-m-d')) ? 'vencido' : 'pendente';
                         break;
                 }
                 
