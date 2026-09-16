@@ -335,26 +335,52 @@ function buscarClienteParaPdf($fatura) {
 }
 
 function buscarBeneficiarioParaPdf($adminId = null) {
-    $config = ($adminId) ? getAllConfigForAdmin((int)$adminId) : getAllConfig();
+    $adminId = (int)$adminId;
+    $config = ($adminId > 0) ? getAllConfigForAdmin($adminId) : getAllConfig();
+    $global = getAllConfig();
+
     $benef = [
-        'favorecido' => $config['pix_manual_favorecido'] ?? '',
-        'cnpj' => $config['pix_manual_cnpj'] ?? '',
-        'banco' => $config['pix_manual_banco'] ?? '',
-        'chave' => $config['pix_manual_chave'] ?? '',
+        'favorecido' => trim((string) ($config['pix_manual_favorecido'] ?? '')),
+        'cnpj' => trim((string) ($config['pix_manual_cnpj'] ?? '')),
+        'banco' => trim((string) ($config['pix_manual_banco'] ?? '')),
+        'chave' => trim((string) ($config['pix_manual_chave'] ?? '')),
     ];
+
+    // Prioridade: dados cadastrais do admin (administradores) sempre vencem,
+    // pois são o "nome/CNPJ oficiais" da empresa beneficiária.
     $pdo = getConnection();
-    if ($pdo) {
+    if ($pdo && $adminId > 0) {
         try {
             $stmt = $pdo->prepare("SELECT nome_fantasia, cnpj FROM administradores WHERE id = ?");
-            $stmt->execute([(int)$adminId]);
+            $stmt->execute([$adminId]);
             $admin = $stmt->fetch();
             if ($admin) {
-                $benef['favorecido'] = $admin['nome_fantasia'] ?: $benef['favorecido'];
-                $benef['cnpj'] = $admin['cnpj'] ?: $benef['cnpj'];
+                if (trim((string) ($admin['nome_fantasia'] ?? '')) !== '') {
+                    $benef['favorecido'] = trim((string) $admin['nome_fantasia']);
+                }
+                if (trim((string) ($admin['cnpj'] ?? '')) !== '') {
+                    $benef['cnpj'] = trim((string) $admin['cnpj']);
+                }
             }
         } catch (Exception $e) {
         }
     }
+
+    // Fallback global: se a config do admin estiver zerada (vazia), usa a
+    // configuração global (super) para nunca deixar o CNPJ/favorecido em branco.
+    if ($benef['favorecido'] === '') {
+        $benef['favorecido'] = trim((string) ($global['pix_manual_favorecido'] ?? ''));
+    }
+    if ($benef['cnpj'] === '') {
+        $benef['cnpj'] = trim((string) ($global['pix_manual_cnpj'] ?? ''));
+    }
+    if ($benef['banco'] === '') {
+        $benef['banco'] = trim((string) ($global['pix_manual_banco'] ?? ''));
+    }
+    if ($benef['chave'] === '') {
+        $benef['chave'] = trim((string) ($global['pix_manual_chave'] ?? ''));
+    }
+
     return $benef;
 }
 

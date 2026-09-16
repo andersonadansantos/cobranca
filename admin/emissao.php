@@ -72,7 +72,7 @@ if (isset($_GET['excluir'])) {
 if (isset($_GET['enviar'])) {
     $frId = intval($_GET['enviar']);
     $stmt = $pdo->prepare("
-        SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+        SELECT f.id, f.admin_id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
                f.pix_copia_cola, f.pix_qrcode,
                c.nome_razao, c.email, c.email2, c.cpf_cnpj
         FROM faturas f
@@ -93,7 +93,7 @@ if (isset($_GET['enviar'])) {
 if (isset($_GET['whatsapp'])) {
     $frId = intval($_GET['whatsapp']);
     $stmt = $pdo->prepare("
-        SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+        SELECT f.id, f.admin_id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
                f.pix_copia_cola, f.pix_qrcode,
                c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone
         FROM faturas f
@@ -167,7 +167,7 @@ if (isset($_GET['fatura_excluir'])) {
 if (isset($_GET['fatura_enviar'])) {
     $id = intval($_GET['fatura_enviar']);
     $stmt = $pdo->prepare("
-        SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+        SELECT f.id, f.admin_id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
                f.pix_copia_cola, f.pix_qrcode,
                c.nome_razao, c.email, c.email2, c.cpf_cnpj
         FROM faturas f
@@ -187,7 +187,7 @@ if (isset($_GET['fatura_enviar'])) {
 if (isset($_GET['fatura_whatsapp'])) {
     $id = intval($_GET['fatura_whatsapp']);
     $stmt = $pdo->prepare("
-        SELECT f.id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
+        SELECT f.id, f.admin_id, f.numero, f.descricao, f.valor_final, f.data_vencimento, f.link_pagamento,
                f.pix_copia_cola, f.pix_qrcode,
                c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone
         FROM faturas f
@@ -453,6 +453,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cliente && !empty($cliente['email'])) {
                 $faturaDados = [
                     'id' => $faturaId,
+                    'admin_id' => $adminIdE,
                     'numero' => $numero,
                     'descricao' => $descricao,
                     'valor_final' => $valor,

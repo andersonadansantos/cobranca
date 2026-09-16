@@ -14,7 +14,7 @@ if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($lo
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <?php if ($logo): ?>
-            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 262px; max-height: 70px;">
+            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 250px; max-height: 70px;">
         <?php endif; ?>
         <h4><i class="fas fa-shield-halved me-2"></i><?= t('layout.admin_area') ?></h4>
     </div>
