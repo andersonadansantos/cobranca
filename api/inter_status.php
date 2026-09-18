@@ -74,13 +74,16 @@ if ($situacao === 'PAGA' || $situacao === 'RECEBIDO') {
 }
 
 if ($situacao === 'VENCIDA') {
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'vencido' WHERE id = ? AND status = 'pendente'");
+    $stmt = $pdo->prepare("UPDATE faturas SET status = 'atrasado' WHERE id = ? AND status = 'pendente'");
     $stmt->execute([$faturaId]);
 }
 
+// Fatura nunca é cancelada sozinha: expiração/cancelamento no Inter volta
+// a fatura para o status do vencimento (atrasado/pendente).
 if ($situacao === 'EXPIRADA' || $situacao === 'CANCELADA') {
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ? AND status != 'pago'");
-    $stmt->execute([$faturaId]);
+    $novoStatusInter = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
+    $stmt = $pdo->prepare("UPDATE faturas SET status = ? WHERE id = ? AND status != 'pago'");
+    $stmt->execute([$novoStatusInter, $faturaId]);
 }
 
 $pix = $detalhe['pix'] ?? ($detalhe['cobranca']['pix'] ?? []);

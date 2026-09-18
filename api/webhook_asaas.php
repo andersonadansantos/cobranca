@@ -49,17 +49,18 @@ $statusAsaas = strtoupper($payment['status'] ?? '');
 $mapeamento = [
     'PAYMENT_RECEIVED' => 'pago',
     'PAYMENT_CONFIRMED' => 'pago',
-    'PAYMENT_OVERDUE' => 'vencido',
-    'PAYMENT_REFUNDED' => 'cancelado',
-    'PAYMENT_CHARGEBACK_REQUESTED' => 'cancelado',
-    'PAYMENT_CHARGEBACK_DISPUTE' => 'cancelado',
-    'PAYMENT_DELETED' => 'cancelado',
-    'PAYMENT_FAILED' => 'cancelado',
+    'PAYMENT_OVERDUE' => 'atrasado',
+    // NUNCA cancela a fatura sozinha: estorno/chargeback/exclusão/falha
+    // devolvem a fatura ao status do vencimento (atrasado/pendente).
+    'PAYMENT_REFUNDED' => '__semcancelar__',
+    'PAYMENT_CHARGEBACK_REQUESTED' => '__semcancelar__',
+    'PAYMENT_CHARGEBACK_DISPUTE' => '__semcancelar__',
+    'PAYMENT_DELETED' => '__semcancelar__',
+    'PAYMENT_FAILED' => '__semcancelar__',
 ];
 
 if (isset($mapeamento[$evento])) {
     $novoStatus = $mapeamento[$evento];
-    $dataPagamento = $novoStatus === 'pago' ? date('Y-m-d') : null;
 
     $pdo = getConnection();
     if ($pdo) {
@@ -68,6 +69,10 @@ if (isset($mapeamento[$evento])) {
         $fatura = $stmt->fetch();
 
         if ($fatura && $fatura['status'] !== 'pago') {
+            if ($novoStatus === '__semcancelar__') {
+                $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
+            }
+            $dataPagamento = $novoStatus === 'pago' ? date('Y-m-d') : null;
             // Contexto de tenant para resolução de configurações (email etc.)
             if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
 

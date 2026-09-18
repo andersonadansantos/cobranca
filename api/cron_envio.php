@@ -50,8 +50,8 @@ foreach ($pendentes as $fat) {
         if ($detalhe && !isset($detalhe['erro'])) {
             $situacao = strtoupper($detalhe['situacao'] ?? $detalhe['cobranca']['situacao'] ?? '');
             if (in_array($situacao, ['PAGA','RECEBIDO'])) { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
-            elseif ($situacao === 'VENCIDA') { $novoStatus = 'vencido'; }
-            elseif (in_array($situacao, ['EXPIRADO','EXPIRADA','CANCELADO','CANCELADA'])) { $novoStatus = 'cancelado'; }
+            elseif ($situacao === 'VENCIDA') { $novoStatus = 'atrasado'; }
+            elseif (in_array($situacao, ['EXPIRADO','EXPIRADA','CANCELADO','CANCELADA'])) { $novoStatus = statusFaturaSemCancelar($fat['data_vencimento'] ?? ''); }
         }
     } elseif ($apiAtiva === 'bb' && !empty($fat['mp_payment_id'])) {
         $detalhe = consultarBoletoBB($fat['mp_payment_id']);
@@ -66,7 +66,7 @@ foreach ($pendentes as $fat) {
             foreach ($charges as $charge) {
                 $situacao = strtoupper($charge['status'] ?? '');
                 if ($situacao === 'PAID') { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); break; }
-                elseif ($situacao === 'CANCELED') { $novoStatus = 'cancelado'; break; }
+                elseif ($situacao === 'CANCELED') { $novoStatus = statusFaturaSemCancelar($fat['data_vencimento'] ?? ''); break; }
             }
         }
     } elseif ($apiAtiva === 'mercadopago' && !empty($fat['mp_payment_id'])) {
@@ -74,14 +74,15 @@ foreach ($pendentes as $fat) {
         if ($pagamento) {
             $statusMP = $pagamento['status'] ?? '';
             if ($statusMP === 'approved') { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
-            // PIX expirado/recusado: não cancela a fatura; enquanto não vencer,
-            // um novo PIX é gerado automaticamente a cada execução do cron.
-            elseif ($statusMP === 'refunded') { $novoStatus = 'cancelado'; }
+            // Fatura nunca é cancelada sozinha: expiração/recusa/estorno do PIX
+            // mantém a fatura ativa ('atrasado' se vencida, senão 'pendente');
+            // enquanto não vencer, um novo PIX é gerado a cada execução do cron.
+            elseif ($statusMP === 'refunded') { $novoStatus = statusFaturaSemCancelar($fat['data_vencimento'] ?? ''); }
             elseif (in_array($statusMP, ['cancelled', 'rejected'])) {
                 if (($fat['data_vencimento'] ?? '') >= date('Y-m-d')) {
                     $regenerarPix = true;
                 } else {
-                    $novoStatus = 'vencido';
+                    $novoStatus = 'atrasado';
                 }
             }
         }
@@ -114,11 +115,9 @@ foreach ($pendentes as $fat) {
         }
 }
 
+// Baixa automática de pagamentos concluída acima. A geração de faturas
+// recorrentes (bloco abaixo) roda SEMPRE, independente do flag global de envio.
 $cronAtivoGlobal = getConfigGlobal('cron_envio_ativo', '');
-if ($cronAtivoGlobal !== '' && $cronAtivoGlobal !== '1') {
-    file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - " . implode(" | ", $log) . "\n", FILE_APPEND);
-    die("CRON executado (baixa): " . count($log) . " acoes\n");
-}
 
 // Janela de envio: como o cron-job.org executa a URL a cada poucos minutos,
 // os e-mails/WhatsApp da régua só são enviados dentro da janela configurada
@@ -243,7 +242,14 @@ foreach ($recorrentes as $rec) {
         }
     }
 
-    $log[] = "[gerada_auto] {$numero} -> {$proximaVenc} (freq {$rec['frequencia']})";
+$log[] = "[gerada_auto] {$numero} -> {$proximaVenc} (freq {$rec['frequencia']})";
+}
+
+// A régua de cobrança (e-mails/WhatsApp) abaixo só roda quando o envio
+// automático está ligado globalmente; as recorrências já foram geradas acima.
+if ($cronAtivoGlobal !== '' && $cronAtivoGlobal !== '1') {
+    file_put_contents(__DIR__ . '/cron_log.txt', date('Y-m-d H:i:s') . " - " . implode(" | ", $log) . "\n", FILE_APPEND);
+    die("CRON executado (baixa/recorrencia): " . count($log) . " acoes\n");
 }
 
 $regua1 = (getConfig('regua_1_enviar_geracao', '0') === '1');

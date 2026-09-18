@@ -84,13 +84,16 @@ if ($tipo === 'payment' && $dataId) {
                         $novoStatus = 'pendente';
                         break;
                     case 'refunded':
-                        $novoStatus = 'cancelado';
+                        // Estorno também não cancela a fatura: ela volta a
+                        // ficar ativa ('atrasado' se vencida, senão 'pendente').
+                        $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
                         break;
                     case 'cancelled':
                     case 'rejected':
-                        // PIX expirado/recusado: NÃO cancela a fatura. Mantém em aberto
-                        // e um novo PIX é gerado automaticamente logo abaixo.
-                        $novoStatus = (($fatura['data_vencimento'] ?? '') < date('Y-m-d')) ? 'vencido' : 'pendente';
+                        // PIX expirado/recusado: NÃO cancela a fatura. Mantém em
+                        // aberto ('atrasado' se vencida, senão 'pendente') e um novo
+                        // PIX é gerado automaticamente logo abaixo.
+                        $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
                         break;
                 }
                 

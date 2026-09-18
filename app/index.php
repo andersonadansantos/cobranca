@@ -121,7 +121,7 @@ $nomeSistema = getNomeSistema();
                         <i class="fas fa-key"></i> Esqueceu sua senha?
                     </a>
                 </div>
-                <div class="text-center"><small style="color:#94a3b8; font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small></div>
+                <div class="text-center"><small style="color:#94a3b8; font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#64748b;">Versão: 1.0</span></div>
             </form>
         </div>
     </div>

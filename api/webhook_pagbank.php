@@ -74,7 +74,7 @@ foreach ($charges as $charge) {
             $dataPagamento = date('Y-m-d');
             break;
         case 'CANCELED':
-            $novoStatus = 'cancelado';
+            $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
             break;
         case 'DECLINED':
         case 'WAITING':

@@ -437,9 +437,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$adminIdE, $cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $numero]);
             $faturaRecorrenteId = $pdo->lastInsertId();
 
-            $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT));
-            if ($dataVenc < date('Y-m-d')) {
-                $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
+            // Vencimento da 1ª fatura por ciclo: diária/semanal/quinzenal partem da
+            // criação (+1, +7, +15 dias); mensal em diante usam o dia do mês gravado.
+            $somaDiasPorCiclo = ['diaria' => 1, 'semanal' => 7, 'quinzenal' => 15];
+            if (isset($somaDiasPorCiclo[$frequencia])) {
+                $dataVenc = date('Y-m-d', strtotime('+' . $somaDiasPorCiclo[$frequencia] . ' days'));
+            } else {
+                $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT));
+                if ($dataVenc < date('Y-m-d')) {
+                    $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
+                }
             }
 
             $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");

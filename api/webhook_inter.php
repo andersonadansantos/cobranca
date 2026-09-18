@@ -53,11 +53,11 @@ if ($fatura) {
             $dataPagamento = date('Y-m-d');
             break;
         case 'VENCIDA':
-            $novoStatus = 'vencido';
+            $novoStatus = 'atrasado';
             break;
         case 'EXPIRADA':
         case 'CANCELADA':
-            $novoStatus = 'cancelado';
+            $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
             break;
         case 'AGUARDANDO':
         case 'EM ANALISE':

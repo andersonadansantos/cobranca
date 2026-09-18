@@ -136,6 +136,17 @@ function getAllConfig() {
     return $config;
 }
 
+// Status de fatura SEM cancelamento automático: a fatura nunca é cancelada
+// sozinha. Quando o gateway reporta expiração/recusa/cancelamento/estorno,
+// ela volta ao que o vencimento indica: 'atrasado' (vencida) ou 'pendente'.
+function statusFaturaSemCancelar($dataVenc) {
+    $dataVenc = (string)($dataVenc ?? '');
+    if ($dataVenc !== '' && $dataVenc < date('Y-m-d')) {
+        return 'atrasado';
+    }
+    return 'pendente';
+}
+
 // === Helpers por admin (independentes da sessão) ===
 // Resolvem a configuração de um admin específico (ex.: o admin dono da fatura)
 // para que recibo e fatura em PDF usem sempre a personalização do admin correto.

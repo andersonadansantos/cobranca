@@ -98,7 +98,7 @@ $nomeSistema = getNomeSistema();
                     </div>
 
                     <div class="text-center mt-3">
-                        <small class="text-muted" style="font-size:0.65rem;">Desenvolvido por WD Soluções Digitais.</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span>
+                        <small class="text-muted" style="font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span>
                     </div>
                 </div>
             </div>

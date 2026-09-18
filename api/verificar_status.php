@@ -50,11 +50,11 @@ if ($apiAtiva === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
                 $dataPagamento = date('Y-m-d');
                 break;
             case 'VENCIDA':
-                $novoStatus = 'vencido';
+                $novoStatus = 'atrasado';
                 break;
             case 'EXPIRADA':
             case 'CANCELADA':
-                $novoStatus = 'cancelado';
+                $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
                 break;
         }
     }
@@ -83,14 +83,14 @@ if ($apiAtiva === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
                 $dataPagamento = date('Y-m-d');
                 break;
             case 'OVERDUE':
-                $novoStatus = 'vencido';
+                $novoStatus = 'atrasado';
                 break;
             case 'REFUNDED':
             case 'CHARGEBACK_REQUESTED':
             case 'CHARGEBACK_DISPUTE':
             case 'PAYMENT_DELETED':
             case 'PAYMENT_FAILED':
-                $novoStatus = 'cancelado';
+                $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
                 break;
         }
     }
@@ -109,7 +109,7 @@ if ($apiAtiva === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
                 // automática do PIX acontece no cron e no webhook do Mercado Pago.
                 break;
             case 'refunded':
-                $novoStatus = 'cancelado';
+                $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
                 break;
         }
     }

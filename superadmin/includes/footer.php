@@ -113,7 +113,7 @@
         </div>
     </div>
     <div style="text-align:center; padding:16px 16px 8px; font-size:0.65rem; color:#94a3b8;">
-        <span>Área restrita - Super Admin - WD Soluções Digitais LTDA</span>
+        <span>Área restrita - Super Admin - Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</span><span style="float:right;font-size:0.65rem;color:#64748b;">Versão: 1.0</span>
     </div>
 </body>
 </html>

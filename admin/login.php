@@ -124,7 +124,7 @@ $nomeSistema = getNomeSistema();
                         </div>
                     </form>
 
-                    <div class="text-center"><small class="text-muted" style="font-size:0.65rem;"><?= t('login.dev') ?></small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
+                    <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
 
                     <div class="text-center mt-3">
                         <a href="/cobranca/usuario/" class="text-decoration-none">
