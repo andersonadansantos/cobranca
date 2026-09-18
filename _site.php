@@ -1102,10 +1102,9 @@ function siteHeader($secao = '') {
 <body class="bg-white text-slate-800 antialiased font-sans">
 <!-- Navegação -->
 <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
-    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-36 flex items-center justify-between">
-        <a href="<?= siteAsset('/') ?>" class="flex items-center">
-            <img src="<?= siteAsset('/assets/img/logo_color.png') ?>" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[135px] 
-            w-auto max-w-[400px] object-contain">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-28 flex items-center justify-between gap-3">
+        <a href="<?= siteAsset('/') ?>" class="flex items-center shrink-0 min-w-0">
+            <img src="<?= siteAsset('/assets/img/logo_color.png') ?>" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-12 sm:h-16 lg:h-[70px] w-auto max-w-[200px] sm:max-w-[300px] lg:max-w-[400px] object-contain">
         </a>
         <div class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
             <a href="<?= siteAsset('/#como-funciona') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_como') ?></a>
@@ -1119,7 +1118,7 @@ function siteHeader($secao = '') {
                     class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 focus:outline-none focus:border-brand-400 cursor-pointer">
                 <img id="idioma-lbl-flag" src="<?= siteAsset('/assets/img/flags/' . siteBandeira(siteIdiomaAtual())) ?>" width="20" height="14"
                      class="w-5 h-3.5 object-cover rounded-[2px]" alt="">
-                <span id="idioma-lbl"><?= htmlspecialchars(siteIdiomas()[siteIdiomaAtual()] ?? siteIdiomaAtual()) ?></span>
+                <span id="idioma-lbl" class="hidden sm:inline"><?= htmlspecialchars(siteIdiomas()[siteIdiomaAtual()] ?? siteIdiomaAtual()) ?></span>
                 <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="idioma-menu" class="hidden absolute right-0 mt-2 w-60 rounded-xl border border-slate-100 bg-white p-1.5 shadow-xl z-50">
@@ -1167,8 +1166,42 @@ function siteHeader($secao = '') {
                 <?= siteT('nav_demo') ?>
             </a>
             <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="rounded-full px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-200 transition"><?= siteT('nav_criar') ?></a>
+            <button type="button" id="menu-mobile-btn" aria-label="Menu" aria-expanded="false"
+                    class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-700 cursor-pointer">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
         </div>
     </nav>
+    <div id="menu-mobile" class="hidden md:hidden border-t border-slate-100 bg-white/95 backdrop-blur-lg px-4 pt-3 pb-5">
+        <a href="<?= siteAsset('/#como-funciona') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"><?= siteT('nav_como') ?></a>
+        <a href="<?= siteAsset('/#recursos') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"><?= siteT('nav_recursos') ?></a>
+        <a href="<?= siteAsset('/planos.php') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"><?= siteT('nav_planos') ?></a>
+        <a href="<?= siteAsset('/#faq') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"><?= siteT('nav_duvidas') ?></a>
+        <a href="<?= siteAsset('/demo.php') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-bold text-brand-700 hover:bg-brand-50"><?= siteT('nav_demo') ?></a>
+        <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="mt-2 block rounded-xl px-4 py-3 text-center text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700"><?= siteT('nav_criar') ?></a>
+    </div>
+    <script>
+    (function () {
+        var btn = document.getElementById('menu-mobile-btn');
+        var menu = document.getElementById('menu-mobile');
+        if (!btn || !menu) return;
+        var fechar = function () { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var aberto = menu.classList.toggle('hidden');
+            btn.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+        });
+        menu.querySelectorAll('.menu-mobile-link, [href]').forEach(function (a) {
+            a.addEventListener('click', fechar);
+        });
+        document.addEventListener('click', function (e) {
+            if (!menu.contains(e.target) && e.target !== btn) fechar();
+        });
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 768) fechar();
+        });
+    })();
+    </script>
 </header>
     <?php
 }

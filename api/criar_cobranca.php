@@ -73,33 +73,36 @@ $descricao = $fatura['numero'] . ' - ' . $fatura['descricao'];
 $resultado = criarPagamento($descricao, $fatura['valor_final'], $fatura['email'], $fatura['nome_razao']);
 
 if (isset($resultado['sucesso']) && $resultado['sucesso']) {
-    $apiAtiva = getApiAtiva();
-    if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
-        $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?");
+    $apiUsada = $resultado['api'] ?? getApiAtiva();
+    if ($apiUsada === 'inter' || $apiUsada === 'bb') {
+        $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
         $stmt->execute([
             $resultado['qr_code'],
             $resultado['qr_code_copia_cola'],
             $resultado['link_pagamento'],
             null,
             $resultado['payment_id'],
+            $apiUsada,
             $faturaId
         ]);
-    } elseif ($apiAtiva === 'pagbank') {
-        $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?");
+    } elseif ($apiUsada === 'pagbank') {
+        $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
         $stmt->execute([
             $resultado['qr_code'],
             $resultado['qr_code_copia_cola'],
             $resultado['link_pagamento'],
             $resultado['payment_id'],
+            $apiUsada,
             $faturaId
         ]);
     } else {
-        $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
         $stmt->execute([
             $resultado['qr_code'],
             $resultado['qr_code_copia_cola'],
             $resultado['link_pagamento'],
             $resultado['payment_id'],
+            $apiUsada,
             $faturaId
         ]);
     }

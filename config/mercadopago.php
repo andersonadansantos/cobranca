@@ -236,8 +236,9 @@ function regenerarPixFaturaMP($pdo, $fatura) {
         );
 
         if (isset($result['sucesso']) && $result['sucesso'] && !empty($result['payment_id'])) {
-            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ? AND status != 'pago'");
-            $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $fatura['id']]);
+            $apiAtual = $result['api'] ?? 'mercadopago';
+            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
+            $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);
             return $stmt->rowCount() > 0;
         }
 
@@ -549,19 +550,17 @@ function getApiAtiva() {
 
 function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome) {
     $api = getApiAtiva();
+    $res = null;
+
     if ($api === 'inter') {
-        return criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome);
-    }
-    if ($api === 'bb') {
-        return criarPagamentoBB($descricao, $valor, $clienteEmail, $clienteNome);
-    }
-    if ($api === 'pix_manual') {
-        return criarPagamentoPixManual($descricao, $valor, $clienteEmail, $clienteNome);
-    }
-    if ($api === 'asaas') {
-        return criarPagamentoAsaas($descricao, $valor, $clienteEmail, $clienteNome);
-    }
-    if ($api === 'pagbank') {
+        $res = criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome);
+    } elseif ($api === 'bb') {
+        $res = criarPagamentoBB($descricao, $valor, $clienteEmail, $clienteNome);
+    } elseif ($api === 'pix_manual') {
+        $res = criarPagamentoPixManual($descricao, $valor, $clienteEmail, $clienteNome);
+    } elseif ($api === 'asaas') {
+        $res = criarPagamentoAsaas($descricao, $valor, $clienteEmail, $clienteNome);
+    } elseif ($api === 'pagbank') {
         if (!function_exists('criarPedidoPixPagBank')) {
             require_once __DIR__ . '/pagbank.php';
         }
@@ -583,29 +582,42 @@ function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome) {
             $clienteNome = $cli['nome_razao'] ?? '';
         }
         $cpfCnpj = $cli ? ($cli['cpf_cnpj'] ?? '') : '';
-        return criarPedidoPixPagBank($descricao, $valor, $clienteEmail, $clienteNome, $cpfCnpj);
+        $res = criarPedidoPixPagBank($descricao, $valor, $clienteEmail, $clienteNome, $cpfCnpj);
+    } else {
+        $res = criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNome);
     }
-    return criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNome);
+
+    // Marca qual gateway realmente gerou o pagamento, para os chamadores
+    // persistirem api_pagamento correto na fatura (ex.: troca de gateway).
+    if (is_array($res)) {
+        $res['api'] = $api;
+    }
+    return $res;
 }
 
 function criarBoleto($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
     $api = getApiAtiva();
+    $res = null;
+
     if ($api === 'inter') {
-        return criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
-    }
-    if ($api === 'bb') {
-        return criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
-    }
-    if ($api === 'asaas') {
-        return criarBoletoAsaas($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
-    }
-    if ($api === 'pagbank') {
+        $res = criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+    } elseif ($api === 'bb') {
+        $res = criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+    } elseif ($api === 'asaas') {
+        $res = criarBoletoAsaas($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+    } elseif ($api === 'pagbank') {
         if (!function_exists('criarPedidoBoletoPagBank')) {
             require_once __DIR__ . '/pagbank.php';
         }
-        return criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+        $res = criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+    } else {
+        $res = criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
     }
-    return criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+
+    if (is_array($res)) {
+        $res['api'] = $api;
+    }
+    return $res;
 }
 
 function getConfigInter() {
@@ -653,7 +665,8 @@ function obterTokenInter() {
         return ['erro' => 'Certificados do Banco Inter não configurados ou não encontrados.'];
     }
     $baseUrl = getInterBaseUrl();
-    $cacheFile = sys_get_temp_dir() . '/inter_token_cache_' . md5($baseUrl) . '.json';
+    // Cache por admin: cada admin tem seu par de credenciais/certificados no Inter.
+    $cacheFile = sys_get_temp_dir() . '/inter_token_cache_' . md5($baseUrl . '|' . getConfigAdminId()) . '.json';
     if (file_exists($cacheFile)) {
         $cache = json_decode(file_get_contents($cacheFile), true);
         if ($cache && !empty($cache['access_token']) && $cache['expires_at'] > time() + 60) {
@@ -1017,7 +1030,8 @@ function obterTokenBB() {
         return ['erro' => 'Credenciais do Banco do Brasil não configuradas.'];
     }
     $baseUrl = getBBBaseUrl();
-    $cacheFile = sys_get_temp_dir() . '/bb_token_cache_' . md5($baseUrl) . '.json';
+    // Cache por admin: cada admin tem seu par de credenciais no BB.
+    $cacheFile = sys_get_temp_dir() . '/bb_token_cache_' . md5($baseUrl . '|' . getConfigAdminId()) . '.json';
     if (file_exists($cacheFile)) {
         $cache = json_decode(file_get_contents($cacheFile), true);
         if ($cache && !empty($cache['access_token']) && $cache['expires_at'] > time() + 60) {

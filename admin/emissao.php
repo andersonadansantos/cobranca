@@ -320,7 +320,7 @@ if (isset($_GET['fatura_pix'])) {
         $result = criarPagamento($fat['descricao'], $fat['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '');
         error_log("[FATURA PIX] criarPagamento returned: " . json_encode(array_keys($result)));
         if (isset($result['sucesso']) && $result['sucesso']) {
-            $apiUsada = getApiAtiva();
+            $apiUsada = $result['api'] ?? getApiAtiva();
             if ($apiUsada === 'inter' || $apiUsada === 'bb') {
                 $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?");
                 $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', null, $result['payment_id'] ?? '', $apiUsada, $id, $adminIdE]);

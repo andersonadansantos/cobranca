@@ -570,13 +570,13 @@ if (!function_exists('enviarEmailFatura')) {
                 $fatura['pix_qrcode'] = $resultado['qr_code'] ?? '';
                 $fatura['link_pagamento'] = $resultado['link_pagamento'] ?? '';
                 $pdo = getConnection();
-                $apiAtiva = getApiAtiva();
+                $apiAtiva = $resultado['api'] ?? getApiAtiva();
                 if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
-                    $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?");
-                    $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], null, $resultado['payment_id'], $fatura['id']]);
+                    $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
+                    $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], null, $resultado['payment_id'], $apiAtiva, $fatura['id']]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?");
-                    $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], $resultado['payment_id'], $fatura['id']]);
+                    $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
+                    $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], $resultado['payment_id'], $apiAtiva, $fatura['id']]);
                 }
             }
         }

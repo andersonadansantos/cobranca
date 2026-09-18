@@ -233,11 +233,11 @@ foreach ($recorrentes as $rec) {
             $qr = $resultado['qr_code_copia_cola'] ?? '';
             $pixQr = $resultado['qr_code'] ?? '';
             $link = $resultado['link_pagamento'] ?? '';
-            $apiAtiva = getApiAtiva();
+            $apiAtiva = $resultado['api'] ?? getApiAtiva();
             if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
-                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?")->execute([$pixQr, $qr, $link, null, $resultado['payment_id'], $faturaId]);
+                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, null, $resultado['payment_id'], $apiAtiva, $faturaId]);
             } else {
-                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?")->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $faturaId]);
+                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $apiAtiva, $faturaId]);
             }
             $log[] = "[gerada_pagamento] {$numero} -> {$link}";
         }
@@ -354,13 +354,13 @@ foreach ($faturas as &$fat) {
                 $fat['pix_qrcode'] = $resultadoPix['qr_code'] ?? '';
                 $fat['pix_copia_cola'] = $resultadoPix['qr_code_copia_cola'] ?? '';
                 $fat['link_pagamento'] = $resultadoPix['link_pagamento'] ?? '';
-                $apiPag = getApiAtiva();
+                $apiPag = $resultadoPix['api'] ?? getApiAtiva();
                 if ($apiPag === 'inter' || $apiPag === 'bb') {
-                    $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?")
-                        ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], null, $resultadoPix['payment_id'], $fat['id']]);
+                    $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?")
+                        ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], null, $resultadoPix['payment_id'], $apiPag, $fat['id']]);
                 } else {
-                    $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ? WHERE id = ?")
-                        ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], $resultadoPix['payment_id'] ?? '', $fat['id']]);
+                    $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?")
+                        ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], $resultadoPix['payment_id'] ?? '', $apiPag, $fat['id']]);
                 }
             }
         }

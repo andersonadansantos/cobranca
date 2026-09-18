@@ -60,12 +60,13 @@ if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
     );
 
     if (isset($result['sucesso']) && $result['sucesso']) {
-        if ($apiDaFatura === 'inter' || $apiDaFatura === 'bb') {
-            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ?, inter_codigo_solicitacao = ? WHERE id = ?");
-            $stmt->execute([$result['boleto_url'], null, $result['payment_id'], $faturaId]);
+        $apiUsada = $result['api'] ?? $apiDaFatura;
+        if ($apiUsada === 'inter' || $apiUsada === 'bb') {
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
+            $stmt->execute([$result['boleto_url'], null, $result['payment_id'], $apiUsada, $faturaId]);
         } else {
-            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ? WHERE id = ?");
-            $stmt->execute([$result['boleto_url'], $result['payment_id'], $faturaId]);
+            $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
+            $stmt->execute([$result['boleto_url'], $result['payment_id'], $apiUsada, $faturaId]);
         }
         header('Location: ' . $result['boleto_url']);
         exit;
@@ -85,16 +86,19 @@ if (!$jaTemCobranca && !$fatura['link_pagamento'] && !$fatura['pix_copia_cola'] 
     $result = criarPagamento($fatura['descricao'], $fatura['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '');
 
     if (isset($result['sucesso']) && $result['sucesso']) {
-        if ($apiDaFatura === 'inter' || $apiDaFatura === 'bb') {
+        // Grava o gateway que realmente gerou o pagamento (pode ter trocado após a emissão da fatura)
+        $apiUsada = $result['api'] ?? $apiDaFatura;
+        if ($apiUsada === 'inter' || $apiUsada === 'bb') {
             $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
-            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], null, $result['payment_id'], $apiDaFatura, $faturaId]);
+            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], null, $result['payment_id'], $apiUsada, $faturaId]);
         } else {
             $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
-            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], $result['payment_id'], $apiDaFatura, $faturaId]);
+            $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], $result['payment_id'], $apiUsada, $faturaId]);
         }
         $fatura['pix_qrcode'] = $result['qr_code'];
         $fatura['pix_copia_cola'] = $result['qr_code_copia_cola'];
         $fatura['link_pagamento'] = $result['link_pagamento'];
+        $fatura['api_pagamento'] = $apiUsada;
     } else {
         $erroMsg = $result['erro'] ?? 'Erro ao gerar pagamento.';
     }

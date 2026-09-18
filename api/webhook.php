@@ -35,22 +35,37 @@ $logEntry = date('Y-m-d H:i:s') . " | Tipo: {$tipo} | Action: {$action} | ID: {$
 file_put_contents(__DIR__ . '/webhook_log.txt', $logEntry, FILE_APPEND | LOCK_EX);
 
 if ($tipo === 'payment' && $dataId) {
-    // Consultar pagamento no Mercado Pago
-    $pagamento = consultarPagamento($dataId);
-    
-    if ($pagamento) {
-        $pdo = getConnection();
-        
-        if ($pdo) {
-            // Buscar fatura pelo payment_id
-            $stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ?");
-            $stmt->execute([$dataId]);
-            $fatura = $stmt->fetch();
-            
-            if ($fatura) {
-                // Contexto de tenant para resolução de configurações (email etc.)
-                if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
+    $pdo = getConnection();
 
+    if ($pdo) {
+        // Buscar todas as faturas candidatas pelo payment_id.
+        // IDs de pagamento do Mercado Pago são por conta: duas contas podem ter
+        // o mesmo ID, então usamos a fatura certa de cada admin (tenant).
+        $stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ?");
+        $stmt->execute([$dataId]);
+        $candidatas = $stmt->fetchAll();
+
+        if ($candidatas) {
+            $fatura = null;
+            $pagamento = null;
+
+            foreach ($candidatas as $cand) {
+                // Contexto de tenant para resolver as credenciais do admin dono da fatura.
+                // A consulta só bate se o token deste admin reconhecer o pagamento,
+                // o que evita confirmar a fatura errada em caso de colisão de IDs.
+                if (!empty($cand['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$cand['admin_id'];
+                $pgto = consultarPagamento($dataId);
+                // Só aceita a candidata se a consulta retornar o próprio pagamento
+                // (id bate). Erros de auth do MP retornam status HTTP (ex.: 401),
+                // então o id é a verificação confiável de que o token do admin é o dono.
+                if (is_array($pgto) && isset($pgto['id'], $pgto['status']) && (string)$pgto['id'] === (string)$dataId) {
+                    $fatura = $cand;
+                    $pagamento = $pgto;
+                    break;
+                }
+            }
+
+            if ($fatura) {
                 $statusMP = $pagamento['status'] ?? '';
                 $statusDetail = $pagamento['status_detail'] ?? '';
                 $valorPago = $pagamento['transaction_amount'] ?? 0;
