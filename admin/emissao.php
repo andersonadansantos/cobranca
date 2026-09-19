@@ -724,10 +724,6 @@ $statusClasses = [
                                     <span class="fr-dado-label">Frequência</span>
                                     <span class="badge bg-info"><?= ucfirst($fr['frequencia']) ?></span>
                                 </div>
-                                <div class="fr-dado">
-                                    <span class="fr-dado-label">Dia do Vencimento</span>
-                                    <strong><?= sprintf('%02d/mês', (int)$fr['dia_vencimento']) ?></strong>
-                                </div>
                                 <div class="fr-acoes">
                                     <span class="fr-chevron text-muted"><i class="bi bi-chevron-down"></i></span>
                                     <?php if (($fr['status'] ?? 'ativa') !== 'cancelado'): ?>

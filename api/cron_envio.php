@@ -170,79 +170,83 @@ foreach ($recorrentes as $rec) {
     // Contexto de tenant (admin) da recorrência
     cronTenantContext($rec['admin_id'] ?? 0);
 
-    // Última fatura da recorrência por data de vencimento, SEM filtrar
-    // por status: o pagamento (ou não) da anterior não bloqueia a geração.
-    $stmtUlt = $pdo->prepare("SELECT data_vencimento FROM faturas WHERE fatura_recorrente_id = ? ORDER BY data_vencimento DESC, id DESC LIMIT 1");
-    $stmtUlt->execute([$rec['id']]);
-    $ultima = $stmtUlt->fetch();
+    // Início do ciclo: a partir da data de criação da recorrência.
+    $dataInicio = $rec['data_inicio'] ?: date('Y-m-d');
 
-    if (!$ultima) {
-        $diaVenc = max(1, min(31, intval($rec['dia_vencimento'] ?? 1)));
-        $primeiraVenc = date('Y-m-' . str_pad($diaVenc, 2, '0', STR_PAD_LEFT));
-        if ($primeiraVenc < $hoje) {
-            $primeiraVenc = date('Y-m-' . str_pad($diaVenc, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
-        }
-        if ($primeiraVenc > $hoje) continue;
-        $proximaVenc = $primeiraVenc;
+    // Primeiro vencimento esperado do ciclo, usando a MESMA regra da criação
+    // manual: diária/semanal/quinzenal ancoram na criação (+1/+7/+15 dias);
+    // as demais frequências usam o dia do vencimento dentro do mês.
+    $somaDiasInicio = ['diaria' => 1, 'semanal' => 7, 'quinzenal' => 15];
+    if (isset($somaDiasInicio[$rec['frequencia']])) {
+        $primeiraVenc = date('Y-m-d', strtotime($dataInicio . ' +' . $somaDiasInicio[$rec['frequencia']] . ' days'));
     } else {
-        // Só avança quando a última fatura CHEGOU ao vencimento
-        // (data_vencimento <= hoje), pago ou não.
-        if ($ultima['data_vencimento'] > $hoje) continue;
-        $proximaVenc = proximoVencimentoRecorrencia($rec['frequencia'], $ultima['data_vencimento'], $rec['dia_vencimento'] ?? 1);
-        $guard = 0;
-        while ($proximaVenc !== null && $proximaVenc < $hoje && $guard < 500) {
-            $proximaVenc = proximoVencimentoRecorrencia($rec['frequencia'], $proximaVenc, $rec['dia_vencimento'] ?? 1);
-            $guard++;
+        $diaVenc = max(1, min(31, intval($rec['dia_vencimento'] ?? 1)));
+        $primeiraVenc = date('Y-m-' . str_pad($diaVenc, 2, '0', STR_PAD_LEFT), strtotime($dataInicio));
+        if ($primeiraVenc < $dataInicio) {
+            $primeiraVenc = date('Y-m-' . str_pad($diaVenc, 2, '0', STR_PAD_LEFT), strtotime($dataInicio . ' +1 month'));
         }
-        if ($proximaVenc === null) continue;
     }
 
-    if (!empty($rec['data_fim']) && $proximaVenc > $rec['data_fim']) {
-        $pdo->prepare("UPDATE faturas_recorrentes SET ativo = 0, status = 'cancelado' WHERE id = ?")->execute([$rec['id']]);
-        continue;
-    }
+    // O ciclo ainda não atingiu o primeiro vencimento.
+    if ($primeiraVenc === null || $primeiraVenc > $hoje) continue;
 
-    $stmtEx = $pdo->prepare("SELECT COUNT(*) FROM faturas WHERE fatura_recorrente_id = ? AND data_vencimento = ?");
-    $stmtEx->execute([$rec['id'], $proximaVenc]);
-    if ($stmtEx->fetchColumn() > 0) continue;
+    // Percorre TODOS os períodos já vencidos do ciclo (até hoje) gerando as
+    // faturas que ainda não existem. Assim todas as faturas do ciclo ficam
+    // visíveis para o admin e o cliente, mesmo com lacunas de execução do cron.
+    $venc = $primeiraVenc;
+    $guard = 0;
+    while ($venc !== null && $venc <= $hoje && $guard < 500) {
+        $guard++;
 
-    $limiteFat = verificarLimitePlano('faturas', $rec['admin_id']);
-    if (!$limiteFat['ok']) {
-        $log[] = "[limite_plano] admin {$rec['admin_id']} sem cota de faturas no mês ({$limiteFat['atual']}/{$limiteFat['max']}) - pulando";
-        continue;
-    }
+        if (!empty($rec['data_fim']) && $venc > $rec['data_fim']) {
+            $pdo->prepare("UPDATE faturas_recorrentes SET ativo = 0, status = 'cancelado' WHERE id = ?")->execute([$rec['id']]);
+            break;
+        }
 
-    $numero = generateInvoiceNumber();
-    $acessoToken = function_exists('generateAcessoToken') ? generateAcessoToken() : bin2hex(random_bytes(32));
-
-    $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
-    $stmt->execute([$rec['admin_id'], $rec['cliente_id'], $rec['id'], $numero, $rec['descricao'], $rec['valor'], $rec['valor'], $proximaVenc, $acessoToken, getApiAtiva()]);
-    $faturaId = $pdo->lastInsertId();
-
-    $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
-    $stmtFat->execute([$faturaId]);
-    $faturaCompleta = $stmtFat->fetch();
-
-    if ($faturaCompleta && !empty($faturaCompleta['email'])) {
-        $faturaCompleta['pix_copia_cola'] = $faturaCompleta['pix_copia_cola'] ?? '';
-        $faturaCompleta['pix_qrcode'] = $faturaCompleta['pix_qrcode'] ?? '';
-        $faturaCompleta['link_pagamento'] = $faturaCompleta['link_pagamento'] ?? '';
-        $resultado = criarPagamento($faturaCompleta['descricao'], $faturaCompleta['valor_final'], $faturaCompleta['email'], $faturaCompleta['nome_razao']);
-        if (isset($resultado['sucesso']) && $resultado['sucesso']) {
-            $qr = $resultado['qr_code_copia_cola'] ?? '';
-            $pixQr = $resultado['qr_code'] ?? '';
-            $link = $resultado['link_pagamento'] ?? '';
-            $apiAtiva = $resultado['api'] ?? getApiAtiva();
-            if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
-                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, null, $resultado['payment_id'], $apiAtiva, $faturaId]);
-            } else {
-                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $apiAtiva, $faturaId]);
+        $stmtEx = $pdo->prepare("SELECT COUNT(*) FROM faturas WHERE fatura_recorrente_id = ? AND data_vencimento = ?");
+        $stmtEx->execute([$rec['id'], $venc]);
+        if ($stmtEx->fetchColumn() == 0) {
+            $limiteFat = verificarLimitePlano('faturas', $rec['admin_id']);
+            if (!$limiteFat['ok']) {
+                $log[] = "[limite_plano] admin {$rec['admin_id']} sem cota de faturas no mês ({$limiteFat['atual']}/{$limiteFat['max']}) - pulando";
+                break;
             }
-            $log[] = "[gerada_pagamento] {$numero} -> {$link}";
-        }
-    }
 
-$log[] = "[gerada_auto] {$numero} -> {$proximaVenc} (freq {$rec['frequencia']})";
+            $numero = generateInvoiceNumber($rec['admin_id']);
+            $acessoToken = function_exists('generateAcessoToken') ? generateAcessoToken() : bin2hex(random_bytes(32));
+
+            $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
+            $stmt->execute([$rec['admin_id'], $rec['cliente_id'], $rec['id'], $numero, $rec['descricao'], $rec['valor'], $rec['valor'], $venc, $acessoToken, getApiAtiva()]);
+            $faturaId = $pdo->lastInsertId();
+
+            $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
+            $stmtFat->execute([$faturaId]);
+            $faturaCompleta = $stmtFat->fetch();
+
+            if ($faturaCompleta && !empty($faturaCompleta['email'])) {
+                $faturaCompleta['pix_copia_cola'] = $faturaCompleta['pix_copia_cola'] ?? '';
+                $faturaCompleta['pix_qrcode'] = $faturaCompleta['pix_qrcode'] ?? '';
+                $faturaCompleta['link_pagamento'] = $faturaCompleta['link_pagamento'] ?? '';
+                $resultado = criarPagamento($faturaCompleta['descricao'], $faturaCompleta['valor_final'], $faturaCompleta['email'], $faturaCompleta['nome_razao']);
+                if (isset($resultado['sucesso']) && $resultado['sucesso']) {
+                    $qr = $resultado['qr_code_copia_cola'] ?? '';
+                    $pixQr = $resultado['qr_code'] ?? '';
+                    $link = $resultado['link_pagamento'] ?? '';
+                    $apiAtiva = $resultado['api'] ?? getApiAtiva();
+                    if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
+                        $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, null, $resultado['payment_id'], $apiAtiva, $faturaId]);
+                    } else {
+                        $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $apiAtiva, $faturaId]);
+                    }
+                    $log[] = "[gerada_pagamento] {$numero} -> {$link}";
+                }
+            }
+
+            $log[] = "[gerada_auto] {$numero} -> {$venc} (freq {$rec['frequencia']})";
+        }
+
+        $venc = proximoVencimentoRecorrencia($rec['frequencia'], $venc, $rec['dia_vencimento'] ?? 1);
+    }
 }
 
 // A régua de cobrança (e-mails/WhatsApp) abaixo só roda quando o envio
