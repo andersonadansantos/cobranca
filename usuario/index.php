@@ -54,7 +54,7 @@ $totalPages = max(1, ceil($totalFaturasCount / $perPage));
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $perPage;
 
-$sql .= " ORDER BY id DESC LIMIT ? OFFSET ?";
+$sql .= " ORDER BY data_vencimento DESC, id DESC LIMIT ? OFFSET ?";
 $params[] = $perPage;
 $params[] = $offset;
 $stmt = $pdo->prepare($sql);

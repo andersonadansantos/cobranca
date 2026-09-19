@@ -538,10 +538,15 @@ $sql .= " ORDER BY base.criado_em DESC";
 $countSql = "SELECT COUNT(*) FROM (
     SELECT fr.id FROM faturas_recorrentes fr 
     JOIN clientes c ON fr.cliente_id = c.id 
-    WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?
-    AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC LIMIT 1) <=> ?
-) AS cnt";
-$countParams = [$adminIdE, $filtro_status !== '' ? $filtro_status : null];
+    WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?";
+$countParams = [$adminIdE];
+
+if ($filtro_status !== '') {
+    $countSql .= " AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) = ?";
+    $countParams[] = $filtro_status;
+}
+
+$countSql .= ") AS cnt";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($countParams);
 $totalFaturasRecorrentes = $countStmt->fetchColumn();
@@ -567,7 +572,7 @@ $frIds = array_column($faturasRecorrentes, 'id');
 $faturasPorRecorrencia = [];
 if ($frIds) {
     $phIds = implode(',', array_fill(0, count($frIds), '?'));
-    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY data_vencimento ASC, id ASC");
+    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY data_vencimento DESC, id DESC");
     $stmtFatsFr->execute(array_merge([$adminIdE], $frIds));
     foreach ($stmtFatsFr->fetchAll() as $ffr) {
         $faturasPorRecorrencia[$ffr['fatura_recorrente_id']][] = $ffr;
