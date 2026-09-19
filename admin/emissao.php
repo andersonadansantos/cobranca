@@ -508,11 +508,11 @@ $filtro_busca = trim($_GET['filtro_busca'] ?? '');
 $sql = "
     SELECT base.* FROM (
         SELECT fr.*, c.nome_razao, c.cpf_cnpj, c.celular, c.telefone,
-        (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_link,
-        (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_numero,
-        (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_status,
+        (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.numero DESC, f.id DESC LIMIT 1) AS ultimo_link,
+        (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.numero DESC, f.id DESC LIMIT 1) AS ultimo_numero,
+        (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.numero DESC, f.id DESC LIMIT 1) AS ultimo_status,
         (SELECT f.data_vencimento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento ASC, f.id ASC LIMIT 1) AS proximo_vencimento,
-        (SELECT f.data_vencimento FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_vencimento
+        (SELECT f.data_vencimento FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.numero DESC, f.id DESC LIMIT 1) AS ultimo_vencimento
         FROM faturas_recorrentes fr 
         JOIN clientes c ON fr.cliente_id = c.id 
         WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?
@@ -542,7 +542,7 @@ $countSql = "SELECT COUNT(*) FROM (
 $countParams = [$adminIdE];
 
 if ($filtro_status !== '') {
-    $countSql .= " AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) = ?";
+    $countSql .= " AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.numero DESC, f.id DESC LIMIT 1) = ?";
     $countParams[] = $filtro_status;
 }
 
@@ -572,7 +572,7 @@ $frIds = array_column($faturasRecorrentes, 'id');
 $faturasPorRecorrencia = [];
 if ($frIds) {
     $phIds = implode(',', array_fill(0, count($frIds), '?'));
-    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY data_vencimento DESC, id DESC");
+    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY numero ASC, id ASC");
     $stmtFatsFr->execute(array_merge([$adminIdE], $frIds));
     foreach ($stmtFatsFr->fetchAll() as $ffr) {
         $faturasPorRecorrencia[$ffr['fatura_recorrente_id']][] = $ffr;
