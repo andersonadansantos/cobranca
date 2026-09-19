@@ -572,7 +572,7 @@ $frIds = array_column($faturasRecorrentes, 'id');
 $faturasPorRecorrencia = [];
 if ($frIds) {
     $phIds = implode(',', array_fill(0, count($frIds), '?'));
-    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY data_vencimento DESC, id DESC");
+    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY IF(status='pago',1,0) ASC, IF(status='pago',numero,NULL) ASC, IF(status<>'pago',data_vencimento,NULL) DESC, id DESC");
     $stmtFatsFr->execute(array_merge([$adminIdE], $frIds));
     foreach ($stmtFatsFr->fetchAll() as $ffr) {
         $faturasPorRecorrencia[$ffr['fatura_recorrente_id']][] = $ffr;
