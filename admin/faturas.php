@@ -76,7 +76,7 @@ $stmt = $pdo->prepare("
     FROM faturas f 
     JOIN clientes c ON f.cliente_id = c.id 
     {$whereClause}
-    ORDER BY f.data_vencimento DESC
+    ORDER BY IF(f.status='pago',1,0) ASC, IF(f.status='pago',f.numero,NULL) ASC, IF(f.status<>'pago',f.data_vencimento,NULL) DESC, f.id DESC
 ");
 $stmt->execute($params);
 $faturas = $stmt->fetchAll();
