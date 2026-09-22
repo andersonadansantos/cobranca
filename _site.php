@@ -44,6 +44,11 @@ if (!headers_sent()) {
 // qualquer página pública do subdomínio (raiz, planos, cadastro, demo,
 // pagamento) é redirecionado DIRETO para o /admin do painel daquele tenant.
 // As áreas do tenant continuam apenas em {subdominio}/admin e {subdominio}/usuario.
+//
+// IMPORTANTE: o redirecionamento vale para QUALQUER subdomínio do domínio base
+// (cadastrado hoje ou no futuro), não apenas para tenants com admin ativo já
+// cadastrado. Assim o subdomínio de um cliente recém-cadastrado também cai
+// direto no /admin, em vez de abrir o site público.
 // =====================================================
 function siteEhTenantSubdominio() {
     $host = preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? '')));
@@ -54,27 +59,52 @@ function siteEhTenantSubdominio() {
     if (substr($host, -strlen($base)) !== $base) return false;
 
     $sub = rtrim(substr($host, 0, -strlen($base)), '.');
-    if ($sub === '') return false;
-
-    $pdo = getConnection();
-    if (!$pdo) return false;
-    try {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM administradores WHERE ativo = 1 AND subdominio = ?");
-        $stmt->execute([$sub]);
-        return ((int)$stmt->fetchColumn() > 0) ? $sub : false;
-    } catch (PDOException $e) {
-        return false;
-    }
+    if ($sub === '') return false; // jamais deve acontecer, mas por segurança
+    if ($sub === 'www') return false; // www é a raiz do site público (alias), não tenant
+    return $sub; // qualquer subdomínio do base domain (exceto www/raiz) é tenant
 }
 
-$__siteTenant = siteEhTenantSubdominio();
-if ($__siteTenant !== false) {
-    $__script = basename($_SERVER['SCRIPT_NAME'] ?? '');
-    if (in_array($__script, ['index.php', 'planos.php', 'cadastro.php', 'demo.php', 'pagamento.php'], true)) {
-        header('Location: ' . APP_BASE . '/admin/index.php');
-        exit;
-    }
+// =====================================================
+// EXECUÇÃO DO REDIRECT: subdomínio -> /admin
+// A função acima apenas DETECTA; este bloco dispara o salto.
+// Qualquer página pública do subdomínio (raiz, planos, cadastro,
+// demo, pagamento) cai DIRETO no /admin do painel daquele tenant.
+// O `/admin` e `/usuario` têm bootstrap próprio (config/database.php)
+// e NÃO incluem _site.php, então não há risco de loop.
+// =====================================================
+$__siteSub = siteEhTenantSubdominio();
+if ($__siteSub !== false && trim((string)$__siteSub) !== 'www' && trim((string)$__siteSub) !== '') {
+    $__proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+        ? 'https' : 'http';
+    $__base = strtolower(ltrim((string)getBaseDomain(), '.'));
+    $__dest = $__proto . '://' . $__siteSub . '.' . $__base . siteAsset('/admin/login.php');
+    header('Location: ' . $__dest, true, 301);
+    exit;
 }
+unset($__siteSub, $__proto, $__base, $__dest);
+
+// =====================================================
+// EXECUÇÃO DO REDIRECT: subdomínio do tenant -> /admin
+// A função acima apenas DETECTA; este bloco dispara o salto
+// em qualquer página pública do subdomínio (raiz, planos,
+// cadastro, demo, pagamento), porque _site.php é o bootstrap
+// compartilhado dessas páginas. O /admin e /usuario têm
+// bootstrap próprio (config/database.php) e NÃO incluem este
+// arquivo, portanto não há risco de loop de redirecionamento.
+// =====================================================
+$__siteSub = siteEhTenantSubdominio();
+if ($__siteSub !== false && trim((string)$__siteSub) !== '') {
+    $__siteProto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+        ? 'https' : 'http';
+    $__siteBase = strtolower(ltrim((string)getBaseDomain(), '.'));
+    $__siteDest = $__siteProto . '://' . $__siteSub . '.' . $__siteBase
+        . siteAsset('/admin/login.php');
+    header('Location: ' . $__siteDest, true, 301);
+    exit;
+}
+unset($__siteSub, $__siteProto, $__siteBase, $__siteDest);
 
 // =====================================================
 // IDIOMAS DO SITE
