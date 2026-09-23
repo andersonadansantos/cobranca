@@ -95,6 +95,7 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `ativo` TINYINT(1) NOT NULL DEFAULT 1"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'ativa'"); } catch (PDOException $e) {}
         try { $pdo->exec("UPDATE `faturas_recorrentes` SET `ativo` = 1, `status` = 'ativa' WHERE `ativo` IS NULL OR `status` IS NULL"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE aturas_recorrentes ADD COLUMN quantidade_transacoes INT UNSIGNED NULL AFTER data_fim"); } catch (PDOException $e) {}
 
         // === MIGRAÇÃO: isolamento de dados por admin ===
         // Idempotente via marcador em configuracoes. Adiciona admin_id em

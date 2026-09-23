@@ -413,6 +413,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dia_vencimento = max(1, min(31, intval($_POST['dia_vencimento'] ?? 1)));
     $data_inicio = date('Y-m-d');
     $data_fim = !empty($_POST['data_fim']) ? $_POST['data_fim'] : null;
+    $quantidade_transacoes = null;
+    if (($_POST['quantidade_tipo'] ?? 'indeterminado') === 'definido' && !empty($_POST['quantidade_transacoes'])) {
+        $quantidade_transacoes = max(1, intval($_POST['quantidade_transacoes']));
+    }
 
     if ($cliente_id <= 0 || empty($descricao) || $valor <= 0) {
         $mensagem = 'Preencha todos os campos obrigatÃ³rios.';
@@ -433,8 +437,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tipo = 'danger';
             } else {
             $numero = generateInvoiceNumber();
-            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, numero, ativo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
-            $stmt->execute([$adminIdE, $cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $numero]);
+            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, quantidade_transacoes, numero, ativo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
+            $stmt->execute([$adminIdE, $cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $quantidade_transacoes, $numero]);
             $faturaRecorrenteId = $pdo->lastInsertId();
 
             // Vencimento da 1Âª fatura por ciclo: diÃ¡ria/semanal/quinzenal partem da
@@ -654,6 +658,22 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <option value="<?= $d ?>" <?= $d === 1 ? 'selected' : '' ?>><?= $d ?></option>
                             <?php endfor; ?>
                         </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Qtd. Transações</label>
+                        <div class="input-group">
+                            <input type="number" name="quantidade_transacoes" id="quantidade_transacoes" class="form-control" min="1" step="1" placeholder="Ex: 12" disabled>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="quantidade_tipo" id="qtdDefinido" value="definido" onchange="toggleQtd(this)">
+                            <label class="form-check-label" for="qtdDefinido">Definido</label>
+                            <div class="vr mx-1"></div>
+                            <input class="form-check-input" type="radio" name="quantidade_tipo" id="qtdIndeterminado" value="indeterminado" checked onchange="toggleQtd(this)">
+                            <label class="form-check-label" for="qtdIndeterminado">Indeterminado</label>
+                        </div>
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary">
@@ -984,6 +1004,20 @@ function fallbackCopiarPix(codigo, done) {
     document.body.removeChild(ta);
     done();
 }
+
+<script>
+function toggleQtd(el) {
+    var inp = document.getElementById('quantidade_transacoes');
+    if (!inp) return;
+    var definir = el && el.value === 'definido' || (el && el.checked && el.value === 'definido');
+    if (!el) definir = false; // chamada de init sem arg => indeterminado
+    inp.disabled = !definir;
+    if (!definir) inp.value = '';
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var sel = document.querySelector('input[name="quantidade_tipo"]:checked');
+    toggleQtd(sel || null);
+});
 </script>
 
 <div class="modal fade" id="modalCriando" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">

@@ -198,6 +198,18 @@ foreach ($recorrentes as $rec) {
     while ($venc !== null && $venc <= $hoje && $guard < 500) {
         $guard++;
 
+        // --- Limite de transaçõães (quantidade_transacoes): se definido e já atingido, encerra ---
+        if (!empty($rec['quantidade_transacoes'])) {
+            $stmtQtd = $pdo->prepare("SELECT COUNT(*) FROM faturas WHERE fatura_recorrente_id = ?");
+            $stmtQtd->execute([$rec['id']]);
+            $qtdGeradas = (int)$stmtQtd->fetchColumn();
+            if ($qtdGeradas >= (int)$rec['quantidade_transacoes']) {
+                $pdo->prepare("UPDATE faturas_recorrentes SET ativo = 0, status = 'concluida' WHERE id = ?")->execute([$rec['id']]);
+                $log[] = "[limite_atingido] rec {$rec['id']} -> {$rec['quantidade_transacoes']} transaçõães, recorrência encerrada (quantidade)";
+                break;
+            }
+        }
+
         if (!empty($rec['data_fim']) && $venc > $rec['data_fim']) {
             $pdo->prepare("UPDATE faturas_recorrentes SET ativo = 0, status = 'cancelado' WHERE id = ?")->execute([$rec['id']]);
             break;
