@@ -178,8 +178,9 @@ if (isset($_GET['msg'])) {
 $admins = $pdo->query("
     SELECT a.*,
            ae.url_api, ae.api_key, ae.instance,
-           p.nome AS plano, p.cor AS plano_cor, p.icon AS plano_icon,
-           ap.plano_id AS admin_plano_id, ap.data_fim AS admin_plano_fim
+            p.nome AS plano, p.cor AS plano_cor, p.icon AS plano_icon,
+            ap.plano_id AS admin_plano_id, ap.data_fim AS admin_plano_fim,
+            DATEDIFF(ap.data_fim, CURDATE()) AS plano_dias_restantes
     FROM administradores a
     LEFT JOIN admin_evolution ae ON ae.admin_id = a.id
     LEFT JOIN admin_planos ap ON ap.admin_id = a.id
@@ -346,6 +347,7 @@ include __DIR__ . '/includes/sidebar.php';
                                     <th>Admin</th>
                                     <th>Usuário</th>
                                     <th>Plano</th>
+                                    <th>Dias Restantes</th>
                                     <th>WhatsApp</th>
                                     <th>Status</th>
                                     <th class="text-center">Ações</th>
@@ -353,7 +355,7 @@ include __DIR__ . '/includes/sidebar.php';
                             </thead>
                             <tbody>
                                 <?php if (empty($admins)): ?>
-                                    <tr><td colspan="6" class="text-center text-muted py-4">Nenhum admin cadastrado</td></tr>
+                                    <tr><td colspan="7" class="text-center text-muted py-4">Nenhum admin cadastrado</td></tr>
                                 <?php else: foreach ($admins as $adm): ?>
                                     <tr>
                                         <td><strong><?= htmlspecialchars($adm['nome']) ?></strong>
@@ -367,13 +369,24 @@ include __DIR__ . '/includes/sidebar.php';
                                         <td>
                                             <?php if (!empty($adm['plano'])): ?>
                                                 <span class="badge" style="background:#000000;color:#fff;"><?= htmlspecialchars($adm['plano']) ?></span>
-                                            <?php else: ?>
-                                                <span class="badge bg-secondary">Sem plano</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if (!empty($adm['instance']) && !empty($adm['url_api'])): ?>
-                                                <span class="badge bg-success"><i class="fab fa-whatsapp me-1"></i>Configurado</span>
+                                                            <?php else: ?>
+                                                                <span class="badge bg-secondary">Sem plano</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <?php if (array_key_exists('plano_dias_restantes', $adm) && $adm['plano_dias_restantes'] !== null): ?>
+                                                        <td>
+                                                            <?php if ($adm['plano_dias_restantes'] >= 0): ?>
+                                                                <span class="badge" style="background:#000000;color:#fff;"><?= (int)$adm['plano_dias_restantes'] ?> dias</span>
+                                                            <?php else: ?>
+                                                                <span class="badge bg-danger"><?= abs((int)$adm['plano_dias_restantes']) ?> dias vencido</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <?php else: ?>
+                                                        <td><span class="badge bg-secondary">Sem plano</span></td>
+                                                        <?php endif; ?>
+                                                        <td>
+                                                            <?php if (!empty($adm['instance']) && !empty($adm['url_api'])): ?>
+                                                                <span class="badge bg-success"><i class="fab fa-whatsapp me-1"></i>Configurado</span>
                                             <?php else: ?>
                                                 <span class="badge bg-secondary"><i class="fas fa-lock me-1"></i>Bloqueado</span>
                                             <?php endif; ?>
@@ -452,6 +465,16 @@ include __DIR__ . '/includes/sidebar.php';
                         <div class="col-md-6">
                             <label class="form-label">Vencimento do plano</label>
                             <input type="date" name="data_fim" id="editDataFim" class="form-control">
+                            <div class="form-text small">Use o Vencimento manual ou escolha a duração abaixo.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label"><i class="fas fa-hourglass-half me-1"></i>Duração do plano (meses)</label>
+                            <div class="d-flex flex-wrap gap-2" id="duracaoPills">
+                                <?php foreach ([1 => '1 mês', 3 => '3 meses', 6 => '6 meses', 12 => '12 meses'] as $m => $rotulo): ?>
+                                    <button type="button" class="btn btn-sm duracao-pill border px-3 <?= $m === 1 ? 'active' : '' ?>" data-meses="<?= $m ?>" style="border-radius:20px;" onclick="setEditDuracao(<?= $m ?>)"><?= $rotulo ?></button>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="form-text small text-muted">Ao escolher, o vencimento é preenchido automaticamente (hoje + N meses).</div>
                         </div>
                         <div class="col-12">
                             <hr>
@@ -563,7 +586,39 @@ function openEditModal(el) {
     document.getElementById('editBairro').value = admin.bairro || '';
     document.getElementById('editCidade').value = admin.cidade || '';
     document.getElementById('editEstado').value = admin.estado || '';
+    marcarDuracaoAtiva(admin.data_fim || '');
     new bootstrap.Modal(document.getElementById('editAdminModal')).show();
+}
+
+var duracaoEditMeses = 1;
+
+function setEditDuracao(meses) {
+    duracaoEditMeses = meses;
+    document.querySelectorAll('#duracaoPills .duracao-pill').forEach(function (el) {
+        el.classList.toggle('active', parseInt(el.getAttribute('data-meses'), 10) === meses);
+    });
+    var hoje = new Date();
+    var alvo = new Date(hoje.getFullYear(), hoje.getMonth() + meses, hoje.getDate());
+    var ultimoDia = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+    alvo.setDate(Math.min(hoje.getDate(), ultimoDia));
+    var y = alvo.getFullYear(), m = String(alvo.getMonth() + 1).padStart(2, '0'), d = String(alvo.getDate()).padStart(2, '0');
+    document.getElementById('editDataFim').value = y + '-' + m + '-' + d;
+}
+
+function marcarDuracaoAtiva(dataFim) {
+    if (!dataFim) { setEditDuracao(1); return; }
+    var venc = new Date(dataFim + 'T00:00:00');
+    var hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    var meses = ((venc.getFullYear() - hoje.getFullYear()) * 12) + (venc.getMonth() - hoje.getMonth());
+    var opcoes = [1, 3, 6, 12];
+    var maisProxima = 1;
+    if (meses > 0) {
+        var menor = Infinity;
+        opcoes.forEach(function (o) { var d = Math.abs(o - meses); if (d < menor) { menor = d; maisProxima = o; } });
+    }
+    setEditDuracao(maisProxima);
+    document.getElementById('editDataFim').value = dataFim;
 }
 
 (function () {
