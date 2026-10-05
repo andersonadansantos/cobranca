@@ -418,6 +418,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // A recorrencia e sempre Indeterminada: NULL = gerar sem limite de
     // transacoes. O campo "Qtd. Transacoes" nao define mais o fim do ciclo.
     $quantidade_transacoes = null;
+    // Antecedencia de emissao e dias entre competencia e vencimento sao
+    // independentes da periodicidade (spec 11 e 12).
+    $antecedencia_emissao = max(0, min(90, intval($_POST['antecedencia_emissao'] ?? 0)));
+    $dias_vencimento = max(0, min(365, intval($_POST['dias_vencimento'] ?? 0)));
+    $politica_atraso = in_array($_POST['politica_atraso'] ?? '', ['todas', 'mais_recente'], true)
+        ? $_POST['politica_atraso'] : 'todas';
+
+    // Periodicidade precisa ser uma das sete suportadas. "unica" nao e ciclo,
+    // mas segue aceito como fatura avulsa.
+    if (!in_array($frequencia, array_merge(['unica'], RECORRENCIAS_VALIDAS), true)) {
+        $frequencia = 'mensal';
+    }
 
     if ($cliente_id <= 0 || empty($descricao) || $valor <= 0) {
         $mensagem = 'Preencha todos os campos obrigatórios.';
@@ -438,16 +450,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tipo = 'danger';
             } else {
             $numero = generateInvoiceNumber();
-            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, data_inicio, data_fim, quantidade_transacoes, numero, ativo, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
-            $stmt->execute([$adminIdE, $cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $quantidade_transacoes, $numero]);
+
+            // Competencia da 1a fatura: data de inicio + o intervalo da
+            // frequencia. O dia-ancora e repassado para o calculo respeitar o
+            // dia escolhido no cadastro (spec 7/22). "Fatura unica" nao tem
+            // ciclo e respeita o dia do mes.
+            $ancora = $dia_vencimento;
+            $primeiraCompetencia = primeiroVencimentoRecorrencia($frequencia, $data_inicio, $dia_vencimento, $ancora);
+            // competencia e vencimento sao campos separados (spec 11)
+            $primeiroVencimento = $dias_vencimento > 0
+                ? date('Y-m-d', strtotime($primeiraCompetencia . ' +' . $dias_vencimento . ' days'))
+                : $primeiraCompetencia;
+            // data_proxima_fatura e o que o cron olha (spec 2): ja aponta para
+            // o ciclo seguinte, que a 1a fatura ainda nao ocupou.
+            $proximaCompetencia = recorrenciaSemCiclo($frequencia)
+                ? null
+                : proximoVencimentoRecorrencia($frequencia, $primeiraCompetencia, $ancora);
+
+            $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes
+                (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, dia_ancora,
+                 data_inicio, data_fim, data_proxima_fatura, data_ultima_fatura,
+                 antecedencia_emissao, dias_vencimento, politica_atraso,
+                 quantidade_transacoes, numero, ativo, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
+            $stmt->execute([
+                $adminIdE, $cliente_id, $descricao, $valor, $frequencia,
+                $dia_vencimento, $ancora, $data_inicio, $data_fim,
+                $proximaCompetencia, recorrenciaSemCiclo($frequencia) ? null : $primeiraCompetencia,
+                $antecedencia_emissao, $dias_vencimento, $politica_atraso,
+                $quantidade_transacoes, $numero,
+            ]);
             $faturaRecorrenteId = $pdo->lastInsertId();
 
-            // 1a fatura: recorrencia usa a data de inicio + o intervalo da
-            // frequencia; "Fatura unica" nao tem ciclo e respeita o dia do mes.
-            $dataVenc = primeiroVencimentoRecorrencia($frequencia, $data_inicio, $dia_vencimento);
-
-            $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
-            $stmt->execute([$adminIdE, $cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken(), getApiAtiva()]);
+            $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, competencia, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, 'pendente', ?, ?)");
+            $stmt->execute([$adminIdE, $cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $primeiraCompetencia, $primeiroVencimento, generateAcessoToken(), getApiAtiva()]);
             $faturaId = $pdo->lastInsertId();
 
             $stmtCliente = $pdo->prepare("SELECT nome_razao, email, celular, telefone, cpf_cnpj FROM clientes WHERE id = ? AND admin_id = ?");
@@ -461,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'numero' => $numero,
                     'descricao' => $descricao,
                     'valor_final' => $valor,
-                    'data_vencimento' => $dataVenc,
+                    'data_vencimento' => $primeiroVencimento,
                     'link_pagamento' => '',
                     'pix_copia_cola' => '',
                     'pix_qrcode' => '',
@@ -634,14 +670,10 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <label class="form-label">Frequência</label>
 <select name="frequencia" class="form-select">
                             <option value="unica">Fatura Única</option>
-                            <option value="diaria">Diária</option>
-                            <option value="semanal">Semanal</option>
-                            <option value="quinzenal">Quinzenal</option>
-                            <option value="mensal">Mensal</option>
-                            <option value="bimestral">Bimestral</option>
-                            <option value="trimestral">Trimestral</option>
-                            <option value="semestral">Semestral</option>
-                            <option value="anual">Anual</option>
+                            <?php foreach (recorrenciaOpcoes() as $fq): ?>
+                                <?php if ($fq === 'unica') continue; ?>
+                                <option value="<?= $fq ?>"><?= htmlspecialchars(recorrenciaRotulo($fq)) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -669,6 +701,25 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save me-1"></i> Criar Fatura
                         </button>
+                    </div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-md-3">
+                        <label class="form-label">Antecedência (dias)</label>
+                        <input type="number" name="antecedencia_emissao" class="form-control" min="0" max="90" step="1" value="0">
+                        <small class="text-muted">Emitir antes do vencimento, sem mudar o ciclo.</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Dias até o vencimento</label>
+                        <input type="number" name="dias_vencimento" class="form-control" min="0" max="365" step="1" value="0">
+                        <small class="text-muted">0 = vencimento na própria competência.</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Se o cron atrasar</label>
+                        <select name="politica_atraso" class="form-select">
+                            <option value="todas">Emitir todas as pendentes</option>
+                            <option value="mais_recente">Emitir só a mais recente</option>
+                        </select>
                     </div>
                 </div>
             </form>
@@ -730,9 +781,21 @@ $statusClasses = [
 // recorrencia parecia vazia - dava a impressao de que a fatura nao existia.
 $frProximo = null;
 if (($fr['status'] ?? 'ativa') !== 'cancelado'
-    && !recorrenciaSemCiclo($fr['frequencia'] ?? '')
-    && !empty($fr['ultimo_vencimento'])) {
-    $frProximo = proximoVencimentoRecorrencia($fr['frequencia'], $fr['ultimo_vencimento']);
+    && !recorrenciaSemCiclo($fr['frequencia'] ?? '')) {
+    // A coluna que o cron consulta tem prioridade; so se ainda nao existir
+    // (recorrencia antiga, antes da migracao) deriva da ultima fatura emitida.
+    // O dia-ancora precisa ser repassado, senao o dia escolhido no cadastro
+    // seria ignorado e a data "escorregaria" (spec 7).
+    if (!empty($fr['data_proxima_fatura'])) {
+        $frProximo = substr((string)$fr['data_proxima_fatura'], 0, 10);
+    } elseif (!empty($fr['ultimo_vencimento'])) {
+        $frAncora = recorrenciaAncoraDoRegistro($fr);
+        $frProximo = proximoVencimentoRecorrencia(
+            $fr['frequencia'],
+            $fr['ultimo_vencimento'],
+            $frAncora
+        );
+    }
 }
 ?>
 <div class="fr-item mb-2 <?= ($fr['status'] ?? 'ativa') === 'cancelado' ? 'opacity-50' : '' ?>">

@@ -8,6 +8,7 @@ define('CONFIG_CACHE_ATIVO', true);
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/recorrencia.php';
+require_once __DIR__ . '/../includes/motor_recorrencia.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/email_helpers.php';
 require_once __DIR__ . '/../config/mercadopago.php';
@@ -166,129 +167,33 @@ $cronAtivoGlobal = getConfigGlobal('cron_envio_ativo', '');
 // nunca era lido.
 
 // =====================================================
-// GERAÇÃO AUTOMÁTICA DE FATURAS RECORRENTES
-// Regra: a próxima fatura é gerada SEMPRE no término da data
-// de vencimento da última fatura da recorrência, INDEPENDENTE
-// do status dela (paga, pendente ou vencida). Ou seja, a cada
-// ciclo da frequência uma nova fatura é emitida, mesmo que a
-// anterior continue em aberto.
-// As novas faturas são criadas com ultimo_envio_tipo = NULL
-// e passam pela régua de cobrança abaixo (1º envio, lembretes, etc).
+// GERAÇÃO AUTOMÁTICA DE FATURAS RECORRENTES (novo motor)
 // =====================================================
-// A regra de recorrencia (datas + "unica" sem ciclo) vem de
-// includes/recorrencia.php, ja carregado no topo deste arquivo.
-
-$stmtRec = $pdo->prepare("SELECT fr.*, c.email, c.celular, c.telefone, c.nome_razao, c.cpf_cnpj
-    FROM faturas_recorrentes fr
-    JOIN clientes c ON fr.cliente_id = c.id
-    WHERE fr.ativo = 1 AND (fr.status = 'ativa' OR fr.status IS NULL OR fr.status = '')
-    AND fr.frequencia IS NOT NULL AND fr.frequencia != '' AND fr.frequencia != 'unica'");
-$stmtRec->execute();
-$recorrentes = $stmtRec->fetchAll();
-
-foreach ($recorrentes as $rec) {
-    // "Fatura unica" (ou frequencia desconhecida) nao tem recorrencia:
-    // nunca gera uma segunda fatura. O SQL acima ja filtra 'unica';
-    // esta guarda cobre tambem valores invalidos gravados no banco.
-    if (recorrenciaSemCiclo($rec['frequencia'])) {
-        $log[] = "[sem_ciclo] rec {$rec['id']} -> '{$rec['frequencia']}' nao gera recorrencia";
-        continue;
-    }
-
-    // Contexto de tenant (admin) da recorrência
-    cronTenantContext($rec['admin_id'] ?? 0);
-
-    // Início do ciclo: a partir da data de criação da recorrência.
-    $dataInicio = $rec['data_inicio'] ?: date('Y-m-d');
-
-    // Primeiro vencimento esperado do ciclo: mesma regra da criacao manual
-    // (includes/recorrencia.php) -> data de inicio + intervalo da frequencia.
-    $primeiraVenc = primeiroVencimentoRecorrencia($rec['frequencia'], $dataInicio, $rec['dia_vencimento'] ?? 1);
-
-    // O ciclo ainda não atingiu o primeiro vencimento.
-    if ($primeiraVenc === null || $primeiraVenc > $hoje) continue;
-
-    // Percorre TODOS os períodos já vencidos do ciclo (até hoje) gerando as
-    // faturas que ainda não existem. Assim todas as faturas do ciclo ficam
-    // visíveis para o admin e o cliente, mesmo com lacunas de execução do cron.
-    $venc = $primeiraVenc;
-    $guard = 0;
-    while ($venc !== null && $venc <= $hoje && $guard < 500) {
-        $guard++;
-
-        // --- Limite de transaçõães (quantidade_transacoes): se definido e já atingido, encerra ---
-        if (!empty($rec['quantidade_transacoes'])) {
-            $stmtQtd = $pdo->prepare("SELECT COUNT(*) FROM faturas WHERE fatura_recorrente_id = ?");
-            $stmtQtd->execute([$rec['id']]);
-            $qtdGeradas = (int)$stmtQtd->fetchColumn();
-            if ($qtdGeradas >= (int)$rec['quantidade_transacoes']) {
-                $pdo->prepare("UPDATE faturas_recorrentes SET ativo = 0, status = 'concluida' WHERE id = ?")->execute([$rec['id']]);
-                $log[] = "[limite_atingido] rec {$rec['id']} -> {$rec['quantidade_transacoes']} transaçõães, recorrência encerrada (quantidade)";
-                break;
+$resultadoMotor = motorProcessar($pdo, [
+    'origem' => 'cron_envio',
+    'gerar_pagamento' => function ($faturaCompleta) use ($pdo, &$log) {
+        if (!$faturaCompleta || empty($faturaCompleta['email'])) return null;
+        $resultado = criarPagamento($faturaCompleta['descricao'], $faturaCompleta['valor_final'],
+            $faturaCompleta['email'], $faturaCompleta['nome_razao'], $faturaCompleta['data_vencimento'] ?? null);
+        if (isset($resultado['sucesso']) && $resultado['sucesso']) {
+            $qr = $resultado['qr_code_copia_cola'] ?? '';
+            $pixQr = $resultado['qr_code'] ?? '';
+            $link = $resultado['link_pagamento'] ?? '';
+            $apiAtiva = $resultado['api'] ?? getApiAtiva();
+            $fid = (int)$faturaCompleta['id'];
+            if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
+                $pdo->prepare("UPDATE faturas SET pix_qrcode=?, pix_copia_cola=?, link_pagamento=?, mp_payment_id=?, inter_codigo_solicitacao=?, api_pagamento=? WHERE id=?")
+                    ->execute([$pixQr, $qr, $link, null, $resultado['payment_id'] ?? null, $apiAtiva, $fid]);
+            } else {
+                $pdo->prepare("UPDATE faturas SET pix_qrcode=?, pix_copia_cola=?, link_pagamento=?, mp_payment_id=?, api_pagamento=? WHERE id=?")
+                    ->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $apiAtiva, $fid]);
             }
+            $log[] = "[gerada_pagamento] {$faturaCompleta['numero']} -> {$link}";
         }
-
-        if (!empty($rec['data_fim']) && $venc > $rec['data_fim']) {
-            $pdo->prepare("UPDATE faturas_recorrentes SET ativo = 0, status = 'cancelado' WHERE id = ?")->execute([$rec['id']]);
-            break;
-        }
-
-        $stmtEx = $pdo->prepare("SELECT COUNT(*) FROM faturas WHERE fatura_recorrente_id = ? AND data_vencimento = ?");
-        $stmtEx->execute([$rec['id'], $venc]);
-        if ($stmtEx->fetchColumn() == 0) {
-
-            // Ciclo excluido pelo admin: nao gera fatura nova nem manda cobranca.
-            // Sem esta trava, apagar a fatura no painel era temporario - o cron
-            // entendia "recorrencia ativa + sem fatura neste vencimento" como
-            // "nunca emitida", criava outra com outro numero e reenviava o e-mail.
-            if (cicloFaturaExcluida($faturasExcluidas, $rec['id'], $venc)) {
-                $log[] = "[excluida] rec {$rec['id']} -> {$venc} (fatura removida no painel, nao regerada)";
-                $venc = proximoVencimentoRecorrencia($rec['frequencia'], $venc);
-                continue;
-            }
-
-            $limiteFat = verificarLimitePlano('faturas', $rec['admin_id']);
-            if (!$limiteFat['ok']) {
-                $log[] = "[limite_plano] admin {$rec['admin_id']} sem cota de faturas no mês ({$limiteFat['atual']}/{$limiteFat['max']}) - pulando";
-                break;
-            }
-
-            $numero = generateInvoiceNumber($rec['admin_id']);
-            $acessoToken = function_exists('generateAcessoToken') ? generateAcessoToken() : bin2hex(random_bytes(32));
-
-            $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
-            $stmt->execute([$rec['admin_id'], $rec['cliente_id'], $rec['id'], $numero, $rec['descricao'], $rec['valor'], $rec['valor'], $venc, $acessoToken, getApiAtiva()]);
-            $faturaId = $pdo->lastInsertId();
-
-            $stmtFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.celular, c.telefone, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ?");
-            $stmtFat->execute([$faturaId]);
-            $faturaCompleta = $stmtFat->fetch();
-
-            if ($faturaCompleta && !empty($faturaCompleta['email'])) {
-                $faturaCompleta['pix_copia_cola'] = $faturaCompleta['pix_copia_cola'] ?? '';
-                $faturaCompleta['pix_qrcode'] = $faturaCompleta['pix_qrcode'] ?? '';
-                $faturaCompleta['link_pagamento'] = $faturaCompleta['link_pagamento'] ?? '';
-                $resultado = criarPagamento($faturaCompleta['descricao'], $faturaCompleta['valor_final'], $faturaCompleta['email'], $faturaCompleta['nome_razao'], $faturaCompleta['data_vencimento'] ?? null);
-                if (isset($resultado['sucesso']) && $resultado['sucesso']) {
-                    $qr = $resultado['qr_code_copia_cola'] ?? '';
-                    $pixQr = $resultado['qr_code'] ?? '';
-                    $link = $resultado['link_pagamento'] ?? '';
-                    $apiAtiva = $resultado['api'] ?? getApiAtiva();
-                    if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
-                        $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, null, $resultado['payment_id'], $apiAtiva, $faturaId]);
-                    } else {
-                        $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?")->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $apiAtiva, $faturaId]);
-                    }
-                    $log[] = "[gerada_pagamento] {$numero} -> {$link}";
-                }
-            }
-
-            $log[] = "[gerada_auto] {$numero} -> {$venc} (freq {$rec['frequencia']})";
-        }
-
-        $venc = proximoVencimentoRecorrencia($rec['frequencia'], $venc);
-    }
-}
+        return $resultado;
+    },
+]);
+$log[] = "[motor] exec " . ($resultadoMotor['execucao_id'] ?? '-') . " emitidas=" . ($resultadoMotor['emitidas'] ?? 0) . " erros=" . ($resultadoMotor['erros'] ?? 0) . " res=" . ($resultadoMotor['resultado'] ?? '-');
 
 // A regua de cobranca (e-mails/WhatsApp) abaixo so roda com o envio automatico
 // ligado. O global (admin_id IS NULL) e apenas o PADRAO de cada admin: se algum
