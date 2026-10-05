@@ -297,77 +297,148 @@ if (!function_exists('montarMensagemTxt')) {
     }
 }
 
-if (!function_exists('enviarEmail')) {
-    function enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt) {
+if (!function_exists('smtpLerLinha')) {
+    function smtpLerLinha($connexion) {
+        $r = @fgets($connexion, 1024);
+        if ($r === false) {
+            return '';
+        }
+        if (strlen($r) >= 4 && $r[3] === '-') {
+            $code = substr($r, 0, 3);
+            for ($i = 0; $i < 20; $i++) {
+                $n = @fgets($connexion, 1024);
+                if ($n === false) {
+                    break;
+                }
+                $r .= $n;
+                if (substr($n, 0, 3) === $code && strlen($n) >= 4 && $n[3] === ' ') {
+                    break;
+                }
+            }
+        }
+        return $r;
+    }
+}
+
+if (!function_exists('smtpConectar')) {
+    function smtpConectar($host, $port, $ssl) {
         $proto = ($ssl === 'ssl') ? 'ssl://' : '';
         $errno = 0;
         $errstr = '';
         $connexion = @fsockopen($proto . $host, intval($port), $errno, $errstr, 15);
         if (!$connexion) {
-            return false;
+            $dica = '';
+            if (intval($port) == 465) {
+                $dica = ' A porta 465 usa TLS implícito; se ela não responder, use 587 com tls.';
+            }
+            return [null, '', "Falha ao conectar em {$host}:" . intval($port) . " - {$errstr} (código {$errno}).{$dica}"];
         }
-
-        @fgets($connexion, 512);
-
+        stream_set_timeout($connexion, 15);
+        smtpLerLinha($connexion);
         @fputs($connexion, "EHLO " . gethostname() . "\r\n");
-        stream_set_timeout($connexion, 5);
-        $ehloResponse = '';
-        for ($i = 0; $i < 10; $i++) {
-            $r = @fgets($connexion, 512);
-            $ehloResponse .= $r;
-            if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
-        }
+        $ehlo = smtpLerLinha($connexion);
 
         if ($ssl === 'tls') {
             @fputs($connexion, "STARTTLS\r\n");
-            $r = @fgets($connexion, 512);
+            $r = smtpLerLinha($connexion);
             if (substr($r, 0, 3) === '220') {
-                stream_context_set_option($connexion, 'ssl', 'verify_peer', false);
-                stream_context_set_option($connexion, 'ssl', 'verify_peer_name', false);
                 @stream_socket_enable_crypto($connexion, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
                 @fputs($connexion, "EHLO " . gethostname() . "\r\n");
-                $ehloResponse = '';
-                for ($i = 0; $i < 10; $i++) {
-                    $r = @fgets($connexion, 512);
-                    $ehloResponse .= $r;
-                    if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
-                }
+                $ehlo = smtpLerLinha($connexion);
+            } else {
+                @fclose($connexion);
+                return [null, '', "O servidor recusou STARTTLS: " . trim($r)];
             }
         }
+        return [$connexion, $ehlo, ''];
+    }
+}
 
-        $authPlain = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'PLAIN') !== false;
-        $authLogin = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'LOGIN') !== false;
-        $authOk = false;
+if (!function_exists('smtpAutenticar')) {
+    function smtpAutenticar($connexion, $ehlo, $user, $pass, &$erro = null) {
+        $erro = '';
+        $suportaPlain = (stripos($ehlo, 'PLAIN') !== false);
+        $suportaLogin = (stripos($ehlo, 'LOGIN') !== false);
 
-        if ($authPlain) {
-            @fputs($connexion, "AUTH PLAIN\r\n");
-            $r = @fgets($connexion, 512);
-            if (substr($r, 0, 3) === '334') {
-                @fputs($connexion, base64_encode("\0" . $user . "\0" . $pass) . "\r\n");
-                $r = @fgets($connexion, 512);
-                if (substr($r, 0, 3) === '235') {
-                    $authOk = true;
-                }
-            }
+        if (!$suportaPlain && !$suportaLogin) {
+            $erro = 'O servidor nao anuncia AUTH PLAIN nem AUTH LOGIN. Resposta EHLO: ' . trim($ehlo);
+            return false;
+        }
+        if (trim((string) $user) === '' || trim((string) $pass) === '') {
+            $erro = 'Usuario ou senha SMTP vazios.';
+            return false;
         }
 
-        if (!$authOk && $authLogin) {
+        $ultima = '';
+        if ($suportaPlain) {
+            @fputs($connexion, "AUTH PLAIN " . base64_encode("\0" . $user . "\0" . $pass) . "\r\n");
+            $r = smtpLerLinha($connexion);
+            if (trim($r) !== '') {
+                $ultima = $r;
+            }
+            if (substr($r, 0, 3) === '235') {
+                $erro = '';
+                return true;
+            }
+        }
+        if ($suportaLogin) {
             @fputs($connexion, "AUTH LOGIN\r\n");
-            $r = @fgets($connexion, 512);
+            $r = smtpLerLinha($connexion);
+            if (trim($r) !== '') {
+                $ultima = $r;
+            }
             if (substr($r, 0, 3) === '334') {
                 @fputs($connexion, base64_encode($user) . "\r\n");
-                $r = @fgets($connexion, 512);
+                $r = smtpLerLinha($connexion);
+                if (trim($r) !== '') {
+                    $ultima = $r;
+                }
                 if (substr($r, 0, 3) === '334') {
                     @fputs($connexion, base64_encode($pass) . "\r\n");
-                    $r = @fgets($connexion, 512);
+                    $r = smtpLerLinha($connexion);
+                    if (trim($r) !== '') {
+                        $ultima = $r;
+                    }
                     if (substr($r, 0, 3) === '235') {
-                        $authOk = true;
+                        $erro = '';
+                        return true;
                     }
                 }
             }
         }
 
-        if (!$authOk) {
+        $codigo = substr(trim($ultima), 0, 3);
+        $resposta = trim($ultima);
+        if ($codigo === '534') {
+            $erro = 'SMTP exige senha de aplicativo (' . $codigo . '): ' . $resposta
+                . ' A conta tem verificacao em 2 etapas; gere uma senha de aplicativo'
+                . ' (Google: Conta > Seguranca > Verificacao em 2 etapas > Senhas de app) e grave em smtp_senha.';
+        } elseif ($codigo === '535') {
+            $erro = 'SMTP recusou as credenciais (' . $codigo . '): ' . $resposta
+                . ' Verifique se smtp_usuario e o e-mail completo da conta e se smtp_senha esta correta.';
+        } elseif ($codigo === '530') {
+            $erro = 'SMTP exigiu autenticacao nao suportada (' . $codigo . '): ' . $resposta;
+        } else {
+            $erro = 'Falha na autenticacao SMTP (' . $codigo . '): ' . $resposta;
+        }
+        return false;
+    }
+}
+
+if (!function_exists('enviarEmail')) {
+    function enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt) {
+        $connexion = null;
+        $ehloResponse = '';
+        $erro = '';
+        list($connexion, $ehloResponse, $erro) = smtpConectar($host, $port, $ssl);
+        if (!$connexion) {
+            error_log('[SMTP] ' . $erro);
+            return false;
+        }
+
+        $erroAuth = '';
+        if (!smtpAutenticar($connexion, $ehloResponse, $user, $pass, $erroAuth)) {
+            error_log('[SMTP] ' . $erroAuth);
             @fclose($connexion);
             return false;
         }
@@ -418,67 +489,18 @@ if (!function_exists('enviarEmailComAnexo')) {
         if ($anexoCaminho === '' || !is_file($anexoCaminho)) {
             return enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt);
         }
-        $proto = ($ssl === 'ssl') ? 'ssl://' : '';
-        $errno = 0;
-        $errstr = '';
-        $connexion = @fsockopen($proto . $host, intval($port), $errno, $errstr, 15);
-        if (!$connexion) return false;
-
-        @fgets($connexion, 512);
-        @fputs($connexion, "EHLO " . gethostname() . "\r\n");
-        stream_set_timeout($connexion, 5);
+        $connexion = null;
         $ehloResponse = '';
-        for ($i = 0; $i < 10; $i++) {
-            $r = @fgets($connexion, 512);
-            $ehloResponse .= $r;
-            if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
+        $erro = '';
+        list($connexion, $ehloResponse, $erro) = smtpConectar($host, $port, $ssl);
+        if (!$connexion) {
+            error_log('[SMTP] ' . $erro);
+            return false;
         }
 
-        if ($ssl === 'tls') {
-            @fputs($connexion, "STARTTLS\r\n");
-            $r = @fgets($connexion, 512);
-            if (substr($r, 0, 3) === '220') {
-                $smtpContext = stream_context_create(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
-                @stream_socket_enable_crypto($connexion, true, STREAM_CRYPTO_METHOD_TLS_CLIENT, $smtpContext);
-                @fputs($connexion, "EHLO " . gethostname() . "\r\n");
-                $ehloResponse = '';
-                for ($i = 0; $i < 10; $i++) {
-                    $r = @fgets($connexion, 512);
-                    $ehloResponse .= $r;
-                    if (substr($r, 0, 3) === '250' && substr($r, 3, 1) === ' ') break;
-                }
-            }
-        }
-
-        $authPlain = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'PLAIN') !== false;
-        $authLogin = stripos($ehloResponse, 'AUTH') !== false && stripos($ehloResponse, 'LOGIN') !== false;
-        $authOk = false;
-
-        if ($authPlain) {
-            @fputs($connexion, "AUTH PLAIN\r\n");
-            $r = @fgets($connexion, 512);
-            if (substr($r, 0, 3) === '334') {
-                @fputs($connexion, base64_encode("\0" . $user . "\0" . $pass) . "\r\n");
-                $r = @fgets($connexion, 512);
-                if (substr($r, 0, 3) === '235') $authOk = true;
-            }
-        }
-
-        if (!$authOk && $authLogin) {
-            @fputs($connexion, "AUTH LOGIN\r\n");
-            $r = @fgets($connexion, 512);
-            if (substr($r, 0, 3) === '334') {
-                @fputs($connexion, base64_encode($user) . "\r\n");
-                $r = @fgets($connexion, 512);
-                if (substr($r, 0, 3) === '334') {
-                    @fputs($connexion, base64_encode($pass) . "\r\n");
-                    $r = @fgets($connexion, 512);
-                    if (substr($r, 0, 3) === '235') $authOk = true;
-                }
-            }
-        }
-
-        if (!$authOk) {
+        $erroAuth = '';
+        if (!smtpAutenticar($connexion, $ehloResponse, $user, $pass, $erroAuth)) {
+            error_log('[SMTP] ' . $erroAuth);
             @fclose($connexion);
             return false;
         }
@@ -564,7 +586,7 @@ if (!function_exists('enviarEmailFatura')) {
             if (!function_exists('criarPagamento')) {
                 require_once __DIR__ . '/mercadopago.php';
             }
-            $resultado = criarPagamento($fatura['descricao'], $fatura['valor_final'], $fatura['email'], $fatura['nome_razao']);
+            $resultado = criarPagamento($fatura['descricao'], $fatura['valor_final'], $fatura['email'], $fatura['nome_razao'], $fatura['data_vencimento'] ?? null);
             if (isset($resultado['sucesso']) && $resultado['sucesso']) {
                 $fatura['pix_copia_cola'] = $resultado['qr_code_copia_cola'] ?? '';
                 $fatura['pix_qrcode'] = $resultado['qr_code'] ?? '';

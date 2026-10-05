@@ -4,6 +4,7 @@ header('Pragma: no-cache');
 header('Expires: 0');
 
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/recorrencia.php';
 requireAdmin();
 requirePlanoAtivo();
 require_once __DIR__ . '/../config/database.php';
@@ -57,13 +58,13 @@ if (isset($_GET['cancelar'])) {
 }
 if (isset($_GET['excluir'])) {
     $id = intval($_GET['excluir']);
-    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ?");
-    $stFats->execute([$id, $adminIdE]);
-    while ($fat = $stFats->fetch()) {
+    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
+    $faturasRec = $stmt->fetchAll();
+    foreach ($faturasRec as $fat) {
         cancelarCobrancaFatura($fat);
     }
-    $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ?");
-    $stmt->execute([$id, $adminIdE]);
+    excluirFaturasComLapide($pdo, $faturasRec, 'excluir_recorrencia');
     $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id = ? AND admin_id = ?");
     $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=excluido');
@@ -153,14 +154,15 @@ if (isset($_GET['fatura_cancelar'])) {
 }
 if (isset($_GET['fatura_excluir'])) {
     $id = intval($_GET['fatura_excluir']);
-    $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ?");
-    $stFat->execute([$id, $adminIdE]);
-    $fat = $stFat->fetch();
+    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ?");
+    $stmt->execute([$id, $adminIdE]);
+    $fat = $stmt->fetch();
     if ($fat) {
         cancelarCobrancaFatura($fat);
+        // A lapide impede o cron de recriar e reenviar este ciclo na proxima
+        // execucao. Sem ela, apagar a fatura so durava ate o proximo cron.
+        excluirFaturasComLapide($pdo, [$fat], 'excluir_fatura');
     }
-    $stmt = $pdo->prepare("DELETE FROM faturas WHERE id = ? AND admin_id = ?");
-    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=fatura_excluida');
     exit;
 }
@@ -317,7 +319,7 @@ if (isset($_GET['fatura_pix'])) {
         $stmtCli->execute([$fat['cliente_id'], $adminIdE]);
         $cli = $stmtCli->fetch();
 
-        $result = criarPagamento($fat['descricao'], $fat['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '');
+        $result = criarPagamento($fat['descricao'], $fat['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '', $fat['data_vencimento'] ?? null);
         error_log("[FATURA PIX] criarPagamento returned: " . json_encode(array_keys($result)));
         if (isset($result['sucesso']) && $result['sucesso']) {
             $apiUsada = $result['api'] ?? getApiAtiva();
@@ -362,11 +364,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['bulk_delete']) || !e
     $ph = implode(',', array_fill(0, count($ids), '?'));
     $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id IN ($ph) AND admin_id = ?");
     $stFats->execute(array_merge($ids, [$adminIdE]));
-    while ($fat = $stFats->fetch()) {
+    $faturasRec = $stFats->fetchAll();
+    foreach ($faturasRec as $fat) {
         cancelarCobrancaFatura($fat);
     }
-    $stmt = $pdo->prepare("DELETE FROM faturas WHERE fatura_recorrente_id IN ($ph) AND admin_id = ?");
-    $stmt->execute(array_merge($ids, [$adminIdE]));
+    excluirFaturasComLapide($pdo, $faturasRec, 'excluir_lote');
     $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id IN ($ph) AND admin_id = ?");
     $stmt->execute(array_merge($ids, [$adminIdE]));
     header('Location: emissao.php?msg=excluido');
@@ -413,10 +415,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dia_vencimento = max(1, min(31, intval($_POST['dia_vencimento'] ?? 1)));
     $data_inicio = date('Y-m-d');
     $data_fim = !empty($_POST['data_fim']) ? $_POST['data_fim'] : null;
+    // A recorrencia e sempre Indeterminada: NULL = gerar sem limite de
+    // transacoes. O campo "Qtd. Transacoes" nao define mais o fim do ciclo.
     $quantidade_transacoes = null;
-    if (($_POST['quantidade_tipo'] ?? 'indeterminado') === 'definido' && !empty($_POST['quantidade_transacoes'])) {
-        $quantidade_transacoes = max(1, intval($_POST['quantidade_transacoes']));
-    }
 
     if ($cliente_id <= 0 || empty($descricao) || $valor <= 0) {
         $mensagem = 'Preencha todos os campos obrigatórios.';
@@ -441,17 +442,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$adminIdE, $cliente_id, $descricao, $valor, $frequencia, $dia_vencimento, $data_inicio, $data_fim, $quantidade_transacoes, $numero]);
             $faturaRecorrenteId = $pdo->lastInsertId();
 
-            // Vencimento da 1ª fatura por ciclo: diária/semanal/quinzenal partem da
-            // criação (+1, +7, +15 dias); mensal em diante usam o dia do mês gravado.
-            $somaDiasPorCiclo = ['diaria' => 1, 'semanal' => 7, 'quinzenal' => 15];
-            if (isset($somaDiasPorCiclo[$frequencia])) {
-                $dataVenc = date('Y-m-d', strtotime('+' . $somaDiasPorCiclo[$frequencia] . ' days'));
-            } else {
-                $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT));
-                if ($dataVenc < date('Y-m-d')) {
-                    $dataVenc = date('Y-m-' . str_pad($dia_vencimento, 2, '0', STR_PAD_LEFT), strtotime('+1 month'));
-                }
-            }
+            // 1a fatura: recorrencia usa a data de inicio + o intervalo da
+            // frequencia; "Fatura unica" nao tem ciclo e respeita o dia do mes.
+            $dataVenc = primeiroVencimentoRecorrencia($frequencia, $data_inicio, $dia_vencimento);
 
             $stmt = $pdo->prepare("INSERT INTO faturas (admin_id, cliente_id, fatura_recorrente_id, numero, descricao, valor, valor_final, data_emissao, data_vencimento, status, acesso_token, api_pagamento) VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, 'pendente', ?, ?)");
             $stmt->execute([$adminIdE, $cliente_id, $faturaRecorrenteId, $numero, $descricao, $valor, $valor, $dataVenc, generateAcessoToken(), getApiAtiva()]);
@@ -660,18 +653,15 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Qtd. Transa��es</label>
+                        <label class="form-label">Qtd. Transações</label>
                         <div class="input-group">
-                            <input type="number" name="quantidade_transacoes" id="quantidade_transacoes" class="form-control" min="1" step="1" placeholder="Ex: 12" disabled>
+                            <input type="number" name="quantidade_transacoes" id="quantidade_transacoes" class="form-control" min="1" step="1" placeholder="Ex: 12">
                         </div>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <label class="form-label d-block">&nbsp;</label>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="quantidade_tipo" id="qtdDefinido" value="definido" onchange="toggleQtd(this)">
-                            <label class="form-check-label" for="qtdDefinido">Definido</label>
-                            <div class="vr mx-1"></div>
-                            <input class="form-check-input" type="radio" name="quantidade_tipo" id="qtdIndeterminado" value="indeterminado" checked onchange="toggleQtd(this)">
+                            <input class="form-check-input" type="radio" name="quantidade_tipo" id="qtdIndeterminado" value="indeterminado" checked>
                             <label class="form-check-label" for="qtdIndeterminado">Indeterminado</label>
                         </div>
                     </div>
@@ -727,15 +717,26 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <?php foreach ($faturasRecorrentes as $fr): ?>
                         <?php
 $statusClasses = [
-                            'pendente' => 'bg-warning text-dark',
-                            'pago' => 'bg-success',
-                            'vencido' => 'bg-danger',
-                            'atrasado' => 'bg-danger',
-                            'cancelado' => 'bg-secondary'
-                        ];
-                        ?>
+    'pendente' => 'bg-warning text-dark',
+    'pago' => 'bg-success',
+    'vencido' => 'bg-danger',
+    'atrasado' => 'bg-danger',
+    'cancelado' => 'bg-secondary'
+];
+
+// Proxima data do ciclo pela regra compartilhada (includes/recorrencia.php).
+// Antes a tela mostrava so nome/descricao/frequencia: os dados da fatura
+// (numero, status, vencimentos) eram buscados no SQL e nunca impressos, e a
+// recorrencia parecia vazia - dava a impressao de que a fatura nao existia.
+$frProximo = null;
+if (($fr['status'] ?? 'ativa') !== 'cancelado'
+    && !recorrenciaSemCiclo($fr['frequencia'] ?? '')
+    && !empty($fr['ultimo_vencimento'])) {
+    $frProximo = proximoVencimentoRecorrencia($fr['frequencia'], $fr['ultimo_vencimento']);
+}
+?>
 <div class="fr-item mb-2 <?= ($fr['status'] ?? 'ativa') === 'cancelado' ? 'opacity-50' : '' ?>">
-                            <div class="fr-row collapsed" data-bs-toggle="collapse" data-bs-target="#hist<?= (int)$fr['id'] ?>" aria-expanded="false" aria-controls="hist<?= (int)$fr['id'] ?>" title="Clique para ver as faturas geradas">
+                            <div class="fr-row collapsed" data-fr-target="#hist<?= (int)$fr['id'] ?>" aria-expanded="false" aria-controls="hist<?= (int)$fr['id'] ?>" title="Clique para ver as faturas geradas" onclick="return alternarHistoricoRecorrencia(this);">
                                 <div class="form-check mb-0" style="min-width:22px;padding-left:1.4em;" onclick="event.stopPropagation();">
                                     <input class="form-check-input bulk-check" type="checkbox" name="ids[]" value="<?= (int)$fr['id'] ?>" id="ck<?= (int)$fr['id'] ?>">
                                     <label class="form-check-label" for="ck<?= (int)$fr['id'] ?>"></label>
@@ -749,10 +750,34 @@ $statusClasses = [
                                     <span class="fr-dado-label">Frequência</span>
                                     <span class="badge bg-info"><?= ucfirst($fr['frequencia']) ?></span>
                                 </div>
+                                <div class="fr-dado">
+                                    <span class="fr-dado-label">Última Fatura</span>
+                                    <?php if (!empty($fr['ultimo_numero'])): ?>
+                                    <strong><?= htmlspecialchars($fr['ultimo_numero']) ?></strong>
+                                    <small class="d-block text-muted">venc. <?= date('d/m/Y', strtotime($fr['ultimo_vencimento'])) ?></small>
+                                    <?php else: ?>
+                                    <strong class="text-muted">—</strong>
+                                    <small class="d-block text-muted">nenhuma emitida</small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="fr-dado">
+                                    <span class="fr-dado-label">Status</span>
+                                    <?php if (!empty($fr['ultimo_status'])): ?>
+                                    <span class="badge <?= $statusClasses[$fr['ultimo_status']] ?? 'bg-secondary' ?>"><?= ucfirst($fr['ultimo_status']) ?></span>
+                                    <?php else: ?>
+                                    <span class="badge bg-secondary">Sem fatura</span>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if ($frProximo !== null): ?>
+                                <div class="fr-dado">
+                                    <span class="fr-dado-label">Próxima</span>
+                                    <strong><?= date('d/m/Y', strtotime($frProximo)) ?></strong>
+                                </div>
+                                <?php endif; ?>
                                 <div class="fr-acoes">
                                     <span class="fr-chevron text-muted"><i class="bi bi-chevron-down"></i></span>
                                     <?php if (($fr['status'] ?? 'ativa') !== 'cancelado'): ?>
-                                    <a href="#" class="acao-btn acao-btn-danger ms-2" title="Excluir recorrência" onclick="event.preventDefault(); event.stopPropagation(); showConfirm('Excluir Recorrência','Excluir permanentemente a recorrência de <?= htmlspecialchars(addslashes($fr['nome_razao'])) ?> e todas as suas faturas? Esta ação não pode ser desfeita.','?excluir=<?= (int)$fr['id'] ?>'); return false;"><i class="bi bi-trash3"></i></a>
+                                    <a href="?excluir=<?= (int)$fr['id'] ?>" class="acao-btn acao-btn-danger ms-2" title="Excluir recorrência" onclick="event.stopPropagation(); return confirmarExcluirRecorrencia(this, <?= htmlspecialchars(json_encode((string)$fr['nome_razao'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_TAG), ENT_QUOTES) ?>);"><i class="bi bi-trash3"></i></a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -925,38 +950,121 @@ $statusClasses = [
 </div>
 
 <script>
-document.getElementById('modalEnviarEmail').addEventListener('show.bs.modal', function(event) {
+// Expande/fecha o historico de faturas da recorrencia.
+// Usa o Collapse do Bootstrap quando disponivel e cai para um toggle
+// proprio de classes se o bundle nao tiver carregado, para que a lista
+// abra de qualquer forma. A classe "collapsed" e o aria-expanded sao
+// sincronizados aqui porque o data-api do Bootstrap so faz isso quando
+// o gatilho tem data-bs-toggle, e aqui o controle e via JS.
+function alternarHistoricoRecorrencia(row) {
+    var alvo = document.querySelector(row.getAttribute('data-fr-target') || '');
+    if (!alvo) return true;
+    var marcarAberto = function () {
+        row.classList.remove('collapsed');
+        row.setAttribute('aria-expanded', 'true');
+    };
+    var marcarFechado = function () {
+        row.classList.add('collapsed');
+        row.setAttribute('aria-expanded', 'false');
+    };
+    var estavaAberto = alvo.classList.contains('show');
+    try {
+        if (window.bootstrap && bootstrap.Collapse) {
+            var inst = bootstrap.Collapse.getOrCreateInstance(alvo, { toggle: false });
+            if (estavaAberto) inst.hide(); else inst.show();
+            if (estavaAberto) marcarFechado(); else marcarAberto();
+            return false;
+        }
+    } catch (e) { /* segue para o fallback */ }
+    if (estavaAberto) {
+        alvo.classList.remove('show');
+        marcarFechado();
+    } else {
+        alvo.classList.add('show');
+        marcarAberto();
+    }
+    return false;
+}
+
+// Confirma a exclusao da recorrencia. O link tem href real, entao a
+// exclusao acontece mesmo se o painel nao conseguir abrir o modal.
+function confirmarExcluirRecorrencia(link, nome) {
+    var url = link.getAttribute('href');
+    var msg = 'Excluir permanentemente a recorrencia de ' + nome +
+              ' e todas as suas faturas? Esta acao nao pode ser desfeita.';
+    try {
+        if (typeof showConfirm === 'function' && document.getElementById('confirmModal')) {
+            showConfirm('Excluir Recorrencia', msg, url);
+            return false;
+        }
+    } catch (e) { /* segue para o confirm nativo */ }
+    return window.confirm(msg);
+}
+
+// Liga um listener sem derrubar o script inteiro caso o elemento nao exista.
+function on(id, evento, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(evento, fn);
+}
+
+// Evita duplo clique em formulario de criacao.
+function travarFormulario(form, evento) {
+    if (!form) return;
+    form.addEventListener(evento, function () {
+        var botao = form.querySelector('button[type="submit"]');
+        if (botao) { botao.disabled = true; botao.classList.add('disabled'); }
+    }, true);
+}
+
+on('modalEnviarEmail', 'show.bs.modal', function(event) {
     var button = event.relatedTarget;
     var url = button.getAttribute('data-url');
     if (!url) { url = '?enviar=' + button.getAttribute('data-id'); }
     document.getElementById('btnConfirmarEnviar').href = url;
 });
-document.getElementById('modalEnviarWhatsApp').addEventListener('show.bs.modal', function(event) {
+on('modalEnviarWhatsApp', 'show.bs.modal', function(event) {
     var button = event.relatedTarget;
     var url = button.getAttribute('data-url');
     if (!url) { url = '?whatsapp=' + button.getAttribute('data-id'); }
     document.getElementById('btnConfirmarEnviarWhatsApp').href = url;
 });
-document.getElementById('modalMarcarPago').addEventListener('show.bs.modal', function(event) {
+on('modalMarcarPago', 'show.bs.modal', function(event) {
     var button = event.relatedTarget;
+    if (!button) return;
     var url = button.getAttribute('data-url');
     if (!url) { url = '?pago=' + button.getAttribute('data-id'); }
     document.getElementById('btnConfirmarPago').href = url;
 });
-document.getElementById('modalExcluir').addEventListener('show.bs.modal', function(event) {
+on('modalExcluir', 'show.bs.modal', function(event) {
     var button = event.relatedTarget;
+    if (!button) return;
     var url = button.getAttribute('data-url');
     if (!url) { url = '?excluir=' + button.getAttribute('data-id'); }
     document.getElementById('btnConfirmarExcluir').href = url;
 });
-document.getElementById('selectAll').addEventListener('change', function() {
+on('selectAll', 'change', function() {
     var checks = document.querySelectorAll('.bulk-check');
     for (var i = 0; i < checks.length; i++) { checks[i].checked = this.checked; }
 });
-document.getElementById('formNovaFatura').addEventListener('submit', function() {
-    var modal = new bootstrap.Modal(document.getElementById('modalCriando'));
-    modal.show();
-});
+
+// Modal de carregamento enquanto a fatura e gerada. Vale para fatura
+// avulsa e para recorrencia: os dois saem do mesmo formulario.
+var formNovaFatura = document.getElementById('formNovaFatura');
+if (formNovaFatura) {
+    travarFormulario(formNovaFatura, 'submit');
+    formNovaFatura.addEventListener('submit', function () {
+        var el = document.getElementById('modalCriando');
+        if (!el) return;
+        try {
+            if (window.bootstrap && bootstrap.Modal) {
+                new bootstrap.Modal(el).show();
+            } else {
+                el.style.display = 'block';
+                el.classList.add('show');
+            }
+        } catch (e) { /* a pagina recarrega de qualquer forma */ }
+    });
+}
 function copiarPixFatura(btn) {
     var id = btn.getAttribute('data-fatura');
     if (!id) return;
@@ -1004,20 +1112,6 @@ function fallbackCopiarPix(codigo, done) {
     document.body.removeChild(ta);
     done();
 }
-
-<script>
-function toggleQtd(el) {
-    var inp = document.getElementById('quantidade_transacoes');
-    if (!inp) return;
-    var definir = el && el.value === 'definido' || (el && el.checked && el.value === 'definido');
-    if (!el) definir = false; // chamada de init sem arg => indeterminado
-    inp.disabled = !definir;
-    if (!definir) inp.value = '';
-}
-document.addEventListener('DOMContentLoaded', function() {
-    var sel = document.querySelector('input[name="quantidade_tipo"]:checked');
-    toggleQtd(sel || null);
-});
 </script>
 
 <div class="modal fade" id="modalCriando" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">

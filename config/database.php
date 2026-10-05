@@ -4,12 +4,25 @@
 // Criação automática do banco e tabelas
 // =====================================================
 
-define('DB_HOST', 'localhost');
-define('DB_PORT', '3306');
-define('DB_NAME', 'cobranca');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_CHARSET', 'utf8mb4');
+// =====================================================
+// FUSO HORARIO
+// Definido aqui porque este arquivo e carregado por todos os entrypoints do
+// sistema (painel, APIs, webhooks e cron). Sem isso o PHP usa o default do
+// container, que e UTC, e a cobranca passa a ser datada e enviada 3 horas
+// adiantada em relacao a Brasilia/Sao Paulo.
+// =====================================================
+if (!defined('APP_TIMEZONE')) {
+    define('APP_TIMEZONE', 'America/Sao_Paulo');
+}
+date_default_timezone_set(APP_TIMEZONE);
+
+// Host/credenciais podem vir do ambiente (producao/Docker) ou do fallback local.
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_PORT', getenv('DB_PORT') ?: '3306');
+define('DB_NAME', getenv('DB_NAME') ?: 'cobranca');
+define('DB_USER', getenv('DB_USER') ?: 'root');
+define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
+define('DB_CHARSET', getenv('DB_CHARSET') ?: 'utf8mb4');
 
 // =====================================================
 // BASE DA URL PÚBLICA DA APLICAÇÃO
@@ -49,7 +62,25 @@ if (PHP_SAPI !== 'cli' && function_exists('ob_start') && !defined('APP_BASE_OBS'
     });
 }
 
+// Conexao unica por requisicao (singleton).
+//
+// Antes cada chamada abria DUAS conexoes novas e ainda executava ~30 ALTER
+// TABLE e varios CREATE TABLE IF NOT EXISTS, que falhavam e eram engolidos. Medido
+// em producao: 187 ms POR CHAMADA. Como getConfig() comeca com getConnection(),
+// e o cron le ~16 configuracoes por fatura, isso consumia quase toda a execucao
+// (255 leituras x 187 ms = 47 s, exatamente o tempo que o cron levava).
+//
+// O static e por requisicao: cada request do PHP recomeca do zero, entao nunca
+// reaproveita conexao velha. O wait_timeout do MySQL e de 28800 s (8 h), muito
+// acima da duracao de qualquer request, portanto nao ha risco de conexao morta
+// no meio da execucao. Se a conexao falhar, o retorno e null e NAO e cacheado,
+// entao a proxima chamada tenta de novo.
 function getConnection() {
+    static $instancia = null;
+    if ($instancia instanceof PDO) {
+        return $instancia;
+    }
+
     try {
         $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";charset=" . DB_CHARSET;
         $pdo = new PDO($dsn, DB_USER, DB_PASS, [
@@ -74,6 +105,29 @@ function getConnection() {
         try { $pdo->exec("UPDATE `faturas` SET `acesso_token` = SHA2(CONCAT(UUID(), RAND()), 256) WHERE `acesso_token` IS NULL"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `api_pagamento` VARCHAR(30) DEFAULT NULL AFTER `acesso_token`"); } catch (PDOException $e) {}
 
+        // Ultima situacao conhecida no Inter e quando foi observada. Permite
+        // decidir, sem chamar a API, que uma cobranca expirada de fatura
+        // vencida ja nao precisa ser consultada a cada minuto pelo cron.
+        // Ver interConsultaVale().
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `inter_situacao` VARCHAR(30) DEFAULT NULL AFTER `inter_codigo_solicitacao`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `inter_data_situacao` DATETIME DEFAULT NULL AFTER `inter_situacao`"); } catch (PDOException $e) {}
+
+        // Lapide das faturas excluidas. Sem ela, o cron recria e reenvia a
+        // cobranca de um ciclo que o admin apagou (a fatura e DELETE e a
+        // recorrencia continua ativa). Ver includes/recorrencia.php.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `faturas_excluidas` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `admin_id` INT DEFAULT NULL,
+            `fatura_recorrente_id` INT DEFAULT NULL,
+            `cliente_id` INT DEFAULT NULL,
+            `numero` VARCHAR(20) DEFAULT NULL,
+            `data_vencimento` DATE DEFAULT NULL,
+            `motivo` VARCHAR(40) DEFAULT NULL,
+            `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY `idx_lapide_ciclo` (`fatura_recorrente_id`, `data_vencimento`),
+            KEY `idx_lapide_numero` (`numero`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `avatar` VARCHAR(255) DEFAULT NULL AFTER `email`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `clientes` ADD COLUMN `avatar` VARCHAR(255) DEFAULT NULL AFTER `estado`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `clientes` MODIFY COLUMN `ativo` TINYINT(1) NOT NULL DEFAULT 1"); } catch (PDOException $e) {}
@@ -95,7 +149,8 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `ativo` TINYINT(1) NOT NULL DEFAULT 1"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'ativa'"); } catch (PDOException $e) {}
         try { $pdo->exec("UPDATE `faturas_recorrentes` SET `ativo` = 1, `status` = 'ativa' WHERE `ativo` IS NULL OR `status` IS NULL"); } catch (PDOException $e) {}
-        try { $pdo->exec("ALTER TABLE aturas_recorrentes ADD COLUMN quantidade_transacoes INT UNSIGNED NULL AFTER data_fim"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE faturas_recorrentes ADD COLUMN quantidade_transacoes INT UNSIGNED NULL AFTER data_fim"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `numero` VARCHAR(20) DEFAULT NULL AFTER `status`"); } catch (PDOException $e) {}
 
         // === MIGRAÇÃO: isolamento de dados por admin ===
         // Idempotente via marcador em configuracoes. Adiciona admin_id em
@@ -497,7 +552,8 @@ function getConnection() {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
-        return $pdo;
+        $instancia = $pdo;
+        return $instancia;
 
     } catch (PDOException $e) {
         error_log("Erro de conexão: " . $e->getMessage());
@@ -558,6 +614,8 @@ function criarTabelas($pdo) {
         `data_inicio` DATE NOT NULL,
         `data_fim` DATE,
         `ativo` TINYINT(1) DEFAULT 1,
+        `status` VARCHAR(20) DEFAULT 'ativa',
+        `numero` VARCHAR(20),
         `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (`cliente_id`) REFERENCES `clientes`(`id`) ON DELETE CASCADE
     ) ENGINE=InnoDB");
@@ -581,12 +639,30 @@ function criarTabelas($pdo) {
         `pix_copia_cola` VARCHAR(500),
         `link_pagamento` VARCHAR(500),
         `mp_payment_id` VARCHAR(100),
+        `inter_codigo_solicitacao` VARCHAR(100),
+        `inter_situacao` VARCHAR(30),
+        `inter_data_situacao` DATETIME,
+        `acesso_token` VARCHAR(64),
+        `api_pagamento` VARCHAR(30),
         `observacoes` TEXT,
         `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (`cliente_id`) REFERENCES `clientes`(`id`) ON DELETE CASCADE,
         FOREIGN KEY (`fatura_recorrente_id`) REFERENCES `faturas_recorrentes`(`id`) ON DELETE SET NULL
     ) ENGINE=InnoDB");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `faturas_excluidas` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `admin_id` INT DEFAULT NULL,
+        `fatura_recorrente_id` INT DEFAULT NULL,
+        `cliente_id` INT DEFAULT NULL,
+        `numero` VARCHAR(20) DEFAULT NULL,
+        `data_vencimento` DATE DEFAULT NULL,
+        `motivo` VARCHAR(40) DEFAULT NULL,
+        `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_lapide_ciclo` (`fatura_recorrente_id`, `data_vencimento`),
+        KEY `idx_lapide_numero` (`numero`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS `contratos` (
         `id` INT AUTO_INCREMENT PRIMARY KEY,

@@ -11,3 +11,8 @@ _cp/
 *.key
 !config/inter_certs/certificado.crt
 !config/inter_certs_super/certificado.crt
+
+# Credenciais e backups locais: nunca versionar
+_initial_credentials.txt
+*.bak_*
+deploy_*.ps1

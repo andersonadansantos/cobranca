@@ -83,7 +83,7 @@ if (!$jaTemCobranca && !$fatura['link_pagamento'] && !$fatura['pix_copia_cola'] 
     $stmt->execute([$userId]);
     $cli = $stmt->fetch();
 
-    $result = criarPagamento($fatura['descricao'], $fatura['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '');
+    $result = criarPagamento($fatura['descricao'], $fatura['valor_final'], $cli['email'] ?? '', $cli['nome_razao'] ?? '', $fatura['data_vencimento'] ?? null);
 
     if (isset($result['sucesso']) && $result['sucesso']) {
         // Grava o gateway que realmente gerou o pagamento (pode ter trocado após a emissão da fatura)

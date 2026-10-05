@@ -214,6 +214,8 @@ CREATE TABLE `faturas` (
   `boleto_url` varchar(500) DEFAULT NULL,
   `mp_payment_id` varchar(100) DEFAULT NULL,
   `inter_codigo_solicitacao` varchar(100) DEFAULT NULL,
+  `inter_situacao` varchar(30) DEFAULT NULL,
+  `inter_data_situacao` datetime DEFAULT NULL,
   `observacoes` text DEFAULT NULL,
   `ultimo_envio` date DEFAULT NULL,
   `ultimo_envio_tipo` varchar(30) DEFAULT NULL,
@@ -250,6 +252,23 @@ CREATE TABLE `faturas_recorrentes` (
   PRIMARY KEY (`id`),
   KEY `cliente_id` (`cliente_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `faturas_excluidas`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `faturas_excluidas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `admin_id` int DEFAULT NULL,
+  `fatura_recorrente_id` int DEFAULT NULL,
+  `cliente_id` int DEFAULT NULL,
+  `numero` varchar(20) DEFAULT NULL,
+  `data_vencimento` date DEFAULT NULL,
+  `motivo` varchar(40) DEFAULT NULL,
+  `criado_em` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_lapide_ciclo` (`fatura_recorrente_id`,`data_vencimento`),
+  KEY `idx_lapide_numero` (`numero`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `livro_caixa_custos`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

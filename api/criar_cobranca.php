@@ -70,7 +70,7 @@ if (!empty($fatura['admin_id'])) {
 }
 
 $descricao = $fatura['numero'] . ' - ' . $fatura['descricao'];
-$resultado = criarPagamento($descricao, $fatura['valor_final'], $fatura['email'], $fatura['nome_razao']);
+$resultado = criarPagamento($descricao, $fatura['valor_final'], $fatura['email'], $fatura['nome_razao'], $fatura['data_vencimento'] ?? null);
 
 if (isset($resultado['sucesso']) && $resultado['sucesso']) {
     $apiUsada = $resultado['api'] ?? getApiAtiva();

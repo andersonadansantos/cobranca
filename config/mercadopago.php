@@ -216,29 +216,42 @@ function criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNo
     }
 }
 
-// Regenera automaticamente o PIX do Mercado Pago quando o anterior expirou
-// (status 'cancelled'/'rejected' do MP). Mantém a fatura em aberto: o pagamento
-// antigo morre no MP e um novo código é gravado na fatura.
+// Regenera o PIX de uma fatura cujo código anterior morreu no gateway:
+// Mercado Pago 'cancelled'/'rejected' ou Inter 'EXPIRADO'/'CANCELADO'. Mantém a
+// fatura em aberto e grava o código novo nela.
+//
+// Antes isto existia só para o Mercado Pago. Uma fatura no Inter cujo PIX
+// expirava ficava sem caminho de pagamento para sempre, porque o Inter guarda o
+// PIX dentro da própria cobrança e nunca devolve um código novo sozinho. É o
+// caso da cobrança semanal: nascida com vencimento no dia em que foi gerada, o
+// código morria antes de o cliente pagar.
+//
 // Retorna true se um novo PIX foi gerado.
-function regenerarPixFaturaMP($pdo, $fatura) {
+function regenerarPixFatura($pdo, $fatura) {
     try {
         if (!isset($pdo, $fatura['id'])) return false;
         if (($fatura['status'] ?? '') === 'pago' || ($fatura['status'] ?? '') === 'cancelado') return false;
 
         $api = ($fatura['api_pagamento'] ?? '') ?: getApiAtiva();
-        if ($api !== 'mercadopago') return false;
+        if (!in_array($api, ['mercadopago', 'inter'], true)) return false;
 
         $result = criarPagamento(
             (string) ($fatura['descricao'] ?? ''),
             (float) ($fatura['valor_final'] ?? 0),
             (string) ($fatura['email'] ?? ''),
-            (string) ($fatura['nome_razao'] ?? '')
+            (string) ($fatura['nome_razao'] ?? ''),
+            $fatura['data_vencimento'] ?? null
         );
 
         if (isset($result['sucesso']) && $result['sucesso'] && !empty($result['payment_id'])) {
-            $apiAtual = $result['api'] ?? 'mercadopago';
-            $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
-            $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);
+            $apiAtual = $result['api'] ?? $api;
+            if ($apiAtual === 'inter') {
+                $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
+                $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
+                $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);
+            }
             return $stmt->rowCount() > 0;
         }
 
@@ -548,12 +561,19 @@ function getApiAtiva() {
     return getConfig('api_pagamento_ativa', 'mercadopago');
 }
 
-function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome) {
+/**
+ * Cria o pagamento (PIX/boleto) do gateway ativo.
+ *
+ * $dataVencimento é o vencimento da fatura que está sendo cobrada. Só o Inter
+ * usa: sem ele, a cobrança nasceria com vencimento no mesmo dia da criação e o
+ * PIX morreria antes do cliente pagar. Ver interPrazoCobranca().
+ */
+function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento = null) {
     $api = getApiAtiva();
     $res = null;
 
     if ($api === 'inter') {
-        $res = criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome);
+        $res = criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento);
     } elseif ($api === 'bb') {
         $res = criarPagamentoBB($descricao, $valor, $clienteEmail, $clienteNome);
     } elseif ($api === 'pix_manual') {
@@ -839,7 +859,104 @@ function obterPdfInter($codigoSolicitacao) {
     return null;
 }
 
-function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome) {
+/**
+ * Converte o vencimento da fatura nos dois campos que o Inter usa na cobrança
+ * PIX: dataVencimento e numDiasAgenda.
+ *
+ * Antes o Inter recebia dataVencimento = data de HOJE com numDiasAgenda = 1, e
+ * o PIX ficava válido só no dia em que era gerado. Uma fatura semanal com
+ * vencimento 7 dias depois ficava impossível de pagar: o código morria antes
+ * de o cliente receber o e-mail. Como PIX morto não volta sozinho, a fatura
+ * também ficava 'atrasado' para sempre, sem nenhum caminho de pagamento.
+ *
+ * O Inter aceita no máximo $maxDias dias; acima disso a cobrança vence em
+ * $maxDias dias. O vencimento da fatura no sistema não muda por causa disso.
+ * Fatura já vencida (ou vencendo hoje) devolve 1 dia, para ainda haver um dia
+ * de pagamento em vez de um código já nascido morto.
+ */
+function interPrazoCobranca($dataVencimento, $maxDias = 30) {
+    $hoje = date('Y-m-d');
+    $alvo = substr(trim((string)$dataVencimento), 0, 10);
+
+    $tsAlvo = $alvo !== '' ? strtotime($alvo) : false;
+    if ($tsAlvo === false) {
+        return ['dataVencimento' => $hoje, 'numDiasAgenda' => 1];
+    }
+
+    $dias = (int)ceil(($tsAlvo - strtotime($hoje)) / 86400);
+    // Vencendo hoje ou ja vencida: a cobranca nasce valendo por 1 dia. Antes
+    // saia com a data que ja tinha passado, e o Inter rejeita um vencimento
+    // retroativo - o PIX voltava a ser Recusado pelo banco.
+    if ($dias < 1) {
+        return ['dataVencimento' => $hoje, 'numDiasAgenda' => 1];
+    }
+    if ($dias > $maxDias) {
+        return ['dataVencimento' => date('Y-m-d', strtotime('+' . $maxDias . ' days')), 'numDiasAgenda' => $maxDias];
+    }
+    return ['dataVencimento' => date('Y-m-d', $tsAlvo), 'numDiasAgenda' => $dias];
+}
+
+/**
+ * Situacoes do Inter sem mais retorno: o PIX expirou, ou a cobranca foi
+ * cancelada/removida. Nao existe pagamento possivel depois delas.
+ */
+function interSituacaoTerminal($situacao) {
+    return in_array(strtoupper(trim((string)$situacao)), ['EXPIRADO', 'EXPIRADA', 'CANCELADO', 'CANCELADA', 'REMOVIDA_PELO_USUARIO_RECEBEDOR'], true);
+}
+
+/**
+ * Guarda a ultima situacao conhecida no Inter e QUANDO a observamos.
+ *
+ * Antes isso vivia so no log: o cron voltava a consultar a API do Inter a cada
+ * minuto, para sempre, porque o SELECT so traz faturas 'pendente/vencido/
+ * atrasado' e uma fatura vencida nunca sai dessa lista sozinha.
+ *
+ * O horario gravado e o nosso (quando rodou a consulta), e nao o dataSituacao do
+ * Inter. Usar o dataSituacao do banco nao segurava nada: numa cobranca expirada
+ * ele e fixo no passado, entao a janela de 6h fechava a cada minuto.
+ */
+function registrarSituacaoInter($pdo, $faturaId, $situacao) {
+    try {
+        $situacao = strtoupper(trim((string)$situacao));
+        if ($situacao === '') {
+            return;
+        }
+        $stmt = $pdo->prepare("UPDATE faturas SET inter_situacao = ?, inter_data_situacao = ? WHERE id = ?");
+        $stmt->execute([$situacao, date('Y-m-d H:i:s'), $faturaId]);
+    } catch (Throwable $e) {
+        error_log("[INTER] falha ao gravar situacao da fatura {$faturaId}: " . $e->getMessage());
+    }
+}
+
+/**
+ * Decide se vale a pena chamar a API do Inter para esta fatura.
+ *
+ * Fatura com cobranca em situacao terminal (PIX expirado/cancelado) e ja
+ * vencida nao tem mais nada a receber do Inter: o status da fatura ja foi
+ * atualizado na primeira consulta e o PIX nao volta sozinho. Sem esta trava o
+ * cron fazia ~1440 chamadas/dia por fatura morta, sem efeito nenhum.
+ *
+ * Ainda assim nao zeramos a consulta: rechecamos a cada $horasMin horas, para
+ * pegar um pagamento que o Inter tenha registrado depois. Se voltar a ser paga,
+ * a situacao deixa de ser terminal e a checagem normal retoma.
+ */
+function interConsultaVale($fatura, $horasMin = 6) {
+    $situacao = $fatura['inter_situacao'] ?? '';
+    if (!interSituacaoTerminal($situacao)) {
+        return true;
+    }
+    if (($fatura['data_vencimento'] ?? '') >= date('Y-m-d')) {
+        // Ainda da para pagar: o cron precisa ver a baixa e/ou trocar o PIX.
+        return true;
+    }
+    $desde = !empty($fatura['inter_data_situacao']) ? strtotime($fatura['inter_data_situacao']) : false;
+    if ($desde === false) {
+        return true;
+    }
+    return (time() - $desde) >= ($horasMin * 3600);
+}
+
+function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento = null) {
     $config = getConfigInter();
     $pdo = getConnection();
     $cli = null;
@@ -879,11 +996,12 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome) {
         'uf' => substr(preg_replace('/[^A-Za-z]/', '', $cli['estado'] ?? 'SP'), 0, 2) ?: 'SP',
         'cep' => str_pad(preg_replace('/[^0-9]/', '', $cli['cep'] ?? ''), 8, '0', STR_PAD_LEFT) ?: '01000000',
     ];
+    $prazo = interPrazoCobranca($dataVencimento);
     $dados = [
         'seuNumero' => substr('PIX' . date('ymd') . rand(100, 999), 0, 15),
         'valorNominal' => (float) $valor,
-        'dataVencimento' => date('Y-m-d'),
-        'numDiasAgenda' => 1,
+        'dataVencimento' => $prazo['dataVencimento'],
+        'numDiasAgenda' => $prazo['numDiasAgenda'],
         'pagador' => $pagador,
         'mensagem' => [
             'linha1' => $descricao,
