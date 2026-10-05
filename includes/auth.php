@@ -158,8 +158,35 @@ function loginUser($cpfCnpj, $senha = '') {
     
     $cpfCnpj = preg_replace('/[^0-9]/', '', $cpfCnpj);
     
-    $stmt = $pdo->prepare("SELECT * FROM clientes WHERE cpf_cnpj = ? AND ativo = 1");
-    $stmt->execute([$cpfCnpj]);
+    // ISOLAMENTO POR TENANT: no subdominio, o cliente so entra se pertence
+    // ao admin dono daquele subdominio. Sem tenant (dominio principal)
+    // mantem o comportamento anterior, sem filtro de admin_id.
+    require_once __DIR__ . '/../config/tenant.php';
+    if (empty($_SESSION['tenant_admin_id']) && empty($_SESSION['admin_id'])) {
+        initTenant();
+    }
+    $tenantId = getTenantAdminId();
+    
+    // Sem tenant resolvido, o login so e liberado no dominio principal.
+    // Em um subdominio sem admin correspondente, o acesso e bloqueado
+    // (evita que qualquer cliente entre por um subdominio inexistente).
+    if ($tenantId <= 0) {
+        $__host = preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? '')));
+        $__base = strtolower(ltrim((string)getBaseDomain(), '.'));
+        if ($__base !== '' && $__host !== $__base && substr($__host, -strlen($__base)) === $__base) {
+            unset($__host, $__base);
+            return false;
+        }
+        unset($__host, $__base);
+    }
+    
+    if ($tenantId > 0) {
+        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE cpf_cnpj = ? AND ativo = 1 AND admin_id = ?");
+        $stmt->execute([$cpfCnpj, $tenantId]);
+    } else {
+        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE cpf_cnpj = ? AND ativo = 1");
+        $stmt->execute([$cpfCnpj]);
+    }
     $cliente = $stmt->fetch();
     
     if ($cliente) {

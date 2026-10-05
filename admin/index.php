@@ -153,7 +153,6 @@ if ($meuSubdominio !== '' && $baseDominioSite !== '') {
 }
 $urlSubdominio = $protoSite . '://' . $hostTenantSite . $appBaseSite;
 $urlAreaUsuario = $urlSubdominio . '/usuario/';
-$subdominioCopiar = $protoSite . '://' . $hostTenantSite;
 $semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
 ?>
 
@@ -178,32 +177,9 @@ $semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
     </div>
 
     <div class="content-area fade-in">
-        <!-- Área do cliente: Subdomínio, Área do usuário e 7 dias gratuitos -->
+        <!-- Área do cliente: Área do usuário e Plano atual -->
         <div class="row g-3 mb-4" style="--bs-gutter-y: 1rem;">
-            <div class="col-md-4 d-flex">
-                <div class="w-100" style="--link-card-accent: var(--cor-primaria);">
-                    <div class="link-card">
-                        <div class="d-flex align-items-center gap-3 mb-3">
-                            <div class="link-card-icon"><i class="fas fa-earth-americas"></i></div>
-                            <div>
-                                <div class="link-card-title"><?= t('tb.meu_subdominio') ?></div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
-                                        <a href="<?= htmlspecialchars($subdominioCopiar) ?>" target="_blank" rel="noopener" class="link-card-value text-decoration-none"><?= htmlspecialchars($hostTenantSite) ?></a>
-                                        <a href="javascript:void(0)" onclick="copiarSubdominio(this)" data-copiar="<?= htmlspecialchars($subdominioCopiar) ?>" class="text-decoration-none flex-shrink-0" title="<?= t('tb.copiar_subdominio') ?>"><i class="fas fa-copy text-muted"></i></a>
-                                    <?php else: ?>
-                                        <span class="link-card-value text-muted"><?= t('tb.sem_subdominio') ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                        <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
-                            <a href="<?= htmlspecialchars($subdominioCopiar) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-primary w-100 mt-auto"><i class="fas fa-external-link-alt me-1"></i><?= t('tb.abrir_subdominio') ?></a>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 d-flex">
+            <div class="col-md-6 d-flex">
                 <div class="w-100" style="--link-card-accent: var(--cor-sucesso);">
                     <div class="link-card">
                         <div class="d-flex align-items-center gap-3 mb-3">
@@ -211,7 +187,7 @@ $semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
                             <div>
                                 <div class="link-card-title"><?= t('tb.area_usuario') ?></div>
                                 <?php if ($meuSubdominio !== '' && $hostTenantSite !== ''): ?>
-                                    <div class="link-card-value text-muted" style="font-weight:500;font-size:0.85rem;"><?= htmlspecialchars($urlAreaUsuario) ?></div>
+                                    <div class="link-card-value text-muted" style="font-weight:500;font-size:0.85rem;"><?= htmlspecialchars($hostTenantSite) ?></div>
                                 <?php else: ?>
                                     <span class="link-card-value text-muted"><?= t('tb.sem_subdominio') ?></span>
                                 <?php endif; ?>
@@ -223,17 +199,17 @@ $semPlano = !function_exists('adminTemPlanoAtivo') || !adminTemPlanoAtivo();
                     </div>
                 </div>
             </div>
-            <div class="col-md-4 d-flex">
+            <div class="col-md-6 d-flex">
                 <div class="w-100" style="--link-card-accent: var(--cor-aviso);">
                     <div class="link-card">
                         <div class="d-flex align-items-center gap-3 mb-3">
                             <div class="link-card-icon"><i class="fas fa-gift"></i></div>
                             <div>
-                                <div class="link-card-title"><?= t('tb.gratuito') ?></div>
+                                <div class="link-card-title"><?= t('tb.plano_atual') ?></div>
                                 <?php if (!empty($meuPlanoInfo)): ?>
                                     <div class="link-card-value"><?= htmlspecialchars($meuPlanoInfo['plano_nome']) ?></div>
                                 <?php else: ?>
-                                    <span class="link-card-value text-muted"><?= t('tb.sem_subdominio') ?></span>
+                                    <span class="link-card-value text-muted"><?= t('tb.sem_plano_cartao') ?></span>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -561,36 +537,6 @@ new Chart(document.getElementById('chartLivroCaixaMini'), {
         }
     }
 });
-</script>
-
-<script>
-function copiarSubdominio(el) {
-    var txt = el.dataset.copiar || '';
-    var icon = el.querySelector('.fa-copy, .fa-check');
-    function ok() {
-        if (!icon) return;
-        icon.className = 'fas fa-check text-success';
-        setTimeout(function(){ icon.className = 'fas fa-copy text-muted'; }, 1600);
-    }
-    function fallback() {
-        var ta = document.createElement('textarea');
-        ta.value = txt;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        try { document.execCommand('copy'); } catch (e) {}
-        document.body.removeChild(ta);
-    }
-    if (!txt) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt).then(ok, function(){ fallback(); ok(); });
-    } else {
-        fallback();
-        ok();
-    }
-}
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

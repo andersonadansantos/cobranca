@@ -47,22 +47,58 @@ function getConfigAdminId() {
     return getTenantAdminId();
 }
 
+// Limpa o cache de configuracoes da requisicao. Chamado por toda funcao que
+// grava em configuracoes, para nunca servir um valor ja alterado.
+function configCacheLimpar() {
+    $GLOBALS['_config_cache'] = [];
+}
+
+// Le a configuracao do admin em contexto (ou a global, se o admin nao
+// sobrescreveu). A precedencia e: linha do admin -> linha global -> padrao.
+//
+// O cache por requisicao so liga quando o entrypoint define
+// CONFIG_CACHE_ATIVO, hoje apenas o cron. O painel NAO usa: as telas de
+// configuracao gravam e reexibem o valor na mesma request, e um cache ali
+// mostraria o valor antigo depois de salvar. No cron o cache e seguro porque
+// ele nunca grava em configuracoes, e o volume e alto: sao ~16 chaves lidas
+// por fatura (SMTP, regua, janela, templates), o que vira dezenas de milhares
+// de consultas por execucao num cron que roda a cada minuto.
+//
+// A chave inclui o adminId de proposito: o cron alterna o tenant a cada fatura
+// e cada admin tem os proprios valores.
 function getConfig($chave, $padrao = '') {
     $pdo = getConnection();
     if (!$pdo) return $padrao;
     $adminId = getConfigAdminId();
 
+    $usarCache = defined('CONFIG_CACHE_ATIVO') && CONFIG_CACHE_ATIVO;
+    if ($usarCache) {
+        if (!isset($GLOBALS['_config_cache']) || !is_array($GLOBALS['_config_cache'])) {
+            $GLOBALS['_config_cache'] = [];
+        }
+        $cacheKey = $adminId . '|' . $chave;
+        if (array_key_exists($cacheKey, $GLOBALS['_config_cache'])) {
+            return $GLOBALS['_config_cache'][$cacheKey];
+        }
+    }
+
+    $valor = $padrao;
+    $achou = false;
     if ($adminId > 0) {
         $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = ?");
         $stmt->execute([$adminId, $chave]);
         $row = $stmt->fetch();
-        if ($row) return $row['valor'];
+        if ($row) { $valor = $row['valor']; $achou = true; }
+    }
+    if (!$achou) {
+        $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
+        $stmt->execute([$chave]);
+        $row = $stmt->fetch();
+        if ($row) { $valor = $row['valor']; $achou = true; }
     }
 
-    $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
-    $stmt->execute([$chave]);
-    $row = $stmt->fetch();
-    return $row ? $row['valor'] : $padrao;
+    if ($usarCache) $GLOBALS['_config_cache'][$cacheKey] = $valor;
+    return $valor;
 }
 
 function saveConfig($chave, $valor) {
@@ -74,7 +110,9 @@ function saveConfig($chave, $valor) {
     }
     $stmt = $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (?, ?, ?)
         ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
-    return $stmt->execute([$adminId, $chave, $valor]);
+    $ok = $stmt->execute([$adminId, $chave, $valor]);
+    configCacheLimpar();
+    return $ok;
 }
 
 // Lê uma configuração global (admin_id NULL), independente da sessão.
@@ -98,6 +136,7 @@ function salvarConfigGlobal($chave, $valor) {
     $chave = (string) $chave;
     $stmt = $pdo->prepare("DELETE FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
     if (!$stmt->execute([$chave])) return false;
+    configCacheLimpar();
 
     // Valor vazio = remove a configuração (comportamento equivalente de "não exibir").
     if (trim((string) $valor) === '') {

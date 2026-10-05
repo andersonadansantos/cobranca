@@ -115,6 +115,8 @@ $GLOBALS['painel_pt'] = [
     'tb.abrir_subdominio' => 'Abrir subdomínio',
     'tb.abrir_area_usuario' => 'Abrir área do usuário',
     'tb.gratuito' => '7 dias gratuitos',
+    'tb.plano_atual' => 'Plano atual',
+    'tb.sem_plano_cartao' => 'Nenhum plano ativo',
     'tb.sem_vencimento' => 'Acesso contínuo',
     'tb.plano_contratado' => 'Plano contratado, sem vencimento próximo.',
 
@@ -386,6 +388,8 @@ $GLOBALS['painel_es'] = [
     'tb.abrir_subdominio' => 'Abrir subdominio',
     'tb.abrir_area_usuario' => 'Abrir área del usuario',
     'tb.gratuito' => '7 días gratuitos',
+    'tb.plano_atual' => 'Plan actual',
+    'tb.sem_plano_cartao' => 'Ningún plan activo',
     'tb.sem_vencimento' => 'Acceso continuo',
     'tb.plano_contratado' => 'Plan contratado, sin vencimiento próximo.',
 

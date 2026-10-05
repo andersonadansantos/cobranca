@@ -39,16 +39,16 @@ if (!headers_sent()) {
 }
 
 // =====================================================
-// REGRA DE SUBDOMÍNIO -> PAINEL ADMIN (/admin)
+// REGRA DE SUBDOMÍNIO -> LOGIN DO USUÁRIO (/usuario/login.php)
 // O subdomínio criado no cadastro NÃO tem site público. Todo visitante em
 // qualquer página pública do subdomínio (raiz, planos, cadastro, demo,
-// pagamento) é redirecionado DIRETO para o /admin do painel daquele tenant.
-// As áreas do tenant continuam apenas em {subdominio}/admin e {subdominio}/usuario.
+// pagamento) é redirecionado DIRETO para o login do USUÁRIO daquele tenant.
+// As áreas do tenant continuam apenas em {subdominio}/usuario e {subdominio}/admin.
 //
 // IMPORTANTE: o redirecionamento vale para QUALQUER subdomínio do domínio base
 // (cadastrado hoje ou no futuro), não apenas para tenants com admin ativo já
 // cadastrado. Assim o subdomínio de um cliente recém-cadastrado também cai
-// direto no /admin, em vez de abrir o site público.
+// direto no login do usuário, em vez de abrir o site público.
 // =====================================================
 function siteEhTenantSubdominio() {
     $host = preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? '')));
@@ -65,10 +65,10 @@ function siteEhTenantSubdominio() {
 }
 
 // =====================================================
-// EXECUÇÃO DO REDIRECT: subdomínio -> /admin
+// EXECUÇÃO DO REDIRECT: subdomínio -> /usuario/login.php
 // A função acima apenas DETECTA; este bloco dispara o salto.
 // Qualquer página pública do subdomínio (raiz, planos, cadastro,
-// demo, pagamento) cai DIRETO no /admin do painel daquele tenant.
+// demo, pagamento) cai DIRETO no login do USUÁRIO daquele tenant.
 // O `/admin` e `/usuario` têm bootstrap próprio (config/database.php)
 // e NÃO incluem _site.php, então não há risco de loop.
 // =====================================================
@@ -78,33 +78,11 @@ if ($__siteSub !== false && trim((string)$__siteSub) !== 'www' && trim((string)$
         || ((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
         ? 'https' : 'http';
     $__base = strtolower(ltrim((string)getBaseDomain(), '.'));
-    $__dest = $__proto . '://' . $__siteSub . '.' . $__base . siteAsset('/admin/login.php');
+    $__dest = $__proto . '://' . $__siteSub . '.' . $__base . siteAsset('/usuario/login.php');
     header('Location: ' . $__dest, true, 301);
     exit;
 }
 unset($__siteSub, $__proto, $__base, $__dest);
-
-// =====================================================
-// EXECUÇÃO DO REDIRECT: subdomínio do tenant -> /admin
-// A função acima apenas DETECTA; este bloco dispara o salto
-// em qualquer página pública do subdomínio (raiz, planos,
-// cadastro, demo, pagamento), porque _site.php é o bootstrap
-// compartilhado dessas páginas. O /admin e /usuario têm
-// bootstrap próprio (config/database.php) e NÃO incluem este
-// arquivo, portanto não há risco de loop de redirecionamento.
-// =====================================================
-$__siteSub = siteEhTenantSubdominio();
-if ($__siteSub !== false && trim((string)$__siteSub) !== '') {
-    $__siteProto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || ((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
-        ? 'https' : 'http';
-    $__siteBase = strtolower(ltrim((string)getBaseDomain(), '.'));
-    $__siteDest = $__siteProto . '://' . $__siteSub . '.' . $__siteBase
-        . siteAsset('/admin/login.php');
-    header('Location: ' . $__siteDest, true, 301);
-    exit;
-}
-unset($__siteSub, $__siteProto, $__siteBase, $__siteDest);
 
 // =====================================================
 // IDIOMAS DO SITE
@@ -213,6 +191,7 @@ function siteTrad() {
         'nav_duvidas' => 'Dúvidas',
         'nav_demo' => 'Ver demo',
         'nav_painel' => 'Abrir painel',
+        'nav_login' => 'Login',
         'nav_criar' => 'Criar conta grátis',
         // HERO
         'hero_badge' => 'Cobrança automática via WhatsApp e e-mail',
@@ -464,6 +443,7 @@ function siteTrad() {
         'nav_duvidas' => 'Dudas',
         'nav_demo' => 'Ver demo',
         'nav_painel' => 'Abrir panel',
+        'nav_login' => 'Login',
         'nav_criar' => 'Crear cuenta gratis',
         // HERO
         'hero_badge' => 'Cobranza automática por WhatsApp y correo',
@@ -1195,6 +1175,7 @@ function siteHeader($secao = '') {
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 9.563c0-.82.745-1.46 1.55-1.33.85.14 1.25.63 1.25 1.02 0 .78-2.25 1.24-2.25 2.94a.873.873 0 001.66.39M12 14.5v.01"/></svg>
                 <?= siteT('nav_demo') ?>
             </a>
+            <a href="<?= siteAsset('/admin') ?>" class="inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-brand-300 hover:text-brand-700 transition"><?= siteT('nav_login') ?></a>
             <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="rounded-full px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-200 transition"><?= siteT('nav_criar') ?></a>
             <button type="button" id="menu-mobile-btn" aria-label="Menu" aria-expanded="false"
                     class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-700 cursor-pointer">
@@ -1208,6 +1189,7 @@ function siteHeader($secao = '') {
         <a href="<?= siteAsset('/planos.php') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"><?= siteT('nav_planos') ?></a>
         <a href="<?= siteAsset('/#faq') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"><?= siteT('nav_duvidas') ?></a>
         <a href="<?= siteAsset('/demo.php') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-bold text-brand-700 hover:bg-brand-50"><?= siteT('nav_demo') ?></a>
+        <a href="<?= siteAsset('/admin') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 border border-slate-200 hover:bg-slate-50"><?= siteT('nav_login') ?></a>
         <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="mt-2 block rounded-xl px-4 py-3 text-center text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700"><?= siteT('nav_criar') ?></a>
     </div>
     <script>
