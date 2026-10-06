@@ -546,6 +546,171 @@ function getConnection() {
             ) ENGINE=InnoDB");
         } catch (PDOException $e) {}
 
+        // === MIGRAÇÃO: motor de recorrência ===
+        // Separação entre competência / emissão / vencimento, ancora do dia e
+        // idempotência por competência.
+        //
+        //   faturas.competencia      competência do ciclo (data-base da regra).
+        //                            UNIQUE(fatura_recorrente_id, competencia)
+        //                            é a garantia de que o cron nunca emita
+        //                            duas vezes a mesma cobrança, mesmo com
+        //                            duas execuções simultâneas.
+        //   dia_ancora               dia do mês originalmente escolhido. É o
+        //                            que impede a data de escorregar
+        //                            (31/01 -> 28/02 -> 28/03).
+        //   data_proxima_fatura     a competência a processar. O cron só
+        //                            consulta; nunca redefine a periodicidade.
+        //   data_ultima_fatura      última competência efetivamente emitida.
+        //   antecedencia_emissao    emitir N dias antes do vencimento. Regra
+        //                            separada da periodicidade: adiantar a
+        //                            emissão não mexe na data-base.
+        //   dias_vencimento         dias entre competência e vencimento
+        //                            (0 = vence na própria competência).
+        //   politica_atraso          'todas' emite todas as competências
+        //                            pendentes; 'mais_recente' emite só a
+        //                            última. Configurável por recorrência.
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `dia_ancora` TINYINT DEFAULT NULL AFTER `dia_vencimento`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `data_proxima_fatura` DATE DEFAULT NULL AFTER `data_fim`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `data_ultima_fatura` DATE DEFAULT NULL AFTER `data_proxima_fatura`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `antecedencia_emissao` INT NOT NULL DEFAULT 0 AFTER `quantidade_transacoes`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `dias_vencimento` INT NOT NULL DEFAULT 0 AFTER `antecedencia_emissao`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `politica_atraso` VARCHAR(20) NOT NULL DEFAULT 'todas' AFTER `dias_vencimento`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `tentativas_erro` INT NOT NULL DEFAULT 0 AFTER `politica_atraso`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `ultimo_erro` TEXT DEFAULT NULL AFTER `tentativas_erro`"); } catch (PDOException $e) {}
+
+        // `competencia` na fatura: a competência do ciclo, que é o que a
+        // idempotência compara. Para as faturas já existentes a competência
+        // coincide com o vencimento (comportamento antigo), então o backfill
+        // mantém a semântica e não mexe em dinheiro.
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `competencia` DATE DEFAULT NULL AFTER `data_vencimento`"); } catch (PDOException $e) {}
+        try {
+            $pdo->exec("UPDATE `faturas` SET `competencia` = `data_vencimento` WHERE (`competencia` IS NULL OR `competencia` = '0000-00-00') AND `data_vencimento` IS NOT NULL AND `fatura_recorrente_id` IS NOT NULL");
+        } catch (PDOException $e) {}
+
+        // A UNIQUE só é criada se não houver duplicidade. Nunca se apaga fatura
+        // para satisfazer índice: se houver duplicidade, o motor continua
+        // protegido pela verificação por competência e o problema fica
+        // registrado para decisão manual.
+        try {
+            $colunas = [];
+            foreach ($pdo->query("SHOW COLUMNS FROM `faturas`")->fetchAll() as $c) $colunas[] = $c['Field'];
+            $temIdx = false;
+            foreach ($pdo->query("SHOW INDEX FROM `faturas`")->fetchAll() as $i) {
+                if ($i['Key_name'] === 'uq_recorrencia_competencia') $temIdx = true;
+            }
+            if (!$temIdx && in_array('competencia', $colunas, true)) {
+                $dup = (int)$pdo->query("SELECT COUNT(*) FROM (
+                    SELECT fatura_recorrente_id, competencia FROM faturas
+                    WHERE fatura_recorrente_id IS NOT NULL AND competencia IS NOT NULL
+                    GROUP BY fatura_recorrente_id, competencia HAVING COUNT(*) > 1
+                ) d")->fetchColumn();
+                if ($dup === 0) {
+                    $pdo->exec("ALTER TABLE `faturas` ADD UNIQUE KEY `uq_recorrencia_competencia` (`fatura_recorrente_id`, `competencia`)");
+                } else {
+                    error_log("[RECORRENCIA] {$dup} competencia(s) duplicada(s): UNIQUE nao criada. Resolver manualmente antes de confiar no banco.");
+                    $pdo->prepare("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES (?, ?)")
+                        ->execute(['recorrencia_competencia_duplicada', (string)$dup]);
+                }
+            }
+        } catch (PDOException $e) {}
+
+        // A lapide passa a guardar a competência (e não só o vencimento), para
+        // continuar barrando a mesma cobrança depois das mudanças acima.
+        try { $pdo->exec("ALTER TABLE `faturas_excluidas` ADD COLUMN `competencia` DATE DEFAULT NULL AFTER `numero`"); } catch (PDOException $e) {}
+        try { $pdo->exec("UPDATE `faturas_excluidas` SET `competencia` = `data_vencimento` WHERE (`competencia` IS NULL OR `competencia` = '0000-00-00')"); } catch (PDOException $e) {}
+
+        // Trilha de auditoria das execuções do cron.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `cron_execucoes` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `execucao_id` VARCHAR(40) NOT NULL,
+                `inicio` DATETIME NOT NULL,
+                `fim` DATETIME DEFAULT NULL,
+                `origem` VARCHAR(40) DEFAULT NULL,
+                `recorrencias_processadas` INT NOT NULL DEFAULT 0,
+                `faturas_emitidas` INT NOT NULL DEFAULT 0,
+                `ignoradas` INT NOT NULL DEFAULT 0,
+                `erros` INT NOT NULL DEFAULT 0,
+                `resultado` VARCHAR(20) DEFAULT 'em_andamento',
+                `mensagem` TEXT DEFAULT NULL,
+                UNIQUE KEY `uq_cron_execucao` (`execucao_id`),
+                KEY `idx_cron_exec_inicio` (`inicio`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // Trilha por cobrança processada (spec: auditoria por assinatura).
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `cron_log` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `execucao_id` VARCHAR(40) NOT NULL,
+                `admin_id` INT DEFAULT NULL,
+                `fatura_recorrente_id` INT DEFAULT NULL,
+                `cliente_id` INT DEFAULT NULL,
+                `frequencia` VARCHAR(20) DEFAULT NULL,
+                `competencia` DATE DEFAULT NULL,
+                `data_vencimento` DATE DEFAULT NULL,
+                `fatura_id` INT DEFAULT NULL,
+                `numero` VARCHAR(20) DEFAULT NULL,
+                `valor` DECIMAL(10,2) DEFAULT NULL,
+                `proxima_competencia` DATE DEFAULT NULL,
+                `resultado` VARCHAR(30) NOT NULL,
+                `mensagem` TEXT DEFAULT NULL,
+                `criado_em` DATETIME NOT NULL,
+                KEY `idx_cronlog_exec` (`execucao_id`),
+                KEY `idx_cronlog_rec` (`fatura_recorrente_id`, `criado_em`),
+                KEY `idx_cronlog_resultado` (`resultado`, `criado_em`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // Regras de valor vigentes por data de competência (spec §16): reajuste
+        // programado, desconto, juros e multa. A fatura sempre lê a regra que
+        // valia na data da competência dela, nunca "copia" a anterior.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `recorrencia_ajustes` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `fatura_recorrente_id` INT NOT NULL,
+                `descricao` VARCHAR(200) DEFAULT NULL,
+                `data_vigencia` DATE NOT NULL,
+                `percentual` DECIMAL(6,3) DEFAULT NULL,
+                `valor` DECIMAL(10,2) DEFAULT NULL,
+                `desconto` DECIMAL(10,2) DEFAULT NULL,
+                `multa` DECIMAL(10,2) DEFAULT NULL,
+                `juros` DECIMAL(6,3) DEFAULT NULL,
+                `ativo` TINYINT(1) NOT NULL DEFAULT 1,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                KEY `idx_ajustes_rec_vig` (`fatura_recorrente_id`, `data_vigencia`, `ativo`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // Periodicidades: exatamente as sete do motor. 'bimestral' saiu do
+        // ENUM (não é uma das periodicidades suportadas).
+        try {
+            $temBimestral = (int)$pdo->query("SELECT COUNT(*) FROM `faturas_recorrentes` WHERE `frequencia` = 'bimestral'")->fetchColumn();
+            if ($temBimestral > 0) {
+                // Não há equivalente exato: o mais próximo que o motor suporta
+                // é trimestral. Fica registrado em configuracoes.
+                $pdo->exec("UPDATE `faturas_recorrentes` SET `frequencia` = 'trimestral' WHERE `frequencia` = 'bimestral'");
+                $pdo->prepare("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES (?, ?)")
+                    ->execute(['recorrencia_bimestral_migrada', (string)$temBimestral]);
+                error_log("[RECORRENCIA] {$temBimestral} recorrencia(s) bimestral migrada(s) para trimestral.");
+            }
+        } catch (PDOException $e) {}
+        try {
+            $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','trimestral','semestral','anual') NOT NULL DEFAULT 'mensal'");
+        } catch (PDOException $e) {}
+
+        // Ancora das recorrências existentes. Para as de dia (diaria/semanal/
+        // quinzenal) a ancora não entra no cálculo, então usar o dia de
+        // data_inicio é inofensivo. Para as mensais o dia_vencimento é a
+        // intenção original e passa a valer de verdade.
+        try {
+            $pdo->exec("UPDATE `faturas_recorrentes`
+                SET `dia_ancora` = CASE
+                    WHEN `dia_vencimento` BETWEEN 1 AND 31 THEN `dia_vencimento`
+                    ELSE DAY(`data_inicio`) END
+                WHERE `dia_ancora` IS NULL OR `dia_ancora` NOT BETWEEN 1 AND 31");
+        } catch (PDOException $e) {}
+
         $dsn2 = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
         $pdo = new PDO($dsn2, DB_USER, DB_PASS, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
