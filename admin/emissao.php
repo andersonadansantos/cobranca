@@ -668,10 +668,9 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Frequência</label>
-<select name="frequencia" class="form-select">
+                        <select name="frequencia" class="form-select">
                             <option value="unica">Fatura Única</option>
-                            <?php foreach (recorrenciaOpcoes() as $fq): ?>
-                                <?php if ($fq === 'unica') continue; ?>
+                            <?php foreach (['diaria', 'semanal', 'quinzenal', 'mensal', 'trimestral', 'semestral'] as $fq): ?>
                                 <option value="<?= $fq ?>"><?= htmlspecialchars(recorrenciaRotulo($fq)) ?></option>
                             <?php endforeach; ?>
                         </select>
