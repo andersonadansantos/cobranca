@@ -13,12 +13,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'salvar_inter') {
-        $pdo = getConnection();
         $campos = ['super_inter_client_id', 'super_inter_client_secret', 'super_inter_conta', 'super_inter_webhook_url'];
         foreach ($campos as $campo) {
             $valor = trim($_POST[$campo] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-            $stmt->execute([$campo, $valor, $valor]);
+            // salvarConfigGlobal deduplica (admin_id NULL nao colide no UNIQUE);
+            // o INSERT ... ON DUPLICATE anterior criava uma linha nova a cada save.
+            salvarConfigGlobal($campo, $valor);
         }
 
         $certDir = __DIR__ . '/../config/inter_certs_super';
@@ -37,8 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $destino = $certDir . '/' . $nomeArquivo;
                 if (move_uploaded_file($_FILES[$campo]['tmp_name'], $destino)) {
-                    $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
-                    $stmt->execute([$campo, $destino, $destino]);
+                    salvarConfigGlobal($campo, $destino);
                 } else {
                     $mensagem = 'Erro ao enviar arquivo ' . $nomeArquivo;
                     $tipo = 'danger';
@@ -103,6 +102,10 @@ $temCredenciais = !empty($config['super_inter_client_id']) && !empty($config['su
 
 $mpConfigSuper = getMPConfigSuper();
 $temCredenciaisMp = !empty($mpConfigSuper['super_mp_access_token']);
+
+// URLs de webhook pré-configuradas (dominio base_domain / centraldefaturas.com.br).
+$superInterWebhookPadrao = webhookUrlPadrao('webhook_pix_plano.php');
+$superMpWebhookPadrao = webhookUrlPadrao('webhook_mp_plano.php');
 
 $planoApiAtiva = planoPagamentoAtivo();
 
@@ -391,8 +394,8 @@ include __DIR__ . '/includes/sidebar.php';
                                         <div class="col-md-6">
                                             <label class="form-label">URL do Webhook</label>
                                             <input type="url" name="super_inter_webhook_url" class="form-control"
-                                                placeholder="https://seudominio.com/cobranca/api/webhook_pix_plano.php"
-                                                value="<?= htmlspecialchars($config['super_inter_webhook_url'] ?? '') ?>">
+                                                placeholder="<?= htmlspecialchars($superInterWebhookPadrao) ?>"
+                                                value="<?= htmlspecialchars(!empty($config['super_inter_webhook_url']) ? $config['super_inter_webhook_url'] : $superInterWebhookPadrao) ?>">
                                             <small class="text-muted">URL para confirmar pagamentos de planos</small>
                                         </div>
                                         <div class="col-md-6">
@@ -517,8 +520,8 @@ include __DIR__ . '/includes/sidebar.php';
                                         <div class="col-12">
                                             <label class="form-label">URL do Webhook</label>
                                             <input type="url" name="super_mp_webhook_url" class="form-control"
-                                                placeholder="https://seudominio.com/cobranca/api/webhook_mp_plano.php"
-                                                value="<?= htmlspecialchars($mpConfigSuper['super_mp_webhook_url'] ?? '') ?>">
+                                                placeholder="<?= htmlspecialchars($superMpWebhookPadrao) ?>"
+                                                value="<?= htmlspecialchars(!empty($mpConfigSuper['super_mp_webhook_url']) ? $mpConfigSuper['super_mp_webhook_url'] : $superMpWebhookPadrao) ?>">
                                             <small class="text-muted">URL para confirmar pagamentos de planos via Mercado Pago</small>
                                         </div>
                                     </div>

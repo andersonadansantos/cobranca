@@ -126,6 +126,26 @@ function getConfigGlobal($chave, $padrao = '') {
     return $row ? $row['valor'] : $padrao;
 }
 
+// URL pública do sistema, usada para montar as URLs de webhook
+// pré-configuradas nos paineis. Usa a config base_domain
+// (ex.: centraldefaturas.com.br) e cai para o dominio padrao quando vazia.
+function urlPublicaSistema() {
+    $dominio = trim((string) getConfig('base_domain', ''));
+    if ($dominio === '') {
+        $dominio = 'centraldefaturas.com.br';
+    }
+    $dominio = preg_replace('#^https?://#i', '', $dominio);
+    $dominio = rtrim($dominio, '/');
+    return 'https://' . $dominio;
+}
+
+// Monta a URL padrao de um endpoint de webhook do sistema.
+// Ex.: webhookUrlPadrao('webhook_inter.php')
+//      => https://centraldefaturas.com.br/cobranca/api/webhook_inter.php
+function webhookUrlPadrao($arquivo) {
+    return urlPublicaSistema() . '/cobranca/api/' . ltrim((string) $arquivo, '/');
+}
+
 // Grava uma configuração global (admin_id NULL), independente da sessão.
 // Obs.: a UNIQUE(admin_id, chave) não vale para admin_id NULL no MySQL (NULLs
 // não colidem), então o ON DUPLICATE nunca atualiza. Garantimos uma única

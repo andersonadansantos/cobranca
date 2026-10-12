@@ -125,6 +125,11 @@ $config = getAllConfig();
 $mpConfig = getMPConfig();
 $apiAtiva = $config['api_pagamento_ativa'] ?? 'mercadopago';
 
+// URLs de webhook pré-configuradas (dominio base_domain / centraldefaturas.com.br).
+$mpWebhookPadrao = webhookUrlPadrao('webhook.php');
+$interWebhookPadrao = webhookUrlPadrao('webhook_inter.php');
+$asaasWebhookPadrao = webhookUrlPadrao('webhook_asaas.php');
+
 $pageTitle = 'API de Pagamento';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/sidebar_admin.php';
@@ -246,8 +251,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 <div class="col-12">
                                     <label class="form-label">URL do Webhook</label>
                                     <input type="url" name="mp_webhook_url" class="form-control"
-                                        placeholder="https://seudominio.com/cobranca/api/webhook.php"
-                                        value="<?= htmlspecialchars($mpConfig['mp_webhook_url'] ?? '') ?>">
+                                        placeholder="<?= htmlspecialchars($mpWebhookPadrao) ?>"
+                                        value="<?= htmlspecialchars(!empty($mpConfig['mp_webhook_url']) ? $mpConfig['mp_webhook_url'] : $mpWebhookPadrao) ?>">
                                     <small class="text-muted">URL para receber notificações de pagamento</small>
                                 </div>
                                 <div class="col-12">
@@ -350,9 +355,9 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">URL do Webhook</label>
-                                    <input type="url" name="inter_webhook_url" class="form-control"
-                                        placeholder="https://seudominio.com/cobranca/api/webhook_inter.php"
-                                        value="<?= htmlspecialchars($config['inter_webhook_url'] ?? '') ?>">
+                            <input type="url" name="inter_webhook_url" class="form-control"
+                                placeholder="<?= htmlspecialchars($interWebhookPadrao) ?>"
+                                value="<?= htmlspecialchars(!empty($config['inter_webhook_url']) ? $config['inter_webhook_url'] : $interWebhookPadrao) ?>">
                                     <small class="text-muted">URL para receber notificações</small>
                                 </div>
                                 <div class="col-md-6">
@@ -580,8 +585,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <div>
                                     <label class="form-label">URL do Webhook</label>
                                     <input type="url" name="asaas_webhook_url" class="form-control"
-                                        placeholder="https://seudominio.com/cobranca/api/webhook_asaas.php"
-                                        value="<?= htmlspecialchars($asaasConfig['asaas_webhook_url'] ?? '') ?>">
+                                        placeholder="<?= htmlspecialchars($asaasWebhookPadrao) ?>"
+                                        value="<?= htmlspecialchars(!empty($asaasConfig['asaas_webhook_url']) ? $asaasConfig['asaas_webhook_url'] : $asaasWebhookPadrao) ?>">
                                     <small class="form-text">Cadastre no painel do Asaas para receber confirmações de pagamento</small>
                                 </div>
                             </div>
