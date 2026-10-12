@@ -409,6 +409,17 @@ function motorProcessarRecorrencia($pdo, array $rec, array &$ctx) {
     $recId = (int)$rec['id'];
     $hoje = $ctx['hoje'];
 
+    // Contexto de tenant (admin) da recorrencia: o motor roda DEPOIS da regua
+    // de baixas do cron, entao o $_SESSION['tenant_admin_id'] ainda aponta para
+    // o admin da ULTIMA fatura consultada (ou para nenhum). Sem fixar o admin
+    // dono da recorrencia, getConfig() resolve gateway de pagamento, api ativa
+    // e demais configuracoes com o admin errado (ou com a global). O cron fixa
+    // o contexto via cronTenantContext(); fora do cron a funcao nao existe e o
+    // motor simplesmente nao mexe em sessao.
+    if (function_exists('cronTenantContext')) {
+        cronTenantContext((int)($rec['admin_id'] ?? 0));
+    }
+
     $logBase = [
         'execucao_id'        => $ctx['execucao_id'],
         'admin_id'           => $rec['admin_id'] ?? null,
@@ -547,9 +558,27 @@ function motorProcessarRecorrencia($pdo, array $rec, array &$ctx) {
 
                 // Pagamento e uma etapa separada: falhar no gateway nao
                 // desfaz a fatura, que ja esta registrada e entra na regua.
+                //
+                // O callback recebe a FATURA COMPLETA no primeiro argumento (id
+                // e numero recem-gerados, valor_final calculado e os dados do
+                // cliente). Antes o motor passava o $pdo como primeiro argumento
+                // e o callback, que espera a fatura, nunca gerava o pagamento:
+                // caia sempre em 'pagamento_erro' e a fatura recorrente nascia
+                // sem PIX/link. Os demais argumentos (pdo, recorrencia, cliente)
+                // ficam disponiveis para callbacks que precisem de contexto.
                 if (!empty($ctx['gerar_pagamento']) && is_callable($ctx['gerar_pagamento'])) {
                     try {
-                        call_user_func($ctx['gerar_pagamento'], $pdo, $r['fatura_id'], $rec, $cliente);
+                        $faturaCompleta = $rec;
+                        $faturaCompleta['id'] = $r['fatura_id'];
+                        $faturaCompleta['numero'] = $r['numero'];
+                        $faturaCompleta['valor_final'] = $r['valor'];
+                        $faturaCompleta['data_vencimento'] = $r['vencimento'] ?? $competencia;
+                        if ($cliente) {
+                            foreach (['nome_razao', 'email', 'email2', 'celular', 'telefone', 'cpf_cnpj'] as $campoCli) {
+                                if (array_key_exists($campoCli, $cliente)) $faturaCompleta[$campoCli] = $cliente[$campoCli];
+                            }
+                        }
+                        call_user_func($ctx['gerar_pagamento'], $faturaCompleta, $pdo, $rec, $cliente);
                     } catch (Throwable $ePag) {
                         motorLog($pdo, $ctx['execucao_id'], $logBase + [
                             'resultado' => 'pagamento_erro',
