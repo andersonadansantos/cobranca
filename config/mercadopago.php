@@ -981,20 +981,50 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $d
         }
         $cli = $stmt->fetch();
     }
-    $cpfCnpj = $cli ? preg_replace('/[^0-9]/', '', $cli['cpf_cnpj'] ?? '') : '00000000000';
-    $tipoPessoa = strlen($cpfCnpj) === 11 ? 'FISICA' : 'JURIDICA';
+    // Endereco do pagador: o que o cliente tiver manda; o que faltar cai para o
+    // endereco da empresa (admin). Antes, um cliente sem CEP ia com "00000000"
+    // (a zero-padding anulava o fallback) e o Inter recusava a cobranca inteira
+    // ("O campo cep possui caracteres invalidos"), de modo que a fatura nascia
+    // sem PIX e o e-mail de cobranca saia sem o codigo copia-e-cola.
+    $adminDados = null;
+    if ($adminCtx > 0 && $pdo) {
+        $stmtAdmin = $pdo->prepare("SELECT cnpj, cpf, cep, logradouro, numero, bairro, cidade, estado FROM administradores WHERE id = ? LIMIT 1");
+        $stmtAdmin->execute([$adminCtx]);
+        $adminDados = $stmtAdmin->fetch() ?: null;
+    }
+    $campoPagador = function ($chave, $default = '') use ($cli, $adminDados) {
+        $v = trim((string) ($cli[$chave] ?? ''));
+        if ($v !== '') { return $v; }
+        $v = trim((string) ($adminDados[$chave] ?? ''));
+        return $v !== '' ? $v : $default;
+    };
+
+    $cpfCnpj = $cli ? preg_replace('/[^0-9]/', '', $cli['cpf_cnpj'] ?? '') : '';
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        $cpfAdmin = preg_replace('/[^0-9]/', '', ($adminDados['cnpj'] ?? '') ?: ($adminDados['cpf'] ?? ''));
+        if (strlen($cpfAdmin) === 11 || strlen($cpfAdmin) === 14) {
+            $cpfCnpj = $cpfAdmin;
+        }
+    }
+    if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
+        $cpfCnpj = '00000000000';
+    }
+    $cep = preg_replace('/[^0-9]/', '', $campoPagador('cep'));
+    if (strlen($cep) !== 8) {
+        $cep = '01001000';
+    }
     $pagador = [
-        'cpfCnpj' => $cpfCnpj ?: '00000000000',
-        'tipoPessoa' => $tipoPessoa,
+        'cpfCnpj' => $cpfCnpj,
+        'tipoPessoa' => strlen($cpfCnpj) === 11 ? 'FISICA' : 'JURIDICA',
         'nome' => mb_substr($cli['nome_razao'] ?? ($clienteNome ?: 'Pagador'), 0, 60),
         'email' => $cli['email'] ?? ($clienteEmail ?: ''),
-        'endereco' => mb_substr($cli['logradouro'] ?? 'NAO INFORMADO', 0, 100),
-        'numero' => $cli['numero'] ?? '0',
-        'complemento' => $cli['complemento'] ?? '',
-        'bairro' => mb_substr($cli['bairro'] ?? 'NAO INFORMADO', 0, 50),
-        'cidade' => mb_substr($cli['cidade'] ?? 'SAO PAULO', 0, 60),
-        'uf' => substr(preg_replace('/[^A-Za-z]/', '', $cli['estado'] ?? 'SP'), 0, 2) ?: 'SP',
-        'cep' => str_pad(preg_replace('/[^0-9]/', '', $cli['cep'] ?? ''), 8, '0', STR_PAD_LEFT) ?: '01000000',
+        'endereco' => mb_substr($campoPagador('logradouro', 'NAO INFORMADO'), 0, 100),
+        'numero' => mb_substr($campoPagador('numero', '0'), 0, 10) ?: '0',
+        'complemento' => (string) ($cli['complemento'] ?? ''),
+        'bairro' => mb_substr($campoPagador('bairro', 'CENTRO'), 0, 50),
+        'cidade' => mb_substr($campoPagador('cidade', 'SAO PAULO'), 0, 60),
+        'uf' => substr(preg_replace('/[^A-Za-z]/', '', $campoPagador('estado', 'SP')), 0, 2) ?: 'SP',
+        'cep' => $cep,
     ];
     $prazo = interPrazoCobranca($dataVencimento);
     $dados = [
