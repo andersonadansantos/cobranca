@@ -198,11 +198,13 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <input type="hidden" name="acao" value="logo">
                         <p class="text-muted mb-3" style="font-size:0.85rem;">Esta logo aparece somente na tela de login do cliente (área do pagador) no computador.</p>
                         
-                        <?php if (!empty($config['logo_empresa'])): ?>
+                        <?php if (!empty($config['logo_empresa']) && logoPathValido($config['logo_empresa'])): ?>
                             <div class="text-center mb-3">
                                 <img src="<?= htmlspecialchars($config['logo_empresa']) ?>" alt="Logo Atual" style="max-width: 250px;">
                                 <br><small class="text-muted">Logo atual (Login do Cliente - Computador)</small>
                             </div>
+                        <?php elseif (!empty($config['logo_empresa'])): ?>
+                            <div class="alert alert-warning py-2" style="font-size:0.8rem;"><i class="fas fa-triangle-exclamation me-1"></i> A logo anterior foi removida do servidor. Envie novamente.</div>
                         <?php endif; ?>
                         
                         <div class="mb-3">
@@ -223,11 +225,13 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <input type="hidden" name="acao" value="logo_mobile">
                         <p class="text-muted mb-3" style="font-size:0.85rem;">Esta logo aparece somente na tela de login do cliente no celular (app).</p>
                         
-                        <?php if (!empty($config['logo_mobile'])): ?>
+                        <?php if (!empty($config['logo_mobile']) && logoPathValido($config['logo_mobile'])): ?>
                             <div class="text-center mb-3">
                                 <img src="<?= htmlspecialchars($config['logo_mobile']) ?>" alt="Logo Mobile Atual" style="max-width: 200px;">
                                 <br><small class="text-muted">Logo atual (Login do Cliente - Mobile)</small>
                             </div>
+                        <?php elseif (!empty($config['logo_mobile'])): ?>
+                            <div class="alert alert-warning py-2" style="font-size:0.8rem;"><i class="fas fa-triangle-exclamation me-1"></i> A logo anterior foi removida do servidor. Envie novamente.</div>
                         <?php endif; ?>
                         
                         <div class="mb-3">
@@ -248,11 +252,13 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         <input type="hidden" name="acao" value="logo_painel">
                         <p class="text-muted mb-3" style="font-size:0.85rem;">Esta logo aparece no recibo e no cabeçalho do painel administrativo.</p>
                         
-                        <?php if (!empty($config['logo_empresa_admin'])): ?>
+                        <?php if (!empty($config['logo_empresa_admin']) && logoPathValido($config['logo_empresa_admin'])): ?>
                             <div class="text-center mb-3">
                                 <img src="<?= htmlspecialchars($config['logo_empresa_admin']) ?>" alt="Logo da Empresa Atual" style="max-width: 200px;">
                                 <br><small class="text-muted">Logo atual da empresa</small>
                             </div>
+                        <?php elseif (!empty($config['logo_empresa_admin'])): ?>
+                            <div class="alert alert-warning py-2" style="font-size:0.8rem;"><i class="fas fa-triangle-exclamation me-1"></i> A logo anterior foi removida do servidor. Envie novamente.</div>
                         <?php endif; ?>
                         
                         <div class="mb-3">

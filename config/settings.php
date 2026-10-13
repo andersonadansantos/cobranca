@@ -420,20 +420,28 @@ function getLogoLoginGlobal() {
     return logoPathValido($logo) ? $logo : '';
 }
 
-// Logo do LOGIN DO CLIENTE (desktop): é o "Logo da Empresa" da personalização
-// do admin (logo_empresa). Cai para a marca global se o admin não enviou.
+// Logo do LOGIN DO CLIENTE (desktop): mostra a "Logo da Empresa" do admin
+// (logo_empresa_admin). Se o admin não enviou, cai para a antiga "Logo do Login
+// do Cliente (Computador)" (logo_empresa) e, por fim, para a marca global.
 function getLogoClienteLogin() {
-    $logo = getConfig('logo_empresa', '');
+    $logo = getConfig('logo_empresa_admin', '');
+    if (!logoPathValido($logo)) {
+        $logo = getConfig('logo_empresa', '');
+    }
     if (!logoPathValido($logo)) {
         $logo = getLogoLoginGlobal();
     }
     return $logo;
 }
 
-// Logo do LOGIN DO CLIENTE (mobile/app): é o "Logo Versão Mobile" da
-// personalização do admin (logo_mobile). Cai para a marca global se não houver.
+// Logo do LOGIN DO CLIENTE (mobile/app): mostra a "Logo Versão Mobile" do admin
+// (logo_mobile). Se o admin não enviou, cai para a "Logo da Empresa"
+// (logo_empresa_admin) e, por fim, para a marca global.
 function getLogoClienteLoginMobile() {
     $logo = getConfig('logo_mobile', '');
+    if (!logoPathValido($logo)) {
+        $logo = getConfig('logo_empresa_admin', '');
+    }
     if (!logoPathValido($logo)) {
         $logo = getLogoLoginGlobal();
     }

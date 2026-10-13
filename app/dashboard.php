@@ -131,7 +131,7 @@ $nomeSistema = getNomeSistema();
             $bannersMobile = [];
             for ($i = 1; $i <= 3; $i++) {
                 $m = getConfig('banner_mobile_' . $i, '');
-                if ($m) $bannersMobile[] = $m;
+                if ($m && logoPathValido($m)) $bannersMobile[] = $m;
             }
             if ($bannersMobile): ?>
                 <div class="app-banner-carousel" style="margin-bottom:16px; position:relative; border-radius:10px; overflow:hidden;">

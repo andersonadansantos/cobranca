@@ -115,7 +115,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <?php for ($i = 1; $i <= 3; $i++): ?>
                         <div class="mb-3 p-3 bg-light rounded">
                             <strong>Slot <?= $i ?></strong>
-                            <?php if ($slots[$i]): ?>
+                            <?php if ($slots[$i] && logoPathValido($slots[$i])): ?>
                                 <div class="text-center mb-2">
                                     <img src="<?= htmlspecialchars($slots[$i]) ?>" alt="Banner Desktop <?= $i ?>" style="max-width:100%; height:auto; border:1px solid #dee2e6; border-radius:6px;">
                                 </div>
@@ -149,7 +149,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <?php for ($i = 1; $i <= 3; $i++): ?>
                         <div class="mb-3 p-3 bg-light rounded">
                             <strong>Slot <?= $i ?></strong>
-                            <?php if ($slotsMobile[$i]): ?>
+                            <?php if ($slotsMobile[$i] && logoPathValido($slotsMobile[$i])): ?>
                                 <div class="text-center mb-2">
                                     <img src="<?= htmlspecialchars($slotsMobile[$i]) ?>" alt="Banner Mobile <?= $i ?>" style="max-width:100%; height:auto; border:1px solid #dee2e6; border-radius:6px;">
                                 </div>

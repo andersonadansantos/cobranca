@@ -127,8 +127,8 @@ include __DIR__ . '/../includes/sidebar_usuario.php';
         for ($i = 1; $i <= 3; $i++) {
             $d = getConfig('banner_desktop_' . $i, '');
             $m = getConfig('banner_mobile_' . $i, '');
-            if ($d) $bannersDesktop[] = $d;
-            if ($m) $bannersMobile[] = $m;
+            if ($d && logoPathValido($d)) $bannersDesktop[] = $d;
+            if ($m && logoPathValido($m)) $bannersMobile[] = $m;
         }
         if ($bannersDesktop || $bannersMobile): ?>
             <div class="mb-4">

@@ -76,6 +76,41 @@ if (!function_exists('getLogoLoginImg')) {
     }
 }
 
+if (!function_exists('getLogoEmailSrc')) {
+    // Retorna a URL ABSOLUTA da "Logo da Empresa" do admin para uso em e-mails
+    // (a imagem precisa ser acessível pelo cliente de e-mail). Cai para a marca
+    // global se o admin não tiver logo própria. Retorna '' se não houver logo.
+    function getLogoEmailSrc($adminId = null) {
+        $adminId = (int) $adminId;
+        if ($adminId <= 0) $adminId = getConfigAdminId();
+
+        $logo = getLogoEmpresaFatura($adminId > 0 ? $adminId : 0);
+        if (empty($logo)) return '';
+
+        if (strpos($logo, 'http') === 0 || strpos($logo, 'data:') === 0) {
+            return $logo;
+        }
+        $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        if ($host === '' && function_exists('getConfigGlobal')) {
+            $host = trim((string)getConfigGlobal('base_domain', ''), " \t\n\r/");
+        }
+        if ($host === '') $host = 'centraldefaturas.com.br';
+        return "{$protocolo}://{$host}{$logo}";
+    }
+}
+
+if (!function_exists('getLogoImgTagEmail')) {
+    // Apenas o <img> da logo (sem o wrapper <div>), usado para substituir a logo
+    // antiga embutida em templates já salvos. Retorna '' se não houver logo.
+    function getLogoImgTagEmail($adminId = null) {
+        $src = getLogoEmailSrc($adminId);
+        if ($src === '') return '';
+        $nome = getNomeSistema();
+        return '<img src="' . htmlspecialchars($src) . '" alt="' . htmlspecialchars($nome) . '" style="max-width:250px;max-height:120px;width:auto;height:auto;display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">';
+    }
+}
+
 if (!function_exists('getLogoTagEmail')) {
     function getLogoTagEmail($adminId = null) {
         $adminId = (int) $adminId;
@@ -94,20 +129,41 @@ if (!function_exists('getLogoTagEmail')) {
         }
 
         // Logo da empresa do admin (cai para a marca global se não houver).
-        $logo = getLogoEmpresaFatura($adminId > 0 ? $adminId : 0);
-        if (!empty($logo)) {
-            $src = $logo;
-            if (strpos($logo, 'http') !== 0 && strpos($logo, 'data:') !== 0) {
-                $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'agenciawd.com.br';
-                $src = "{$protocolo}://{$host}{$logo}";
-            }
-            return '<div style="text-align:center;margin-bottom:14px;"><img src="' . htmlspecialchars($src) . '" alt="' . htmlspecialchars($nome) . '" style="max-width:250px;max-height:120px;width:auto;height:auto;display:block;margin:0 auto;border:0;outline:none;text-decoration:none;"></div>';
+        $img = getLogoImgTagEmail($adminId > 0 ? $adminId : 0);
+        if ($img !== '') {
+            return '<div style="text-align:center;margin-bottom:14px;">' . $img . '</div>';
         }
 
         $html = '<h2 style="margin:0 0 5px 0;color:#333;font-weight:bold;font-size:22px;">' . htmlspecialchars($nome) . '</h2>';
         if ($cnpj) {
             $html .= '<p style="margin:0;color:#666;font-size:13px;">CNPJ: ' . htmlspecialchars($cnpj) . '</p>';
+        }
+        return $html;
+    }
+}
+
+if (!function_exists('aplicarLogoEmail')) {
+    // Garante que a "Logo da Empresa" do admin apareça no cabeçalho do e-mail
+    // mesmo quando o template salvo tem uma logo antiga embutida (URL fixa) ou
+    // nenhuma imagem. Ordem: {{LOGO}} -> primeira imagem de logo -> inserir.
+    function aplicarLogoEmail($html, $adminId = null) {
+        $img = getLogoImgTagEmail($adminId);
+        if ($img === '') return $html;
+
+        if (strpos($html, '{{LOGO}}') !== false) {
+            return str_replace('{{LOGO}}', $img, $html);
+        }
+
+        $padrao = '#<img\b[^>]*(?:class=["\']email-logo["\']|src=["\'][^"\']*(?:/assets/img/logo|/assets/uploads/)[^"\']*["\'])[^>]*>#i';
+        $novo = preg_replace($padrao, $img, $html, 1, $count);
+        if ($count > 0) return $novo;
+
+        // Nenhuma imagem de logo reconhecida: se não houver NENHUMA imagem,
+        // insere o bloco no topo do <body>.
+        if (stripos($html, '<img') === false) {
+            $ins = preg_replace('#(<body[^>]*>)#i', '$1<div style="text-align:center;padding:24px 24px 0 24px;">' . $img . '</div>', $html, 1, $c2);
+            if ($c2 > 0) return $ins;
+            return '<div style="text-align:center;padding:24px 24px 0 24px;">' . $img . '</div>' . $html;
         }
         return $html;
     }
@@ -151,7 +207,7 @@ if (!function_exists('montarMensagemHtml')) {
         $corPrimaria = getCorPrimaria();
 
         if (!empty($templateHtml)) {
-            $mensagemHtml = preg_replace('#<img[^>]*(?:alt=["\'](?:Logo|Logo do Sistema)["\']|class=["\']email-logo["\'])[^>]*>#i', $logoTag, $templateHtml);
+            $mensagemHtml = aplicarLogoEmail($templateHtml, $fatura['admin_id'] ?? null);
         } else {
             $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);"><div style="background:' . $corPrimaria . ';height:50px;"></div><div style="padding:30px 30px 0 30px;text-align:center;">' . $logoTag . '</div><div style="padding:20px 30px 30px 30px;">{{CONTEUDO}}</div></div></body></html>';
         }
@@ -655,7 +711,7 @@ if (!function_exists('montarMensagemPagamentoHtml')) {
         $corPrimaria = getCorPrimaria();
 
         if (!empty($templateHtml)) {
-            $mensagemHtml = preg_replace('#<img[^>]*(?:alt=["\'](?:Logo|Logo do Sistema)["\']|class=["\']email-logo["\'])[^>]*>#i', $logoTag, $templateHtml);
+            $mensagemHtml = aplicarLogoEmail($templateHtml, $fatura['admin_id'] ?? null);
         } else {
             $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);"><div style="background:' . $corPrimaria . ';height:50px;"></div><div style="padding:30px 30px 0 30px;text-align:center;">' . $logoTag . '</div><div style="padding:20px 30px 30px 30px;">{{CONTEUDO}}</div></div></body></html>';
         }
