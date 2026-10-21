@@ -112,6 +112,22 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `inter_situacao` VARCHAR(30) DEFAULT NULL AFTER `inter_codigo_solicitacao`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `inter_data_situacao` DATETIME DEFAULT NULL AFTER `inter_situacao`"); } catch (PDOException $e) {}
 
+        // === BOLETO EM LOTE (carne) ===
+        // Uma recorrência de frequência 'lote' materializa N faturas de uma vez
+        // (uma por mês) e gera um boleto para cada. Estas colunas identificam a
+        // posição de cada fatura na série e guardam os dados do boleto.
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `parcela_atual` INT DEFAULT NULL AFTER `fatura_recorrente_id`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `total_parcelas` INT DEFAULT NULL AFTER `parcela_atual`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `boleto_codigo_barras` VARCHAR(100) DEFAULT NULL AFTER `boleto_url`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `boleto_linha_digitavel` VARCHAR(100) DEFAULT NULL AFTER `boleto_codigo_barras`"); } catch (PDOException $e) {}
+        // No lote a fatura tem boleto E PIX ao mesmo tempo (cada um com seu
+        // codigo de solicitacao no Inter). O codigo do PIX fica separado para
+        // nao sobrescrever o do boleto, usado pela consulta de situacao/DDA.
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `pix_inter_codigo` VARCHAR(100) DEFAULT NULL AFTER `inter_data_situacao`"); } catch (PDOException $e) {}
+        // ENUM da frequência passa a aceitar 'lote'. Mantém 'bimestral' por
+        // compatibilidade com migração anterior.
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
+
         // Lapide das faturas excluidas. Sem ela, o cron recria e reenvia a
         // cobranca de um ciclo que o admin apagou (a fatura e DELETE e a
         // recorrencia continua ativa). Ver includes/recorrencia.php.
@@ -145,7 +161,7 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `clientes` MODIFY COLUMN `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"); } catch (PDOException $e) {}
 
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `status` VARCHAR(20) DEFAULT 'ativa' AFTER `ativo`"); } catch (PDOException $e) {}
-        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `ativo` TINYINT(1) NOT NULL DEFAULT 1"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'ativa'"); } catch (PDOException $e) {}
         try { $pdo->exec("UPDATE `faturas_recorrentes` SET `ativo` = 1, `status` = 'ativa' WHERE `ativo` IS NULL OR `status` IS NULL"); } catch (PDOException $e) {}
@@ -572,7 +588,11 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `dia_ancora` TINYINT DEFAULT NULL AFTER `dia_vencimento`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `data_proxima_fatura` DATE DEFAULT NULL AFTER `data_fim`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `data_ultima_fatura` DATE DEFAULT NULL AFTER `data_proxima_fatura`"); } catch (PDOException $e) {}
-        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `antecedencia_emissao` INT NOT NULL DEFAULT 0 AFTER `quantidade_transacoes`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `antecedencia_emissao` INT NOT NULL DEFAULT 10 AFTER `quantidade_transacoes`"); } catch (PDOException $e) {}
+        // Padrao da regra de emissao automatica: 10 dias antes do vencimento.
+        // O MODIFY ajusta o default de instalacoes ja existentes sem tocar no
+        // valor das recorrencias atuais (ALTER DEFAULT nao altera linhas).
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `antecedencia_emissao` INT NOT NULL DEFAULT 10"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `dias_vencimento` INT NOT NULL DEFAULT 0 AFTER `antecedencia_emissao`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `politica_atraso` VARCHAR(20) NOT NULL DEFAULT 'todas' AFTER `dias_vencimento`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `tentativas_erro` INT NOT NULL DEFAULT 0 AFTER `politica_atraso`"); } catch (PDOException $e) {}
@@ -696,7 +716,7 @@ function getConnection() {
             }
         } catch (PDOException $e) {}
         try {
-            $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','trimestral','semestral','anual') NOT NULL DEFAULT 'mensal'");
+            $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','trimestral','semestral','anual','lote') NOT NULL DEFAULT 'mensal'");
         } catch (PDOException $e) {}
 
         // Ancora das recorrências existentes. Para as de dia (diaria/semanal/
@@ -774,7 +794,7 @@ function criarTabelas($pdo) {
         `cliente_id` INT NOT NULL,
         `descricao` VARCHAR(200) NOT NULL,
         `valor` DECIMAL(10,2) NOT NULL,
-        `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual') DEFAULT 'mensal',
+        `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote') DEFAULT 'mensal',
         `dia_vencimento` INT DEFAULT 1,
         `data_inicio` DATE NOT NULL,
         `data_fim` DATE,
@@ -789,6 +809,8 @@ function criarTabelas($pdo) {
         `id` INT AUTO_INCREMENT PRIMARY KEY,
         `cliente_id` INT NOT NULL,
         `fatura_recorrente_id` INT,
+        `parcela_atual` INT DEFAULT NULL,
+        `total_parcelas` INT DEFAULT NULL,
         `numero` VARCHAR(20) NOT NULL UNIQUE,
         `descricao` VARCHAR(200) NOT NULL,
         `valor` DECIMAL(10,2) NOT NULL,
@@ -803,10 +825,14 @@ function criarTabelas($pdo) {
         `pix_qrcode` TEXT,
         `pix_copia_cola` VARCHAR(500),
         `link_pagamento` VARCHAR(500),
+        `boleto_url` VARCHAR(500),
+        `boleto_codigo_barras` VARCHAR(100),
+        `boleto_linha_digitavel` VARCHAR(100),
         `mp_payment_id` VARCHAR(100),
         `inter_codigo_solicitacao` VARCHAR(100),
         `inter_situacao` VARCHAR(30),
         `inter_data_situacao` DATETIME,
+        `pix_inter_codigo` VARCHAR(100),
         `acesso_token` VARCHAR(64),
         `api_pagamento` VARCHAR(30),
         `observacoes` TEXT,

@@ -56,7 +56,7 @@ if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
         $fatura['descricao'], $fatura['valor_final'], $cli['nome_razao'] ?? '',
         $cli['cpf_cnpj'] ?? '', $cli['email'] ?? '', $cli['cep'] ?? '',
         $cli['logradouro'] ?? '', $cli['numero'] ?? '', $cli['bairro'] ?? '',
-        $cli['cidade'] ?? '', $cli['estado'] ?? ''
+        $cli['cidade'] ?? '', $cli['estado'] ?? '', $fatura['data_vencimento'] ?? null
     );
 
     if (isset($result['sucesso']) && $result['sucesso']) {
@@ -111,6 +111,8 @@ $nomeSistema = getNomeSistema();
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <meta name="geo.region" content="BR">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

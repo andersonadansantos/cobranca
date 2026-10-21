@@ -71,7 +71,8 @@ if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
         $cli['numero'] ?? '',
         $cli['bairro'] ?? '',
         $cli['cidade'] ?? '',
-        $cli['estado'] ?? ''
+        $cli['estado'] ?? '',
+        $fatura['data_vencimento'] ?? null
     );
 
     if (isset($result['sucesso']) && $result['sucesso']) {

@@ -152,11 +152,16 @@ function criarPedidoPixPagBank($descricao, $valor, $clienteEmail, $clienteNome, 
     return $resultado;
 }
 
-function criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
+function criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento = null) {
     $config = getConfigPagBank();
     $cpfCnpj = preg_replace('/[^0-9]/', '', $clienteCpfCnpj);
 
     $orderRef = 'BOL' . date('ymd') . rand(100, 999);
+
+    $vencPB = substr(trim((string) $dataVencimento), 0, 10);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $vencPB) || $vencPB < date('Y-m-d')) {
+        $vencPB = date('Y-m-d', strtotime('+30 days'));
+    }
 
     $dados = [
         'reference_id' => $orderRef,
@@ -185,7 +190,7 @@ function criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfC
                     'type' => 'BOLETO',
                     'boleto' => [
                         'template' => 'cobranca',
-                        'due_date' => date('Y-m-d', strtotime('+30 days')),
+                        'due_date' => $vencPB,
                         'days_until_expiration' => '30',
                         'holder' => [
                             'name' => $clienteNome ?: '',

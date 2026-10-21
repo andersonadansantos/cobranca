@@ -353,7 +353,13 @@ function criarPagamentoCartaoMercadoPago($descricao, $valor, $clienteEmail, $cli
 
     $webhookUrl = $config['mp_webhook_url'] ?? '';
     if (!empty($webhookUrl) && strpos($webhookUrl, 'localhost') === false && strpos($webhookUrl, '127.0.0.1') === false) {
-        $dados['notification_url'] = $webhookUrl;
+        $dados["notification_url"] = $webhookUrl;
+    }
+
+    // Vencimento do boleto (a API do MP usa date_of_expiration, ISO 8601).
+    $venc = substr(trim((string) $dataVencimento), 0, 10);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $venc) && $venc >= date('Y-m-d')) {
+        $dados['date_of_expiration'] = $venc . 'T23:59:59.000-03:00';
     }
 
     $ch = curl_init();
@@ -419,7 +425,7 @@ function criarPagamentoCartaoMercadoPagoSuper($descricao, $valor, $clienteEmail,
     return criarPagamentoCartaoMercadoPago($descricao, $valor, $clienteEmail, $clienteNome, $clienteCpfCnpj, $cardToken, $installments, $paymentMethodId, $tipo, $config);
 }
 
-function criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $configOverride = null) {
+function criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $configOverride = null, $dataVencimento = null) {
     $config = $configOverride ?: getMPConfig();
 
     if (empty($config['mp_access_token'])) {
@@ -568,12 +574,12 @@ function getApiAtiva() {
  * usa: sem ele, a cobrança nasceria com vencimento no mesmo dia da criação e o
  * PIX morreria antes do cliente pagar. Ver interPrazoCobranca().
  */
-function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento = null) {
+function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento = null, $tentativasMax = 6) {
     $api = getApiAtiva();
     $res = null;
 
     if ($api === 'inter') {
-        $res = criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento);
+        $res = criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento, $tentativasMax);
     } elseif ($api === 'bb') {
         $res = criarPagamentoBB($descricao, $valor, $clienteEmail, $clienteNome);
     } elseif ($api === 'pix_manual') {
@@ -615,23 +621,23 @@ function criarPagamento($descricao, $valor, $clienteEmail, $clienteNome, $dataVe
     return $res;
 }
 
-function criarBoleto($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
+function criarBoleto($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento = null) {
     $api = getApiAtiva();
     $res = null;
 
     if ($api === 'inter') {
-        $res = criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+        $res = criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento);
     } elseif ($api === 'bb') {
-        $res = criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+        $res = criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento);
     } elseif ($api === 'asaas') {
-        $res = criarBoletoAsaas($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+        $res = criarBoletoAsaas($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento);
     } elseif ($api === 'pagbank') {
         if (!function_exists('criarPedidoBoletoPagBank')) {
             require_once __DIR__ . '/pagbank.php';
         }
-        $res = criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+        $res = criarPedidoBoletoPagBank($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento);
     } else {
-        $res = criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado);
+        $res = criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento);
     }
 
     if (is_array($res)) {
@@ -956,7 +962,7 @@ function interConsultaVale($fatura, $horasMin = 6) {
     return (time() - $desde) >= ($horasMin * 3600);
 }
 
-function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento = null) {
+function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $dataVencimento = null, $tentativasMax = 6) {
     $config = getConfigInter();
     $pdo = getConnection();
     $cli = null;
@@ -1046,7 +1052,7 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $d
             $qrCode = '';
             $tentativas = 0;
             $detalhe = null;
-            while (empty($pixCopiaECola) && $tentativas < 6) {
+            while (empty($pixCopiaECola) && $tentativas < $tentativasMax) {
                 $tentativas++;
                 if ($tentativas > 1) sleep(2);
                 $detalhe = consultarCobrancaInter($codigo);
@@ -1071,7 +1077,7 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $d
     return $resultado;
 }
 
-function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
+function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento = null) {
     $cpfCnpj = preg_replace('/[^0-9]/', '', (string) $clienteCpfCnpj);
     $nome = mb_substr(trim((string) $clienteNome), 0, 60);
     $endereco = mb_substr(trim((string) $clienteLogradouro), 0, 100);
@@ -1112,10 +1118,18 @@ function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cl
         $pagador['email'] = mb_substr($email, 0, 100);
     }
 
+    // Vencimento do boleto: usa o da parcela (formato Y-m-d). Sem ele, ou se
+    // for data passada, cai para hoje para o Inter nao recusar. Registrar com
+    // o vencimento correto e o que faz o boleto entrar no DDA do pagador.
+    $vencimento = substr(trim((string) $dataVencimento), 0, 10);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $vencimento) || $vencimento < date('Y-m-d')) {
+        $vencimento = date('Y-m-d');
+    }
+
     $dados = [
         'seuNumero' => substr('BOL' . date('ymd') . rand(100, 999), 0, 15),
         'valorNominal' => (float) $valor,
-        'dataVencimento' => date('Y-m-d'),
+        'dataVencimento' => $vencimento,
         'numDiasAgenda' => 30,
         'pagador' => $pagador,
         'mensagem' => [
@@ -1664,12 +1678,16 @@ function getBBQrCode($locId) {
     return '';
 }
 
-function criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
+function criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento = null) {
     $config = getConfigBB();
     $cpfCnpj = preg_replace('/[^0-9]/', '', $clienteCpfCnpj);
     $seuNumero = substr('BOL' . date('ymd') . rand(100, 999), 0, 15);
+    $vencBB = substr(trim((string) $dataVencimento), 0, 10);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $vencBB) || $vencBB < date('Y-m-d')) {
+        $vencBB = date('Y-m-d', strtotime('+30 days'));
+    }
     $dados = [
-        'dataVencimento' => date('Y-m-d', strtotime('+30 days')),
+        'dataVencimento' => $vencBB,
         'valorNominal' => (float) $valor,
         'codigoDeCobranca' => 0,
         'modalidadeDesconto' => 0,

@@ -195,8 +195,12 @@ function criarPagamentoAsaas($descricao, $valor, $clienteEmail, $clienteNome) {
     ];
 }
 
-function criarBoletoAsaas($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado) {
-    $cobranca = criarCobrancaAsaas('BOLETO', $descricao, $valor, date('Y-m-d'), [
+function criarBoletoAsaas($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento = null) {
+    $vencAsaas = substr(trim((string) $dataVencimento), 0, 10);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $vencAsaas) || $vencAsaas < date('Y-m-d')) {
+        $vencAsaas = date('Y-m-d');
+    }
+    $cobranca = criarCobrancaAsaas('BOLETO', $descricao, $valor, $vencAsaas, [
         'nome' => $clienteNome ?: '',
         'email' => $clienteEmail ?: '',
         'cpf_cnpj' => $clienteCpfCnpj ?: '',
