@@ -68,6 +68,7 @@ if ($situacao === 'PAGA' || $situacao === 'RECEBIDO') {
         $fatura['data_pagamento'] = date('Y-m-d');
         enviarEmailPagamento($fatura);
     }
+    notificarPagamentoRecebidoAdmin($fatura['id']);
 
     echo json_encode(['status' => 'pago']);
     exit;

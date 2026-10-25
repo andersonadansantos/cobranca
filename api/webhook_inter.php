@@ -88,6 +88,7 @@ if ($fatura) {
             $fatura['data_pagamento'] = $dataPagamento;
             enviarEmailPagamento($fatura);
         }
+        notificarPagamentoRecebidoAdmin($fatura['id']);
     }
 }
 

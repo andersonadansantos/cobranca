@@ -139,6 +139,7 @@ foreach ($pendentes as $fat) {
                     $fat['data_pagamento'] = $dataPagamento;
                     enviarEmailPagamento($fat);
                 }
+                notificarPagamentoRecebidoAdmin($fat['id']);
                 if (enviarWhatsAppFatura($fat, 'pagamento')) {
                     $log[] = "[whatsapp_pagamento] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
                 }

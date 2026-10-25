@@ -43,31 +43,7 @@ if ($paymentId && $status === 'approved') {
                     $fatura['data_pagamento'] = date('Y-m-d');
                     enviarEmailPagamento($fatura);
                 }
-            }
-        } elseif ($status === 'approved') {
-            $stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ? AND status != 'pago'");
-            $stmt->execute([$paymentId]);
-            $fatura = $stmt->fetch();
-
-            if ($fatura) {
-                // Contexto de tenant para resolução de configurações (email etc.)
-                if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
-
-                $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ?");
-                $stmt->execute([$fatura['id']]);
-
-                $stmt = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$fatura['id'], $paymentId, 'approved', 'Pagamento via callback', $fatura['valor_final'], 'pending_review', json_encode($_GET)]);
-
-                $stmtCli = $pdo->prepare("SELECT c.nome_razao, c.email FROM clientes c WHERE c.id = ?");
-                $stmtCli->execute([$fatura['cliente_id']]);
-                $cli = $stmtCli->fetch();
-                if ($cli) {
-                    $fatura['nome_razao'] = $cli['nome_razao'];
-                    $fatura['email'] = $cli['email'];
-                    $fatura['data_pagamento'] = date('Y-m-d');
-                    enviarEmailPagamento($fatura);
-                }
+                notificarPagamentoRecebidoAdmin($fatura['id']);
             }
         }
     }
@@ -77,6 +53,10 @@ if ($paymentId && $status === 'approved') {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <meta name="geo.region" content="BR">
+    <link rel="icon" type="image/png" href="/cobranca/assets/img/favicon.png?v=20261020">
+    <link rel="apple-touch-icon" href="/cobranca/assets/img/favicon.png?v=20261020">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagamento - <?= $status === 'approved' ? 'Aprovado' : 'Processando' ?></title>
     <link href="/cobranca/assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">

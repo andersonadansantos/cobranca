@@ -835,6 +835,103 @@ if (!function_exists('enviarEmailPagamento')) {
     }
 }
 
+if (!function_exists('notificarPagamentoRecebidoAdmin')) {
+    // Envia "Pagamento recebido" ao administrador dono da fatura, somente se a
+    // fatura estiver de fato paga no banco. Idempotente: uma unica vez por fatura
+    // (coluna admin_notificado_pagamento_em, reservada atomicamente).
+    function notificarPagamentoRecebidoAdmin($faturaId) {
+        $faturaId = (int)$faturaId;
+        if ($faturaId <= 0) return false;
+
+        $pdo = getConnection();
+        if (!$pdo) return false;
+
+        $stmt = $pdo->prepare("SELECT f.*, c.nome_razao AS cliente_nome FROM faturas f LEFT JOIN clientes c ON c.id = f.cliente_id WHERE f.id = ?");
+        $stmt->execute([$faturaId]);
+        $f = $stmt->fetch();
+        if (!$f || ($f['status'] ?? '') !== 'pago' || empty($f['admin_id'])) return false;
+        if (!empty($f['admin_notificado_pagamento_em'])) return false;
+
+        // Reserva o envio de forma atomica (evita duplicidade com webhooks concorrentes)
+        $reserva = $pdo->prepare("UPDATE faturas SET admin_notificado_pagamento_em = NOW() WHERE id = ? AND admin_notificado_pagamento_em IS NULL");
+        $reserva->execute([$faturaId]);
+        if ($reserva->rowCount() === 0) return false;
+
+        $adminId = (int)$f['admin_id'];
+        $stmtAdm = $pdo->prepare("SELECT nome, email FROM administradores WHERE id = ?");
+        $stmtAdm->execute([$adminId]);
+        $adm = $stmtAdm->fetch();
+        $paraEmail = trim((string)($adm['email'] ?? ''));
+        $paraNome = (string)($adm['nome'] ?? '');
+
+        // Configuracoes de SMTP do proprio administrador (contexto de tenant)
+        $tenantAnterior = $_SESSION['tenant_admin_id'] ?? null;
+        $_SESSION['tenant_admin_id'] = $adminId;
+
+        $ok = false;
+        try {
+            $smtpHost = getConfig('smtp_host', '');
+            $smtpPort = getConfig('smtp_port', '587');
+            $smtpUser = getConfig('smtp_usuario', '');
+            $smtpPass = getConfig('smtp_senha', '');
+            $smtpFrom = getConfig('smtp_from_email', '');
+            $smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobrança');
+            $smtpSsl  = getConfig('smtp_ssl', 'tls');
+
+            if ($paraEmail !== '' && !empty($smtpHost) && !empty($smtpUser) && !empty($smtpFrom)) {
+                $numero = (string)($f['numero'] ?? '');
+                $cliente = (string)($f['cliente_nome'] ?? '');
+                $descricao = (string)($f['descricao'] ?? '');
+                $valor = 'R$ ' . number_format((float)($f['valor_final'] ?? 0), 2, ',', '.');
+                $dataPgto = !empty($f['data_pagamento']) ? date('d/m/Y', strtotime($f['data_pagamento'])) : date('d/m/Y');
+                $formaApi = (string)($f['api_pagamento'] ?? '');
+                $transacao = (string)(($f['mp_payment_id'] ?? '') ?: ($f['inter_codigo_solicitacao'] ?? ''));
+                $assunto = 'Pagamento recebido';
+
+                $linhas = [
+                    'Fatura' => $numero,
+                    'Cliente' => $cliente,
+                    'Descrição' => $descricao,
+                    'Valor recebido' => $valor,
+                    'Data do pagamento' => $dataPgto,
+                    'Forma de pagamento' => $formaApi !== '' ? $formaApi : '-',
+                    'ID da transação' => $transacao !== '' ? $transacao : '-',
+                ];
+
+                $saudacao = $paraNome !== '' ? $paraNome : 'administrador';
+                $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:20px;">';
+                $html .= '<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;">';
+                $html .= '<h2 style="margin:0 0 12px 0;color:#166534;">Pagamento recebido</h2>';
+                $html .= '<p style="color:#333;font-size:15px;">Olá, <strong>' . htmlspecialchars($saudacao) . '</strong>. Um pagamento foi confirmado pela API de pagamento e a cobrança foi baixada automaticamente.</p>';
+                $html .= '<table style="width:100%;border-collapse:collapse;">';
+                $txt = "Olá, {$saudacao}.\n\nUm pagamento foi confirmado pela API de pagamento e a cobrança foi baixada automaticamente.\n\n";
+                foreach ($linhas as $rotulo => $valorLinha) {
+                    $html .= '<tr><td style="padding:8px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">' . htmlspecialchars($rotulo) . '</td><td style="padding:8px 0;font-size:14px;font-weight:500;color:#333;text-align:right;border-top:1px solid #e8edf5;">' . htmlspecialchars((string)$valorLinha) . '</td></tr>';
+                    $txt .= $rotulo . ': ' . $valorLinha . "\n";
+                }
+                $html .= '</table></div></body></html>';
+
+                $ok = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $paraEmail, $paraNome !== '' ? $paraNome : $paraEmail, $assunto, $html, $txt);
+            }
+        } catch (Throwable $e) {
+            error_log('[PAGAMENTO_RECEBIDO] ' . $e->getMessage());
+            $ok = false;
+        } finally {
+            if ($tenantAnterior === null) {
+                unset($_SESSION['tenant_admin_id']);
+            } else {
+                $_SESSION['tenant_admin_id'] = $tenantAnterior;
+            }
+        }
+
+        // Sem envio bem-sucedido, libera a reserva para nova tentativa no proximo evento
+        if (!$ok) {
+            $pdo->prepare("UPDATE faturas SET admin_notificado_pagamento_em = NULL WHERE id = ?")->execute([$faturaId]);
+        }
+        return $ok;
+    }
+}
+
 if (!function_exists('enviarEmailRecuperacaoSenha')) {
     function enviarEmailRecuperacaoSenha($paraEmail, $paraNome, $link, $contexto = 'usuario') {
         $smtpHost = getConfig('smtp_host', '');

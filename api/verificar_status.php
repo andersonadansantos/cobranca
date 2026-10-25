@@ -131,6 +131,7 @@ if ($novoStatus !== $fatura['status']) {
             $fatura['data_pagamento'] = $dataPagamento;
             enviarEmailPagamento($fatura);
         }
+        notificarPagamentoRecebidoAdmin($fatura['id']);
     }
 
     echo json_encode(['status' => $novoStatus]);

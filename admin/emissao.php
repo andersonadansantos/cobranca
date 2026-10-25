@@ -532,6 +532,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $cliLote['logradouro'] ?? '', $cliLote['numero'] ?? '', $cliLote['bairro'] ?? '',
                                 $cliLote['cidade'] ?? '', $cliLote['estado'] ?? '', $venc
                             );
+                            $temBoleto = false;
                             if (is_array($resBol) && !empty($resBol['sucesso']) && !empty($resBol['boleto_url'])) {
                                 $stmtBoleto->execute([
                                     $resBol['boleto_url'],
@@ -543,18 +544,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $fid, $adminIdE,
                                 ]);
                                 $boletosOk++;
+                                $temBoleto = true;
                             }
 
-                            // PIX por parcela (mesma logica da fatura individual), para
-                            // o carne trazer o QR Code valido de pagamento. No lote,
-                            // poucas tentativas para nao estourar o tempo de resposta.
-                            $resPix = criarPagamento($numParc, $valor, $cliLote['email'] ?? '', $cliLote['nome_razao'] ?? '', $venc, 2);
-                            if (is_array($resPix) && !empty($resPix['sucesso'])) {
-                                $stmtPix->execute([
-                                    $resPix['qr_code'] ?? '', $resPix['qr_code_copia_cola'] ?? '',
-                                    $resPix['link_pagamento'] ?? '', $resPix['payment_id'] ?? '',
-                                    $fid, $adminIdE,
-                                ]);
+                            // PIX da parcela. No Inter a mesma cobranca ja traz o
+                            // QR Code (boleto + Pix juntos); nos demais gateways,
+                            // cai para criarPagamento. Poucas tentativas no lote
+                            // para nao estourar o tempo de resposta.
+                            $pixCopia = (string)($resBol['qr_code_copia_cola'] ?? '');
+                            $pixQr = (string)($resBol['qr_code'] ?? '');
+                            $pixCod = $temBoleto ? (string)($resBol['payment_id'] ?? '') : '';
+                            $precisaPixExtra = in_array($apiAgora, ['inter', 'bb'], true)
+                                ? ($pixCopia === '')
+                                : true;
+                            if ($precisaPixExtra) {
+                                $resPix = criarPagamento($numParc, $valor, $cliLote['email'] ?? '', $cliLote['nome_razao'] ?? '', $venc, 2);
+                                if (is_array($resPix) && !empty($resPix['sucesso'])) {
+                                    $pixCopia = (string)($resPix['qr_code_copia_cola'] ?? '');
+                                    $pixQr = (string)($resPix['qr_code'] ?? '');
+                                    $pixCod = (string)($resPix['payment_id'] ?? '');
+                                }
+                            }
+                            if ($pixCopia !== '' || $pixQr !== '') {
+                                $stmtPix->execute([$pixQr, $pixCopia, '', $pixCod, $fid, $adminIdE]);
                                 $pixOk++;
                             }
 
@@ -865,7 +877,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <div class="col-md-3">
                         <label class="form-label">Antecedência (dias)</label>
                         <input type="number" name="antecedencia_emissao" class="form-control" min="0" max="90" step="1" value="10">
-                        <small class="text-muted">Emitir N dias antes do vencimento (padrão: 10), sem mudar o ciclo.</small>
+                        <small class="text-muted">Vale só para Mensal: emitir N dias antes do vencimento (padrão: 10). As demais frequências emitem na competência.</small>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Se o cron atrasar</label>

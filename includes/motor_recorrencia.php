@@ -460,10 +460,21 @@ function motorProcessarRecorrencia($pdo, array $rec, array &$ctx) {
     }
 
     // ---- 2. Ate quando vale emitir (antecedencia e separada da periodicidade) ----
-    $antecedencia = (int)($rec['antecedencia_emissao'] ?? 0);
+    // Quando ha antecedencia, ela conta a partir do VENCIMENTO (competencia +
+    // dias_vencimento). Como a competencia e anterior ao vencimento quando
+    // dias_vencimento > 0, o limite da competencia recua esses dias para que a
+    // emissao ocorra exatamente N dias antes do vencimento. Sem antecedencia
+    // (padrao antigo) o comportamento nao muda: emite na competencia.
+    // A antecedencia so vale para a frequencia MENSAL. As demais frequencias
+    // emitem na propria competencia, independentemente do valor gravado.
+    $antecedencia = $frequencia === 'mensal' ? (int)($rec['antecedencia_emissao'] ?? 0) : 0;
     $limite = $hoje;
     if ($antecedencia > 0) {
+        $diasVenc = (int)($rec['dias_vencimento'] ?? 0);
         $limite = recorrenciaData($hoje)->add(new DateInterval('P' . $antecedencia . 'D'))->format('Y-m-d');
+        if ($diasVenc > 0) {
+            $limite = recorrenciaData($limite)->sub(new DateInterval('P' . $diasVenc . 'D'))->format('Y-m-d');
+        }
     }
 
     $atual = motorProximaCompetencia($pdo, $rec);

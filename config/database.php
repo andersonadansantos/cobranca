@@ -111,6 +111,9 @@ function getConnection() {
         // Ver interConsultaVale().
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `inter_situacao` VARCHAR(30) DEFAULT NULL AFTER `inter_codigo_solicitacao`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `inter_data_situacao` DATETIME DEFAULT NULL AFTER `inter_situacao`"); } catch (PDOException $e) {}
+        // Marca quando o e-mail "Pagamento recebido" foi enviado ao administrador.
+        // Garante um unico envio por transacao (ver notificarPagamentoRecebidoAdmin()).
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `admin_notificado_pagamento_em` DATETIME DEFAULT NULL"); } catch (PDOException $e) {}
 
         // === BOLETO EM LOTE (carne) ===
         // Uma recorrência de frequência 'lote' materializa N faturas de uma vez
