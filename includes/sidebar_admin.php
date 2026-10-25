@@ -10,11 +10,14 @@ $logoEmpresaAdmin = function_exists('getConfig') ? getConfig('logo_empresa_admin
 if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($logoEmpresaAdmin)) {
     $logo = $logoEmpresaAdmin;
 }
+
+// A logo do topo do menu esquerdo entra com no maximo 200px de largura.
+$logoMaxWidth = 200;
 ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <?php if ($logo): ?>
-            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 250px; max-height: 70px;">
+            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: <?= $logoMaxWidth ?>px; max-height: 70px;">
         <?php endif; ?>
         <h4><i class="fas fa-shield-halved me-2"></i><?= t('layout.admin_area') ?></h4>
     </div>
