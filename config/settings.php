@@ -423,7 +423,14 @@ function getLogoLoginGlobal() {
 // Logo do LOGIN DO CLIENTE (desktop): mostra a "Logo da Empresa" do admin
 // (logo_empresa_admin). Se o admin não enviou, cai para a antiga "Logo do Login
 // do Cliente (Computador)" (logo_empresa) e, por fim, para a marca global.
+//
+// IMPORTANTE: as logos de personalização pertencem ao admin do subdomínio. Na
+// raiz do domínio (sem tenant) a tela é da Central de Faturas, então usamos SOMENTE
+// a marca global do Super Admin — nunca a logo de um admin específico.
 function getLogoClienteLogin() {
+    if (!temTenantContexto()) {
+        return getLogoLoginGlobal();
+    }
     $logo = getConfig('logo_empresa_admin', '');
     if (!logoPathValido($logo)) {
         $logo = getConfig('logo_empresa', '');
@@ -438,6 +445,9 @@ function getLogoClienteLogin() {
 // (logo_mobile). Se o admin não enviou, cai para a "Logo da Empresa"
 // (logo_empresa_admin) e, por fim, para a marca global.
 function getLogoClienteLoginMobile() {
+    if (!temTenantContexto()) {
+        return getLogoLoginGlobal();
+    }
     $logo = getConfig('logo_mobile', '');
     if (!logoPathValido($logo)) {
         $logo = getConfig('logo_empresa_admin', '');

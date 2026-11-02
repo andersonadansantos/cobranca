@@ -11,7 +11,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-define('SITE_NOME', 'CobrançaPRO');
+define('SITE_NOME', 'Central de Faturas');
 define('SITE_TAGLINE', 'Cobranças que chegam e são pagas');
 
 // Base da URL do site: '' quando o site está na raiz do domínio (produção)
@@ -903,7 +903,9 @@ function siteHeader($secao = '') {
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="<?= SITE_NOME ?>">
     <meta name="theme-color" content="#0057EC">
-    <link rel="icon" type="image/png" href="<?= siteAsset('/assets/img/pix-logo.svg') ?>">
+    <meta name="geo.region" content="BR">
+    <link rel="icon" type="image/png" href="<?= siteAsset('/assets/img/favicon.png') ?>?v=20261020">
+    <link rel="apple-touch-icon" href="<?= siteAsset('/assets/img/favicon.png') ?>?v=20261020">
     <?php
     // ===================== SEO =====================
     $fwd   = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
@@ -1006,6 +1008,13 @@ function siteHeader($secao = '') {
 
     <?php if ($idiomaAtual === 'pt-BR'):
         // ===================== GEO - Schema para buscadores generativos (SEO) =====================
+        // GEO - alcance: América Latina (com foco no Brasil)
+        $latamCod  = ['BR','AR','MX','CO','CL','PE','UY','PY','BO','EC','VE','CR','PA','GT','HN','SV','NI','DO','CU','PR','HT'];
+        $latamNome = ['BR'=>'Brasil','AR'=>'Argentina','MX'=>'México','CO'=>'Colômbia','CL'=>'Chile','PE'=>'Peru','UY'=>'Uruguai','PY'=>'Paraguai','BO'=>'Bolívia','EC'=>'Equador','VE'=>'Venezuela','CR'=>'Costa Rica','PA'=>'Panamá','GT'=>'Guatemala','HN'=>'Honduras','SV'=>'El Salvador','NI'=>'Nicarágua','DO'=>'República Dominicana','CU'=>'Cuba','PR'=>'Porto Rico','HT'=>'Haiti'];
+        $geoArea = [];
+        foreach ($latamCod as $c) {
+            $geoArea[] = ['@type' => 'Country', 'identifier' => $c, 'name' => $latamNome[$c] ?? $c];
+        }
         $geoApp = [
             '@context' => 'https://schema.org',
             '@type' => 'SoftwareApplication',
@@ -1015,8 +1024,9 @@ function siteHeader($secao = '') {
             'applicationCategory' => 'BusinessApplication',
             'applicationSubCategory' => 'Sistema de cobrança',
             'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'BRL'],
-            'countriesSupported' => 'BR',
-            'availableLanguage' => ['pt-BR', 'es-MX', 'es-AR', 'es-CO', 'es-CL', 'es-PE'],
+            'countriesSupported' => $latamCod,
+            'areaServed' => $geoArea,
+            'availableLanguage' => ['pt-BR', 'es', 'es-MX', 'es-AR', 'es-CO', 'es-CL', 'es-PE', 'es-UY', 'es-PY', 'es-BO', 'es-EC'],
             'description' => 'Sistema de cobrança online, automática e recorrente: emite faturas, cobra por PIX e boleto, dispara cobrança pelo WhatsApp e e-mail e faz gestão de mensalidades e contas a receber para empresas, pequenas empresas, escolas, academias, prestadores de serviços e SaaS.',
             'author' => [
                 '@type' => 'Organization',
@@ -1114,7 +1124,7 @@ function siteHeader($secao = '') {
 <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-28 flex items-center justify-between gap-3">
         <a href="<?= siteAsset('/') ?>" class="flex items-center shrink-0 min-w-0">
-            <img src="<?= siteAsset('/assets/img/logo_color.png') ?>" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-12 sm:h-16 lg:h-[70px] w-auto max-w-[200px] sm:max-w-[300px] lg:max-w-[400px] object-contain">
+            <img src="<?= siteAsset('/assets/img/logo_color.png') ?>?v=20261020" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-9 sm:h-12 lg:h-[54px] w-auto max-w-[160px] sm:max-w-[240px] lg:max-w-[320px] object-contain">
         </a>
         <div class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
             <a href="<?= siteAsset('/#como-funciona') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_como') ?></a>
@@ -1224,7 +1234,7 @@ function siteFooter() {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
         <div class="md:col-span-2">
             <div class="flex items-center">
-                <img src="<?= siteAsset('/assets/img/logo-branca.png') ?>" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-[90px] w-auto max-w-[340px] object-contain">
+                <img src="<?= siteAsset('/assets/img/logo-branca.png') ?>?v=20261020" alt="<?= htmlspecialchars(SITE_NOME) ?>" class="h-9 sm:h-12 lg:h-[54px] w-auto max-w-[160px] sm:max-w-[240px] lg:max-w-[320px] object-contain">
             </div>
             <p class="mt-4 text-sm leading-relaxed text-slate-400 max-w-md"><?= siteT('ft_desc') ?></p>
         </div>

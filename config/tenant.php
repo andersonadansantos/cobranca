@@ -70,3 +70,30 @@ function getTenantAdminId() {
     }
     return 0;
 }
+
+// Indica se a requisição está em um subdomínio de tenant válido.
+// Na raiz do domínio (ex.: centraldefaturas.com.br) retorna false: a marca
+// exibida deve ser a global (Central de Faturas), nunca a de um admin.
+function temTenantContexto() {
+    $pdo = getConnection();
+    if (!$pdo) return false;
+
+    $host = preg_replace('/:\d+$/', '', strtolower(trim($_SERVER['HTTP_HOST'] ?? '')));
+    if (empty($host)) return false;
+
+    $baseDomain = strtolower(ltrim(getBaseDomain(), '.'));
+    if (empty($baseDomain)) return false;
+    if (substr($host, -strlen($baseDomain)) !== $baseDomain) return false;
+    if ($host === $baseDomain) return false;
+
+    $subdominio = rtrim(substr($host, 0, -strlen($baseDomain)), '.');
+    if (empty($subdominio)) return false;
+
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM administradores WHERE ativo = 1 AND (subdominio = ? OR usuario = ?) LIMIT 1");
+        $stmt->execute([$subdominio, $subdominio]);
+        return (bool)$stmt->fetch();
+    } catch (PDOException $e) {
+        return false;
+    }
+}

@@ -14,5 +14,6 @@ _cp/
 
 # Credenciais e backups locais: nunca versionar
 _initial_credentials.txt
+*.bak
 *.bak_*
 deploy_*.ps1

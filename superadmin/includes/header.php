@@ -28,6 +28,10 @@ $painelIdioma = painelIdiomaAtual();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?> - Super Admin</title>
+    <meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
+    <meta name="geo.region" content="BR">
+    <link rel="icon" type="image/png" href="/cobranca/assets/img/favicon.png?v=20261020">
+    <link rel="apple-touch-icon" href="/cobranca/assets/img/favicon.png?v=20261020">
     <link href="/cobranca/assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <link href="/cobranca/assets/vendor/bootstrap/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/cobranca/assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">

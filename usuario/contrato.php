@@ -22,6 +22,10 @@ if (isset($_GET['download']) && $contrato) {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <meta name="geo.region" content="BR">
+    <link rel="icon" type="image/png" href="/cobranca/assets/img/favicon.png?v=20261020">
+    <link rel="apple-touch-icon" href="/cobranca/assets/img/favicon.png?v=20261020">
     <title>Contrato - ' . htmlspecialchars($contrato['numero']) . '</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; color: #333; }

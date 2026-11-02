@@ -1079,25 +1079,44 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $d
 
 function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $dataVencimento = null) {
     $cpfCnpj = preg_replace('/[^0-9]/', '', (string) $clienteCpfCnpj);
-    $nome = mb_substr(trim((string) $clienteNome), 0, 60);
-    $endereco = mb_substr(trim((string) $clienteLogradouro), 0, 100);
-    $bairro = mb_substr(trim((string) $clienteBairro), 0, 50);
-    $cidade = mb_substr(trim((string) $clienteCidade), 0, 60);
-    $uf = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $clienteEstado));
-    $cep = preg_replace('/[^0-9]/', '', (string) $clienteCep);
-    $email = trim((string) $clienteEmail);
 
-    // Validação prévia — o Inter exige pagador completo
+    // Endereco do pagador: o do cliente manda; o que faltar cai para o
+    // endereco da empresa (admin). Sem isso, um cliente sem endereco completo
+    // tem o boleto recusado e a fatura NUNCA aparece no DDA do pagador.
+    $adminCtx = getConfigAdminId();
+    $adminDados = null;
+    $pdo = getConnection();
+    if ($adminCtx > 0 && $pdo) {
+        $stmtAdmin = $pdo->prepare("SELECT cep, logradouro, numero, bairro, cidade, estado FROM administradores WHERE id = ? LIMIT 1");
+        $stmtAdmin->execute([$adminCtx]);
+        $adminDados = $stmtAdmin->fetch() ?: null;
+    }
+    $campo = function ($valorCliente, $chaveAdmin, $default = '') use ($adminDados) {
+        $v = trim((string) $valorCliente);
+        if ($v !== '') { return $v; }
+        $v = trim((string) ($adminDados[$chaveAdmin] ?? ''));
+        return $v !== '' ? $v : $default;
+    };
+
+    $nome = mb_substr(trim((string) $clienteNome), 0, 60);
+    $endereco = mb_substr($campo($clienteLogradouro, 'logradouro', 'NAO INFORMADO'), 0, 100);
+    $numeroP = mb_substr($campo($clienteNumero, 'numero', '0'), 0, 10) ?: '0';
+    $bairro = mb_substr($campo($clienteBairro, 'bairro', 'CENTRO'), 0, 50);
+    $cidade = mb_substr($campo($clienteCidade, 'cidade', 'SAO PAULO'), 0, 60);
+    $uf = strtoupper(preg_replace('/[^A-Za-z]/', '', $campo($clienteEstado, 'estado', 'SP')));
+    $cep = preg_replace('/[^0-9]/', '', $campo($clienteCep, 'cep', '01001000'));
+    $email = trim((string) $clienteEmail);
+    if (strlen($cep) !== 8) { $cep = '01001000'; }
+    if (strlen($uf) !== 2) { $uf = 'SP'; }
+
+    // Validação prévia — o Inter exige CPF/CNPJ e nome do pagador.
+    // (endereco tem fallback para o da empresa; CPF/CNPJ nao, pois o DDA e
+    // vinculado ao documento do pagador.)
     $faltando = [];
     if (strlen($cpfCnpj) !== 11 && strlen($cpfCnpj) !== 14) {
-        $faltando[] = 'CPF/CNPJ inválido';
+        $faltando[] = 'CPF/CNPJ válido do cliente';
     }
     if ($nome === '') { $faltando[] = 'nome'; }
-    if ($endereco === '') { $faltando[] = 'endereço (logradouro)'; }
-    if ($bairro === '') { $faltando[] = 'bairro'; }
-    if ($cidade === '') { $faltando[] = 'cidade'; }
-    if (strlen($uf) !== 2) { $faltando[] = 'UF (sigla com 2 letras)'; }
-    if (strlen($cep) !== 8) { $faltando[] = 'CEP (8 dígitos)'; }
     if (!empty($faltando)) {
         return ['erro' => 'Cadastro do cliente incompleto para o Banco Inter. Faltando/preencha: ' . implode(', ', $faltando) . '.'];
     }
@@ -1107,7 +1126,7 @@ function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cl
         'tipoPessoa' => strlen($cpfCnpj) === 11 ? 'FISICA' : 'JURIDICA',
         'nome' => $nome,
         'endereco' => $endereco,
-        'numero' => trim((string) $clienteNumero) !== '' ? mb_substr(trim((string) $clienteNumero), 0, 10) : '0',
+        'numero' => $numeroP,
         'complemento' => '',
         'bairro' => $bairro,
         'cidade' => $cidade,
@@ -1141,10 +1160,26 @@ function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cl
         $resp = $resultado['dados'];
         $codigo = $resp['codigoSolicitacao'] ?? ($resp['cobranca']['codigoSolicitacao'] ?? '');
         if ($codigo) {
+            // A API V3 "Boleto com Pix" gera UMA cobranca com boleto E QR Code
+            // Pix. Confirmamos a linha digitavel e o Pix copia-e-cola na mesma
+            // cobranca (o Pix pode demorar a aparecer, dai as tentativas).
             $linhaDigitavel = '';
-            $detalhe = consultarCobrancaInter($codigo);
-            if ($detalhe && !isset($detalhe['erro'])) {
-                $linhaDigitavel = $detalhe['boleto']['linhaDigitavel'] ?? ($detalhe['cobranca']['linhaDigitavel'] ?? '');
+            $pixCopiaECola = '';
+            $qrCode = '';
+            $tentativas = 0;
+            $detalhe = null;
+            while ((empty($linhaDigitavel) || empty($pixCopiaECola)) && $tentativas < 4) {
+                $tentativas++;
+                if ($tentativas > 1) sleep(2);
+                $detalhe = consultarCobrancaInter($codigo);
+                if ($detalhe && !isset($detalhe['erro'])) {
+                    $linhaDigitavel = $linhaDigitavel ?: ($detalhe['boleto']['linhaDigitavel'] ?? ($detalhe['cobranca']['linhaDigitavel'] ?? ''));
+                    $pix = $detalhe['pix'] ?? ($detalhe['cobranca']['pix'] ?? []);
+                    if (!empty($pix)) {
+                        $pixCopiaECola = $pixCopiaECola ?: ($pix['pixCopiaECola'] ?? '');
+                        $qrCode = $qrCode ?: ($pix['qrcode'] ?? '');
+                    }
+                }
             }
             $pdfUrl = '';
             $pdfBase64 = obterPdfInter($codigo);
@@ -1157,13 +1192,15 @@ function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cl
                 file_put_contents($pdfFile, base64_decode($pdfBase64));
                 $pdfUrl = APP_BASE . '/assets/boletos_inter/' . $codigo . '.pdf';
             }
-            file_put_contents(__DIR__ . '/../inter_debug.log', date('Y-m-d H:i:s') . " | BOL CODIGO={$codigo} | LINHA=" . ($linhaDigitavel ?: 'VAZIO') . " | PDF=" . ($pdfUrl ?: 'VAZIO') . "\n", FILE_APPEND);
+            file_put_contents(__DIR__ . '/../inter_debug.log', date('Y-m-d H:i:s') . " | BOL CODIGO={$codigo} | LINHA=" . ($linhaDigitavel ?: 'VAZIO') . " | PIX=" . ($pixCopiaECola ?: 'VAZIO') . " | PDF=" . ($pdfUrl ?: 'VAZIO') . "\n", FILE_APPEND);
             return [
                 'sucesso' => true,
                 'payment_id' => $codigo,
                 'boleto_url' => $pdfUrl,
                 'boleto_codigo_barras' => $linhaDigitavel,
                 'boleto_linha_digitavel' => $linhaDigitavel,
+                'qr_code' => $qrCode,
+                'qr_code_copia_cola' => $pixCopiaECola,
             ];
         }
     }
@@ -1428,8 +1465,27 @@ function cancelarCobrancaFatura($fatura) {
         }
     }
 
-    if ($api === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
-        return cancelarCobrancaInter($fatura['inter_codigo_solicitacao']);
+    if ($api === 'inter') {
+        // No lote a mesma fatura tem boleto E PIX (duas cobrancas Inter
+        // distintas). Cancelar as duas para sumirem do banco/DDA do pagador.
+        $codigos = [];
+        if (!empty($fatura['inter_codigo_solicitacao'])) {
+            $codigos[] = $fatura['inter_codigo_solicitacao'];
+        }
+        if (!empty($fatura['pix_inter_codigo']) && $fatura['pix_inter_codigo'] !== ($fatura['inter_codigo_solicitacao'] ?? null)) {
+            $codigos[] = $fatura['pix_inter_codigo'];
+        }
+        if (empty($codigos)) {
+            return ['sucesso' => true, 'sem_cobranca' => true];
+        }
+        $resultado = ['sucesso' => true];
+        foreach ($codigos as $codigo) {
+            $r = cancelarCobrancaInter($codigo);
+            if (empty($r['sucesso'])) {
+                $resultado = $r;
+            }
+        }
+        return $resultado;
     }
 
     if ($api === 'mercadopago' && !empty($fatura['mp_payment_id'])) {

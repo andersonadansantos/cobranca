@@ -955,18 +955,21 @@
         public static function png($frame, $filename = false, $pixelPerPoint = 4, $outerFrame = 4,$saveandprint=FALSE, $back_color = 0xFFFFFF, $fore_color = 0x000000)
         {
             $image = self::image($frame, $pixelPerPoint, $outerFrame, $back_color, $fore_color);
-            ob_start();
-            ImagePng($image);
-            $png = ob_get_clean();
-            ImageDestroy($image);
+
             if ($filename === false) {
-                echo $png;
+                Header("Content-type: image/png");
+                ImagePng($image);
             } else {
-                file_put_contents($filename, $png);
                 if($saveandprint===TRUE){
-                    echo $png;
+                    ImagePng($image, $filename);
+                    header("Content-type: image/png");
+                    ImagePng($image);
+                }else{
+                    ImagePng($image, $filename);
                 }
             }
+
+            ImageDestroy($image);
         }
 
         //----------------------------------------------------------------------
@@ -1182,7 +1185,7 @@
         {
             try {
 
-                $bs = new QRbitstream();
+                $bs = new QRbitrtream();
                 
                 $bs->appendNum(4, 0x8);
                 $bs->appendNum(QRspec::lengthIndicator(QR_MODE_KANJI, $version), (int)($this->size / 2));
@@ -1323,7 +1326,6 @@
             
             $this->version = $version;
             $this->level = $level;
-            $this->items = array();
         }
         
         //----------------------------------------------------------------------
@@ -2254,15 +2256,18 @@
         }
 
         //----------------------------------------------------------------------
-        public static function splitStringToQRinput($string, QRinput $input, $mode_req = false, $spec = false)
+        public static function splitStringToQRinput($string, QRinput $input, $modeHint, $casesensitive = true)
         {
-            $imode = 0;
-            $bytes = array();
-            for ($i = 0; $i < strlen($string); $i++) {
-                $bytes[] = ord($string[$i]);
+            if(is_null($string) || $string == '\0' || $string == '') {
+                throw new Exception('empty string!!!');
             }
-            $input->append(QR_MODE_8, strlen($string), $bytes);
-            return 0;
+
+            $split = new QRsplit($string, $input, $modeHint);
+
+            if(!$casesensitive)
+                $split->toUpper();
+
+            return $split->splitString();
         }
     }
 
@@ -3247,9 +3252,8 @@
         
         public $structured = 0; // not supported yet
         
-public $level = QR_ECLEVEL_L;
+        public $level = QR_ECLEVEL_L;
         public $hint = QR_MODE_8;
-        public $cmyk = false;
         
         //----------------------------------------------------------------------
         public static function factory($level = QR_ECLEVEL_L, $size = 3, $margin = 4, $back_color = 0xFFFFFF, $fore_color = 0x000000, $cmyk = false)
@@ -3323,32 +3327,6 @@ public $level = QR_ECLEVEL_L;
             }
         }
         
-        //----------------------------------------------------------------------
-        public function encodeString($intext)
-        {
-            $input = new QRinput($this->version, $this->level);
-            if($this->version == 0) {
-                $version = $input->estimateVersion();
-            } else {
-                $version = $this->version;
-            }
-            if ($version > 0) {
-                $input->setVersion($version);
-            }
-            try {
-                $num = QRsplit::splitStringToQRinput($intext, $input, $this->hint, $this->version);
-            } catch (Exception $e) {
-                // fallback
-            }
-            if(isset($num) && $num < 0) {
-                return null;
-            }
-            $qr = new QRcode();
-            $bit = $qr->encodeMask($input, 0);
-            QRspec::debug($bit, true);
-            return $bit;
-        }
-
         //----------------------------------------------------------------------
         public function encodePNG($intext, $outfile = false,$saveandprint=false) 
         {

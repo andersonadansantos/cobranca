@@ -1,0 +1,6 @@
+# Central de Faturas - https://www.centraldefaturas.com.br
+User-agent: *
+Allow: /
+Disallow: /cobranca/api/
+
+Sitemap: https://www.centraldefaturas.com.br/sitemap.xml
