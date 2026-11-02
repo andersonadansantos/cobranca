@@ -600,6 +600,9 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `politica_atraso` VARCHAR(20) NOT NULL DEFAULT 'todas' AFTER `dias_vencimento`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `tentativas_erro` INT NOT NULL DEFAULT 0 AFTER `politica_atraso`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `ultimo_erro` TEXT DEFAULT NULL AFTER `tentativas_erro`"); } catch (PDOException $e) {}
+        // Data escolhida pelo administrador no cadastro para a 1ª transação
+        // ("Vencimento da 1ª Transação"). Os vencimentos seguintes partem dela.
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `data_primeiro_vencimento` DATE DEFAULT NULL AFTER `data_inicio`"); } catch (PDOException $e) {}
 
         // `competencia` na fatura: a competência do ciclo, que é o que a
         // idempotência compara. Para as faturas já existentes a competência
@@ -705,21 +708,10 @@ function getConnection() {
             ) ENGINE=InnoDB");
         } catch (PDOException $e) {}
 
-        // Periodicidades: exatamente as sete do motor. 'bimestral' saiu do
-        // ENUM (não é uma das periodicidades suportadas).
+        // Periodicidades aceitas pelo motor, incluindo 'bimestral'. Registros
+        // antigos ('unica', 'diaria', 'lote') continuam válidos.
         try {
-            $temBimestral = (int)$pdo->query("SELECT COUNT(*) FROM `faturas_recorrentes` WHERE `frequencia` = 'bimestral'")->fetchColumn();
-            if ($temBimestral > 0) {
-                // Não há equivalente exato: o mais próximo que o motor suporta
-                // é trimestral. Fica registrado em configuracoes.
-                $pdo->exec("UPDATE `faturas_recorrentes` SET `frequencia` = 'trimestral' WHERE `frequencia` = 'bimestral'");
-                $pdo->prepare("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES (?, ?)")
-                    ->execute(['recorrencia_bimestral_migrada', (string)$temBimestral]);
-                error_log("[RECORRENCIA] {$temBimestral} recorrencia(s) bimestral migrada(s) para trimestral.");
-            }
-        } catch (PDOException $e) {}
-        try {
-            $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','trimestral','semestral','anual','lote') NOT NULL DEFAULT 'mensal'");
+            $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote') NOT NULL DEFAULT 'mensal'");
         } catch (PDOException $e) {}
 
         // Ancora das recorrências existentes. Para as de dia (diaria/semanal/

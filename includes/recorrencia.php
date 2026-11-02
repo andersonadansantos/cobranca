@@ -8,8 +8,12 @@ if (!defined('IN_COBRANCA')) { define('IN_COBRANCA', true); }
 // delega para includes/motor_recorrencia.php) passa por aqui.
 //
 // PERIODICIDADES ACEITAS (exatamente estas, nada mais):
-//   diaria, semanal, quinzenal, mensal, trimestral, semestral, anual
+//   semanal, quinzenal, mensal, bimestral, trimestral, semestral, anual
+//   (diaria e lote so existem em registros antigos)
 //   "unica" nao e recorrencia: gera uma fatura e nunca mais.
+//
+// ANTECEDENCIA DA EMISSAO (CRON): semanal 2 dias, quinzenal 5 dias, demais
+// periodicidades 10 dias antes do vencimento. Ver RECORRENCIA_ANTECEDENCIA_EMISSAO.
 //
 // REGRA CENTRAL: a proxima competencia e calculada a partir da COMPETENCIA
 // ANTERIOR (data-base), nunca a partir da data em que o cron rodou. Se o cron
@@ -24,6 +28,7 @@ if (!defined('IN_COBRANCA')) { define('IN_COBRANCA', true); }
 //
 // 2) Longo prazo - mesmo dia da ANCORA, de N em N meses:
 //      mensal     -> dia <ancora> de cada mes
+//      bimestral  -> dia <ancora> a cada 2 meses
 //      trimestral -> dia <ancora> a cada 3 meses
 //      semestral  -> dia <ancora> a cada 6 meses
 //      anual      -> dia <ancora> do mesmo mes, no ano seguinte
@@ -53,6 +58,7 @@ define('RECORRENCIA_DIAS', [
 // Longo prazo: mesmo dia da ancora, de N em N meses.
 define('RECORRENCIA_MESES', [
     'mensal'     => 1,
+    'bimestral'  => 2,
     'trimestral' => 3,
     'semestral'  => 6,
     'anual'      => 12,
@@ -60,7 +66,25 @@ define('RECORRENCIA_MESES', [
 
 // Periodicidades aceitas, em ordem de exibicao. Fonte da verdade para validar
 // o que vem do formulario e para montar as opcoes da interface.
-define('RECORRENCIAS_VALIDAS', ['diaria', 'semanal', 'quinzenal', 'mensal', 'trimestral', 'semestral', 'anual']);
+// 'lote' (Boleto em Lote) nao tem ciclo: gera N faturas de uma vez, e por isso
+// nunca entra no motor do cron (ver recorrenciaSemCiclo).
+define('RECORRENCIAS_VALIDAS', ['diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote']);
+
+// Opcoes que o cadastro de cobranca oferece no campo Frequencia. Registros
+// antigos com outras periodicidades continuam sendo processados pelo motor.
+define('RECORRENCIAS_CADASTRO', ['semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual']);
+
+// Antecedencia da emissao automatica pelo CRON, em dias antes do vencimento.
+// Regra propria da emissao: nao altera os lembretes da regua de cobranca.
+define('RECORRENCIA_ANTECEDENCIA_EMISSAO', [
+    'semanal'    => 2,
+    'quinzenal'  => 5,
+    'mensal'     => 10,
+    'bimestral'  => 10,
+    'trimestral' => 10,
+    'semestral'  => 10,
+    'anual'      => 10,
+]);
 
 /** Rotulos para a interface. */
 define('RECORRENCIA_ROTULOS', [
@@ -68,11 +92,40 @@ define('RECORRENCIA_ROTULOS', [
     'semanal'    => 'Semanal',
     'quinzenal'  => 'Quinzenal',
     'mensal'     => 'Mensal',
+    'bimestral'  => 'Bimestral',
     'trimestral' => 'Trimestral',
     'semestral'  => 'Semestral',
     'anual'      => 'Anual',
+    'lote'       => 'Boleto em Lote',
     'unica'      => 'Fatura Única',
 ]);
+
+/**
+ * Dias de antecedencia da emissao automatica para a frequencia.
+ * Frequencias sem regra definida (legado, ex.: diaria) emitem na propria data.
+ */
+function recorrenciaAntecedenciaEmissao($frequencia) {
+    $f = recorrenciaNormalizar($frequencia);
+    return isset(RECORRENCIA_ANTECEDENCIA_EMISSAO[$f]) ? RECORRENCIA_ANTECEDENCIA_EMISSAO[$f] : 0;
+}
+
+/**
+ * Valida a data do primeiro vencimento informada no cadastro (YYYY-MM-DD).
+ * Nao pode ser anterior a hoje.
+ *
+ * @return array ['ok' => bool, 'data' => 'Y-m-d'|null, 'motivo' => string]
+ */
+function recorrenciaValidarPrimeiroVencimento($data, $hoje = null) {
+    $data = trim((string)$data);
+    $hoje = $hoje ?: date('Y-m-d');
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $data, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
+        return ['ok' => false, 'data' => null, 'motivo' => 'Informe a data do primeiro vencimento (Vencimento da 1ª Transação).'];
+    }
+    if ($data < $hoje) {
+        return ['ok' => false, 'data' => null, 'motivo' => 'A data do primeiro vencimento não pode ser anterior a hoje.'];
+    }
+    return ['ok' => true, 'data' => $data, 'motivo' => ''];
+}
 
 /** Normaliza a frequencia gravada no banco (espaco/case nao quebram a regra). */
 function recorrenciaNormalizar($frequencia) {
@@ -84,10 +137,10 @@ function recorrenciaValida($frequencia) {
     return in_array(recorrenciaNormalizar($frequencia), RECORRENCIAS_VALIDAS, true);
 }
 
-/** true quando a frequencia NAO gera recorrencia (unica, vazia ou invalida). */
+/** true quando a frequencia NAO gera recorrencia (unica, lote, vazia ou invalida). */
 function recorrenciaSemCiclo($frequencia) {
     $f = recorrenciaNormalizar($frequencia);
-    if ($f === 'unica' || $f === '') return true;
+    if ($f === 'unica' || $f === 'lote' || $f === '') return true;
     return !isset(RECORRENCIA_DIAS[$f]) && !isset(RECORRENCIA_MESES[$f]);
 }
 

@@ -465,9 +465,8 @@ function motorProcessarRecorrencia($pdo, array $rec, array &$ctx) {
     // dias_vencimento > 0, o limite da competencia recua esses dias para que a
     // emissao ocorra exatamente N dias antes do vencimento. Sem antecedencia
     // (padrao antigo) o comportamento nao muda: emite na competencia.
-    // A antecedencia so vale para a frequencia MENSAL. As demais frequencias
-    // emitem na propria competencia, independentemente do valor gravado.
-    $antecedencia = $frequencia === 'mensal' ? (int)($rec['antecedencia_emissao'] ?? 0) : 0;
+    // Antecedencia definida por frequencia (RECORRENCIA_ANTECEDENCIA_EMISSAO).
+    $antecedencia = recorrenciaAntecedenciaEmissao($frequencia);
     $limite = $hoje;
     if ($antecedencia > 0) {
         $diasVenc = (int)($rec['dias_vencimento'] ?? 0);
