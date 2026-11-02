@@ -263,7 +263,7 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso</h4>';
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">CPF/CNPJ: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Senha: a senha que você cadastrou</p>';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Senha padrão: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong> (ou a senha que você cadastrou)</p>';
             $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Esqueceu sua senha? Use a opção de recuperação de senha na área do cliente.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
@@ -304,7 +304,7 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso</h4>';
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">CPF/CNPJ: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Senha: a senha que você cadastrou</p>';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Senha padrão: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong> (ou a senha que você cadastrou)</p>';
             $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Esqueceu sua senha? Use a opção de recuperação de senha na área do cliente.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
@@ -338,7 +338,7 @@ if (!function_exists('montarMensagemTxt')) {
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $msg .= "--- Dados de Acesso ao Painel ---\n";
             $msg .= "Usuário: {$cpfCnpjFmt}\n";
-            $msg .= "Senha: a senha que você cadastrou\n";
+            $msg .= "Senha padrão: {$cpfCnpjFmt} (ou a senha que você cadastrou)\n";
             $msg .= "(Esqueceu sua senha? Use a recuperação de senha na área do cliente.)\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";
@@ -360,7 +360,7 @@ if (!function_exists('montarMensagemTxt')) {
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $msg .= "--- Dados de Acesso ao Painel ---\n";
             $msg .= "Usuário: {$cpfCnpjFmt}\n";
-            $msg .= "Senha: a senha que você cadastrou\n";
+            $msg .= "Senha padrão: {$cpfCnpjFmt} (ou a senha que você cadastrou)\n";
             $msg .= "(Esqueceu sua senha? Use a recuperação de senha na área do cliente.)\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";

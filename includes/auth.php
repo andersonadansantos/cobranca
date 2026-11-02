@@ -201,6 +201,15 @@ function loginUser($cpfCnpj, $senha = '') {
                 $upd = $pdo->prepare("UPDATE clientes SET senha = ? WHERE id = ?");
                 $upd->execute([$newHash, $cliente['id']]);
             }
+            // Senha padrao = CPF/CNPJ (so digitos): aceita tambem a digitacao com
+            // pontuacao (123.456.789-09). Vale apenas quando a senha digitada e o proprio documento.
+            if (!$valid) {
+                $docDigitos = preg_replace('/[^0-9]/', '', (string)($cliente['cpf_cnpj'] ?? ''));
+                $senhaDigitos = preg_replace('/[^0-9]/', '', $senha);
+                if ($docDigitos !== '' && $senhaDigitos === $docDigitos && password_verify($docDigitos, $hash)) {
+                    $valid = true;
+                }
+            }
             if (!$valid) return false;
         } elseif (empty($hash)) {
             // Senha não definida — login sem senha (compatibilidade legada)

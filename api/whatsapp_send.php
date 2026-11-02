@@ -173,7 +173,7 @@ function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
     if (!empty($cpfCnpj)) {
         $acessoTexto = "\n🔐 *Acesso ao Painel de faturas:*\n";
         $acessoTexto .= "CPF/CNPJ: {$cpfCnpj}\n";
-        $acessoTexto .= "Senha: a senha que você cadastrou\n";
+        $acessoTexto .= "Senha padrão: {$cpfCnpj} (ou a senha que você cadastrou)\n";
         $acessoTexto .= "_Esqueceu sua senha? Use a recuperação de senha na área do cliente_\n\n";
     }
 
