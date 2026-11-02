@@ -247,6 +247,8 @@ function enviarEAtualizar($pdo, $fat, $tipo, $assunto, $html, $txt, $s, &$log) {
     } else {
         $enviado = enviarEmail($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt);
     }
+    registrarEnvioLog($fat['admin_id'] ?? 0, $fat['id'], 'email', $tipo, $enviado ? 'enviado' : 'erro', $fat['email'],
+        $enviado ? '' : 'SMTP nao confirmou o envio');
     if ($enviado) {
         $stmt = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = ? WHERE id = ?");
         $stmt->execute([$tipo, $fat['id']]);

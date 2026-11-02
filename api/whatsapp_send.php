@@ -50,18 +50,24 @@ function getWhatsAppConfig() {
 }
 
 function enviarWhatsApp($telefone, $mensagem) {
+    $falha = function ($motivo) {
+        $GLOBALS['whatsapp_ultimo_erro'] = $motivo;
+        return false;
+    };
+    $GLOBALS['whatsapp_ultimo_erro'] = '';
+
     $wa = getWhatsAppConfig();
     $apiUrl = rtrim($wa['url_api'], '/');
     $apiKey = $wa['api_key'];
     $instance = $wa['instance'];
     $whatsappAtivo = $wa['ativo'];
 
-    if ($whatsappAtivo !== '1') return false;
-    if (empty($apiUrl) || empty($apiKey) || empty($instance)) return false;
-    if (empty($telefone)) return false;
+    if ($whatsappAtivo !== '1') return $falha('WhatsApp desativado para este administrador');
+    if (empty($apiUrl) || empty($apiKey) || empty($instance)) return $falha('configuracao do WhatsApp incompleta (URL, chave ou instancia)');
+    if (empty($telefone)) return $falha('cliente sem telefone');
 
     $telefone = preg_replace('/[^0-9]/', '', $telefone);
-    if (strlen($telefone) < 10) return false;
+    if (strlen($telefone) < 10) return $falha('telefone invalido');
     if (strlen($telefone) === 10) $telefone = '55' . $telefone;
     if (strlen($telefone) === 11) $telefone = '55' . $telefone;
     if (strlen($telefone) === 12 && substr($telefone, 0, 2) !== '55') $telefone = '55' . $telefone;
@@ -82,15 +88,22 @@ function enviarWhatsApp($telefone, $mensagem) {
             'apikey: ' . $apiKey,
         ],
         CURLOPT_TIMEOUT => 20,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
     ]);
     $resp = curl_exec($ch);
     $err = curl_error($ch);
     curl_close($ch);
 
-    if ($err) return false;
+    if ($err) return $falha('erro de conexao com a API do WhatsApp: ' . $err);
     $data = json_decode($resp, true);
-    return ($data && isset($data['key']['id'])) ? true : false;
+    if ($data && isset($data['key']['id'])) return true;
+    return $falha('API do WhatsApp nao confirmou o envio: ' . substr((string)$resp, 0, 300));
+}
+
+function registrarResultadoWhats($fatura, $tipo, $ok, $telefone) {
+    registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo,
+        $ok ? 'enviado' : 'erro', $telefone, $ok ? '' : ($GLOBALS['whatsapp_ultimo_erro'] ?? ''));
+    return $ok;
 }
 
 function renderizarTemplateWhats($template, $fatura, $dias = 0) {
@@ -123,15 +136,19 @@ function renderizarTemplateWhats($template, $fatura, $dias = 0) {
 
 function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
     if (!planoPermiteEnvio('whatsapp', (int)($fatura['admin_id'] ?? 0))) {
+        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo, 'ignorado', '', 'plano sem envio por WhatsApp');
         return false;
     }
     $telefone = $fatura['celular'] ?? $fatura['telefone'] ?? '';
-    if (empty($telefone)) return false;
+    if (empty($telefone)) {
+        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo, 'ignorado', '', 'cliente sem telefone');
+        return false;
+    }
 
     $template = getConfig(($tipo === 'pagamento') ? 'template_whats_pagamento' : 'template_whats_antes', '');
     if (!empty(trim($template))) {
         $msg = renderizarTemplateWhats($template, $fatura, $dias);
-        return enviarWhatsApp($telefone, $msg);
+        return registrarResultadoWhats($fatura, $tipo, enviarWhatsApp($telefone, $msg), $telefone);
     }
 
     $pdo = getConnection();
@@ -156,8 +173,8 @@ function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
     if (!empty($cpfCnpj)) {
         $acessoTexto = "\n🔐 *Acesso ao Painel de faturas:*\n";
         $acessoTexto .= "CPF/CNPJ: {$cpfCnpj}\n";
-        $acessoTexto .= "SENHA: {$cpfCnpj}\n";
-        $acessoTexto .= "_Sua senha padrão é seu CPF/CNPJ_\n\n";
+        $acessoTexto .= "Senha: a senha que você cadastrou\n";
+        $acessoTexto .= "_Esqueceu sua senha? Use a recuperação de senha na área do cliente_\n\n";
     }
 
     if ($tipo === 'pagamento') {
@@ -194,5 +211,5 @@ function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
         $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
     }
 
-    return enviarWhatsApp($telefone, $msg);
+    return registrarResultadoWhats($fatura, $tipo, enviarWhatsApp($telefone, $msg), $telefone);
 }

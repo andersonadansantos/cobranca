@@ -171,15 +171,18 @@ if (!function_exists('aplicarLogoEmail')) {
 
 if (!function_exists('getLinkFatura')) {
     function getLinkFatura($faturaId) {
-        $protocolo = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        // Link sempre no domínio público configurado (base_domain) e no subdomínio
+        // do administrador dono da fatura. Só cai para o host da requisição quando
+        // não há domínio base: o CRON pode rodar sem host público (ex.: localhost).
         $token = '';
+        $adminId = 0;
         $pdo = getConnection();
         if ($pdo) {
-            $stmt = $pdo->prepare("SELECT acesso_token FROM faturas WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT acesso_token, admin_id FROM faturas WHERE id = ?");
             $stmt->execute([$faturaId]);
             $row = $stmt->fetch();
             if ($row !== false) {
+                $adminId = (int)($row['admin_id'] ?? 0);
                 $token = $row['acesso_token'];
                 if (empty($token)) {
                     $token = bin2hex(random_bytes(32));
@@ -188,10 +191,26 @@ if (!function_exists('getLinkFatura')) {
                 }
             }
         }
-        if ($token) {
-            return "{$protocolo}://{$host}" . APP_BASE . "/usuario/fatura.php?id={$faturaId}&token={$token}";
+        if (!function_exists('getBaseDomain')) {
+            require_once __DIR__ . '/tenant.php';
         }
-        return "{$protocolo}://{$host}" . APP_BASE . "/usuario/fatura.php?id={$faturaId}";
+        $baseDomain = strtolower(trim(ltrim((string)getBaseDomain(), '.')));
+        if ($baseDomain !== '') {
+            $sub = '';
+            if ($adminId > 0 && $pdo) {
+                $stSub = $pdo->prepare("SELECT subdominio FROM administradores WHERE id = ?");
+                $stSub->execute([$adminId]);
+                $sub = trim((string)$stSub->fetchColumn());
+            }
+            $base = 'https://' . ($sub !== '' ? $sub . '.' : '') . $baseDomain;
+        } else {
+            $protocolo = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') ? 'https' : 'http';
+            $base = $protocolo . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        }
+        if ($token) {
+            return $base . APP_BASE . "/usuario/fatura.php?id={$faturaId}&token={$token}";
+        }
+        return $base . APP_BASE . "/usuario/fatura.php?id={$faturaId}";
     }
 }
 
@@ -244,8 +263,8 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso</h4>';
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">CPF/CNPJ: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">SENHA: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Senha: a senha que você cadastrou</p>';
+            $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Esqueceu sua senha? Use a opção de recuperação de senha na área do cliente.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
                 $conteudo .= '<div style="text-align:center;margin-bottom:24px;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';font-weight:600;text-decoration:none;">Pagar agora via Mercado Pago →</a></div>';
@@ -285,8 +304,8 @@ if (!function_exists('montarMensagemHtml')) {
             $conteudo .= '<h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Dados de Acesso</h4>';
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">CPF/CNPJ: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">SENHA: <strong style="color:#333;">' . htmlspecialchars($cpfCnpjFmt) . '</strong></p>';
-            $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.</p>';
+            $conteudo .= '<p style="margin:0 0 6px 0;font-size:13px;color:#666;">Senha: a senha que você cadastrou</p>';
+            $conteudo .= '<p style="margin:8px 0 0 0;font-size:12px;color:#999;text-align:center;">Esqueceu sua senha? Use a opção de recuperação de senha na área do cliente.</p>';
             $conteudo .= '</div>';
             if ($linkPag) {
                 $conteudo .= '<div style="text-align:center;margin-bottom:24px;"><a href="' . htmlspecialchars($linkPag) . '" style="color:' . $corPrimaria . ';font-weight:600;text-decoration:none;">Pagar agora via Mercado Pago →</a></div>';
@@ -319,8 +338,8 @@ if (!function_exists('montarMensagemTxt')) {
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $msg .= "--- Dados de Acesso ao Painel ---\n";
             $msg .= "Usuário: {$cpfCnpjFmt}\n";
-            $msg .= "Senha: {$cpfCnpjFmt}\n";
-            $msg .= "(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)\n\n";
+            $msg .= "Senha: a senha que você cadastrou\n";
+            $msg .= "(Esqueceu sua senha? Use a recuperação de senha na área do cliente.)\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";
             }
@@ -341,8 +360,8 @@ if (!function_exists('montarMensagemTxt')) {
             $cpfCnpjFmt = $fatura['cpf_cnpj'] ?? '';
             $msg .= "--- Dados de Acesso ao Painel ---\n";
             $msg .= "Usuário: {$cpfCnpjFmt}\n";
-            $msg .= "Senha: {$cpfCnpjFmt}\n";
-            $msg .= "(Sua senha padrão é seu CPF/CNPJ. Altere após o primeiro acesso.)\n\n";
+            $msg .= "Senha: a senha que você cadastrou\n";
+            $msg .= "(Esqueceu sua senha? Use a recuperação de senha na área do cliente.)\n\n";
             if ($linkPag) {
                 $msg .= "Pagar agora: {$linkPag}\n\n";
             }
@@ -699,6 +718,8 @@ if (!function_exists('enviarEmailFatura')) {
             }
         }
 
+        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'email', $tipo, $ret ? 'enviado' : 'erro', $fatura['email'] ?? '',
+            $ret ? '' : 'SMTP nao confirmou o envio');
         return $ret;
     }
 }
@@ -833,6 +854,8 @@ if (!function_exists('enviarEmailPagamento')) {
             }
         }
 
+        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'email', 'pagamento', $ret ? 'enviado' : 'erro', $fatura['email'] ?? '',
+            $ret ? '' : 'SMTP nao confirmou o envio');
         return $ret;
     }
 }

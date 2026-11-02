@@ -666,7 +666,24 @@ function getConnection() {
 
         // Trilha por cobrança processada (spec: auditoria por assinatura).
         try {
-            $pdo->exec("CREATE TABLE IF NOT EXISTS `cron_log` (
+            // Registro de cada envio de cobranca (e-mail/WhatsApp) e do resultado.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `envios_log` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `admin_id` INT DEFAULT NULL,
+                `fatura_id` INT DEFAULT NULL,
+                `canal` VARCHAR(20) NOT NULL,
+                `tipo` VARCHAR(30) DEFAULT NULL,
+                `status` VARCHAR(20) NOT NULL,
+                `destino` VARCHAR(150) DEFAULT NULL,
+                `mensagem` TEXT DEFAULT NULL,
+                `criado_em` DATETIME NOT NULL,
+                KEY `idx_envios_fatura` (`fatura_id`, `canal`, `criado_em`),
+                KEY `idx_envios_admin` (`admin_id`, `criado_em`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `cron_log` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
                 `execucao_id` VARCHAR(40) NOT NULL,
                 `admin_id` INT DEFAULT NULL,
@@ -739,6 +756,27 @@ function getConnection() {
         error_log("Erro de conexão: " . $e->getMessage());
         return null;
     }
+}
+
+/**
+ * Registra cada envio de cobranca (e-mail ou WhatsApp) com o resultado.
+ * Falha ao gravar o log nunca interrompe o envio.
+ */
+function registrarEnvioLog($adminId, $faturaId, $canal, $tipo, $status, $destino = '', $mensagem = '') {
+    try {
+        $pdo = getConnection();
+        if (!$pdo) return;
+        $pdo->prepare("INSERT INTO envios_log (admin_id, fatura_id, canal, tipo, status, destino, mensagem, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())")
+            ->execute([
+                $adminId ?: null,
+                $faturaId ?: null,
+                substr((string)$canal, 0, 20),
+                substr((string)$tipo, 0, 30),
+                substr((string)$status, 0, 20),
+                substr((string)$destino, 0, 150),
+                substr((string)$mensagem, 0, 1000),
+            ]);
+    } catch (Throwable $e) {}
 }
 
 function criarTabelas($pdo) {

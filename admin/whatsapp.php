@@ -67,7 +67,7 @@ if ($acao === 'testar') {
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey],
                 CURLOPT_TIMEOUT => 10,
-                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYPEER => true,
             ]);
             $resp = curl_exec($ch);
             $err = curl_error($ch);
@@ -104,7 +104,7 @@ if (!empty($apiUrl) && !empty($apiKey) && !empty($instance)) {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey],
         CURLOPT_TIMEOUT => 10,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
     ]);
     $resp = curl_exec($ch);
     curl_close($ch);
@@ -124,7 +124,7 @@ if (!empty($apiUrl) && !empty($apiKey) && !empty($instance)) {
             ]),
             CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey, 'Content-Type: application/json'],
             CURLOPT_TIMEOUT => 10,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
         curl_exec($ch);
         curl_close($ch);
@@ -139,7 +139,7 @@ if (!empty($apiUrl) && !empty($apiKey) && !empty($instance)) {
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey],
                 CURLOPT_TIMEOUT => 15,
-                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYPEER => true,
             ]);
             $resp = curl_exec($ch);
             curl_close($ch);
@@ -156,7 +156,7 @@ if (!empty($apiUrl) && !empty($apiKey) && !empty($instance)) {
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_HTTPHEADER => ['apikey: ' . $apiKey],
                     CURLOPT_TIMEOUT => 10,
-                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYPEER => true,
                 ]);
                 $resp = curl_exec($ch);
                 curl_close($ch);
