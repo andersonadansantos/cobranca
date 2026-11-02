@@ -535,7 +535,8 @@ if (!function_exists('enviarEmail')) {
         @fputs($connexion, "QUIT\r\n");
         @fclose($connexion);
 
-        return true;
+        // Só é envio concluído se o servidor aceitou a mensagem (250 após o DATA).
+        return substr((string)$r, 0, 3) === '250';
     }
 }
 
@@ -617,7 +618,8 @@ if (!function_exists('enviarEmailComAnexo')) {
         @fputs($connexion, "QUIT\r\n");
         @fclose($connexion);
 
-        return true;
+        // Só é envio concluído se o servidor aceitou a mensagem (250 após o DATA).
+        return substr((string)$r, 0, 3) === '250';
     }
 }
 
