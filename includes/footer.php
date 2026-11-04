@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';
 $isAdminArea = strpos($_SERVER['PHP_SELF'] ?? '', '/admin') !== false;
 if ($templateAtivo === 'fintech' && $isAdminArea) {

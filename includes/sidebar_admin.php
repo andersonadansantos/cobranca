@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $basePath = '/cobranca/admin';
 $templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';

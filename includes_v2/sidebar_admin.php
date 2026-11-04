@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $isV2Dir = strpos($_SERVER['PHP_SELF'], '/admin_v2') !== false;
 $basePath = $isV2Dir ? '/cobranca/admin_v2' : '/cobranca/admin';
