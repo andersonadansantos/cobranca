@@ -115,3 +115,4 @@ function salvarUploadSeguro($file, $categoria = 'geral', $prefixo = 'file_', $ex
         'erro'    => ''
     ];
 }
+

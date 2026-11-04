@@ -26,3 +26,4 @@ Options -ExecCGI -Indexes
 <FilesMatch "(?i)\.(jpg|jpeg|png|gif|webp|svg|ico|pdf|txt)$">
     Require all granted
 </FilesMatch>
+
