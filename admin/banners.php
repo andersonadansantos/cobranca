@@ -36,27 +36,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'upload' && $slot >= 1 && $slot <= 3 && in_array($tipoBanner, ['desktop','mobile'])) {
         $inputName = 'banner_' . $tipoBanner . '_' . $slot;
         $file = $_FILES[$inputName] ?? null;
-        if ($file && $file['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
-                $dir = __DIR__ . '/../assets/img/banners/' . $bannerSub;
-                if (!is_dir($dir)) mkdir($dir, 0777, true);
-                $filename = $tipoBanner . '_' . $slot . '.' . $ext;
-                $chave = 'banner_' . $tipoBanner . '_' . $slot;
-                $antigo = getConfig($chave, '');
-                $antigoPath = bannerPathFromUrl($antigo);
-                if ($antigo && $antigoPath && file_exists($antigoPath)) {
-                    unlink($antigoPath);
-                }
-                if (move_uploaded_file($file['tmp_name'], $dir . '/' . $filename)) {
-                    saveConfig($chave, APP_BASE . '/assets/img/banners/' . $bannerSub . '/' . $filename);
-                    $mensagem = 'Banner ' . $tipoBanner . ' slot ' . $slot . ' salvo com sucesso!';
-                    $tipo = 'success';
-                }
-            } else {
-                $mensagem = 'Formato inválido. Use JPG, PNG, GIF ou WebP.';
-                $tipo = 'danger';
-            }
+        $prefixo = 'banner_' . ($bannerSub ? $bannerSub . '_' : '') . $tipoBanner . '_' . $slot;
+        $res = salvarUploadSeguro($file, 'banners', $prefixo, ['jpg','jpeg','png','gif','webp']);
+        if ($res['sucesso']) {
+            $chave = 'banner_' . $tipoBanner . '_' . $slot;
+            saveConfig($chave, $res['url']);
+            $mensagem = 'Banner ' . $tipoBanner . ' slot ' . $slot . ' salvo com sucesso!';
+            $tipo = 'success';
+        } else {
+            $mensagem = $res['erro'];
+            $tipo = 'danger';
         }
     }
 }

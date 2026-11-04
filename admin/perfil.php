@@ -108,28 +108,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $avatarPath = $admin['avatar'] ?? null;
         $avisoFoto = '';
         if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] !== UPLOAD_ERR_NO_FILE) {
-            $errFoto = (int)($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE);
-            if ($errFoto === UPLOAD_ERR_INI_SIZE || $errFoto === UPLOAD_ERR_FORM_SIZE) {
-                $avisoFoto = 'A imagem excede o tamanho máximo permitido (2MB).';
-            } elseif ($errFoto !== UPLOAD_ERR_OK) {
-                $avisoFoto = 'Falha no envio da imagem (código ' . $errFoto . ').';
+            $res = salvarUploadSeguro($_FILES['avatar'], 'avatars', 'admin_' . (int)$adminId, ['jpg','jpeg','png','gif','webp']);
+            if ($res['sucesso']) {
+                $avatarPath = $res['url'];
+                $stmt = $pdo->prepare("UPDATE administradores SET avatar=? WHERE id=?");
+                $stmt->execute([$avatarPath, $adminId]);
+                $_SESSION['admin_avatar'] = $avatarPath;
             } else {
-                $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
-                if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
-                    $dir = __DIR__ . '/../assets/img/avatars';
-                    if (!is_dir($dir)) @mkdir($dir, 0777, true);
-                    $filename = 'admin_' . (int)$adminId . '.' . $ext;
-                    if (@move_uploaded_file($_FILES['avatar']['tmp_name'], $dir . '/' . $filename)) {
-                        $avatarPath = '/cobranca/assets/img/avatars/' . $filename;
-                        $stmt = $pdo->prepare("UPDATE administradores SET avatar=? WHERE id=?");
-                        $stmt->execute([$avatarPath, $adminId]);
-                        $_SESSION['admin_avatar'] = $avatarPath;
-                    } else {
-                        $avisoFoto = 'Não foi possível salvar a nova imagem de perfil (verifique permissões de escrita).';
-                    }
-                } else {
-                    $avisoFoto = 'Formato de imagem não permitido (use JPG, PNG, GIF ou WEBP).';
-                }
+                $avisoFoto = $res['erro'];
             }
         }
         if ($avisoFoto !== '') {

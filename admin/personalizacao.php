@@ -29,95 +29,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     
     if ($acao === 'logo') {
-        if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
-            $permitidos = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
-            
-            if (in_array($ext, $permitidos)) {
-                $nome = 'logo_' . time() . '.' . $ext;
-                $destino = __DIR__ . '/../assets/img/' . $nome;
-                
-                if (move_uploaded_file($_FILES['logo']['tmp_name'], $destino)) {
-                    // Remover logo anterior
-                    $logoAntiga = getConfig('logo_empresa');
-                    $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
-                    if ($logoAntiga && file_exists($logoAntigaPath)) {
-                        unlink($logoAntigaPath);
-                    }
-                    
-                    saveConfig('logo_empresa', APP_BASE . '/assets/img/' . $nome);
-                    
-                    $mensagem = 'Logo atualizada com sucesso!';
-                    $tipo = 'success';
-                }
-            } else {
-                $mensagem = 'Formato de arquivo não permitido. Use: JPG, PNG, GIF, SVG ou WEBP.';
-                $tipo = 'danger';
-            }
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        $res = salvarUploadSeguro($_FILES['logo'] ?? null, 'logos', 'logo_admin_' . $adminId);
+        if ($res['sucesso']) {
+            saveConfig('logo_empresa', $res['url']);
+            $mensagem = 'Logo atualizada com sucesso!';
+            $tipo = 'success';
         } else {
-            $mensagem = 'Selecione uma imagem para upload.';
+            $mensagem = $res['erro'];
             $tipo = 'danger';
         }
     }
     
     if ($acao === 'logo_mobile') {
-        if (isset($_FILES['logo_mobile']) && $_FILES['logo_mobile']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['logo_mobile']['name'], PATHINFO_EXTENSION));
-            $permitidos = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
-            
-            if (in_array($ext, $permitidos)) {
-                $nome = 'logo_mobile_' . time() . '.' . $ext;
-                $destino = __DIR__ . '/../assets/img/' . $nome;
-                
-                if (move_uploaded_file($_FILES['logo_mobile']['tmp_name'], $destino)) {
-                    $logoAntiga = getConfig('logo_mobile');
-                    $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
-                    if ($logoAntiga && file_exists($logoAntigaPath)) {
-                        unlink($logoAntigaPath);
-                    }
-                    
-                    saveConfig('logo_mobile', APP_BASE . '/assets/img/' . $nome);
-                    
-                    $mensagem = 'Logo mobile atualizada com sucesso!';
-                    $tipo = 'success';
-                }
-            } else {
-                $mensagem = 'Formato de arquivo não permitido. Use: JPG, PNG, GIF, SVG ou WEBP.';
-                $tipo = 'danger';
-            }
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        $res = salvarUploadSeguro($_FILES['logo_mobile'] ?? null, 'logos', 'logo_mobile_' . $adminId);
+        if ($res['sucesso']) {
+            saveConfig('logo_mobile', $res['url']);
+            $mensagem = 'Logo mobile atualizada com sucesso!';
+            $tipo = 'success';
         } else {
-            $mensagem = 'Selecione uma imagem para upload.';
+            $mensagem = $res['erro'];
             $tipo = 'danger';
         }
     }
 
     if ($acao === 'logo_painel') {
-        if (isset($_FILES['logo_painel']) && $_FILES['logo_painel']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['logo_painel']['name'], PATHINFO_EXTENSION));
-            $permitidos = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
-
-            if (in_array($ext, $permitidos)) {
-                $nome = 'logo_empresa_admin_' . time() . '.' . $ext;
-                $destino = __DIR__ . '/../assets/img/' . $nome;
-
-                if (move_uploaded_file($_FILES['logo_painel']['tmp_name'], $destino)) {
-                    $logoAntiga = getConfig('logo_empresa_admin');
-                    if ($logoAntiga) {
-                        $logoAntigaPath = __DIR__ . '/..' . str_replace('/cobranca', '', $logoAntiga);
-                        if ($logoAntigaPath && file_exists($logoAntigaPath)) {
-                            @unlink($logoAntigaPath);
-                        }
-                    }
-                    saveConfig('logo_empresa_admin', APP_BASE . '/assets/img/' . $nome);
-                    $mensagem = 'Logo da empresa atualizada com sucesso!';
-                    $tipo = 'success';
-                }
-            } else {
-                $mensagem = 'Formato de arquivo não permitido. Use: JPG, PNG, GIF, SVG ou WEBP.';
-                $tipo = 'danger';
-            }
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        $res = salvarUploadSeguro($_FILES['logo_painel'] ?? null, 'logos', 'logo_empresa_admin_' . $adminId);
+        if ($res['sucesso']) {
+            saveConfig('logo_empresa_admin', $res['url']);
+            $mensagem = 'Logo da empresa atualizada com sucesso!';
+            $tipo = 'success';
         } else {
-            $mensagem = 'Selecione uma imagem para upload.';
+            $mensagem = $res['erro'];
             $tipo = 'danger';
         }
     }

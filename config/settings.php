@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/tenant.php';
+require_once __DIR__ . '/uploads.php';
 
 // Resolve o tenant pelo subdomínio do host em toda requisição compartilhada
 // (painel, site, portal e webhooks). É o que dá "vida" ao subdomínio criado

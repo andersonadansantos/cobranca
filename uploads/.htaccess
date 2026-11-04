@@ -1,0 +1,28 @@
+# =====================================================
+# PROTEÇÃO E SEGURANÇA DO DIRETÓRIO DE UPLOADS
+# Impede execução de qualquer script ou código dinâmico
+# =====================================================
+
+# Desativa engine do PHP neste diretório e subdiretórios
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# Desativa execução de CGI e listagem de arquivos
+Options -ExecCGI -Indexes
+
+# Bloqueia qualquer execução de arquivos potencialmente perigosos
+<FilesMatch "(?i)\.(php|phtml|php3|php4|php5|php7|php8|phps|cgi|pl|py|sh|bash|exe|bat|cmd|com|msi|vbs|jar|jsp|asp|aspx)$">
+    Require all denied
+</FilesMatch>
+
+# Permite acesso exclusivamente a arquivos estáticos permitidos
+<FilesMatch "(?i)\.(jpg|jpeg|png|gif|webp|svg|ico|pdf|txt)$">
+    Require all granted
+</FilesMatch>

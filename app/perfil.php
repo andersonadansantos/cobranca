@@ -66,17 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$email, $telefone, $celular, $cep, $logradouro, $numero, $complemento, $bairro, $cidade, $estado, $userId]);
 
         if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
-                $dir = __DIR__ . '/../assets/img/avatars';
-                if (!is_dir($dir)) mkdir($dir, 0777, true);
-                $filename = 'user_' . $userId . '.' . $ext;
-                if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dir . '/' . $filename)) {
-                    $avatarPath = APP_BASE . '/assets/img/avatars/' . $filename;
-                    $stmt = $pdo->prepare("UPDATE clientes SET avatar=? WHERE id=?");
-                    $stmt->execute([$avatarPath, $userId]);
-                    $_SESSION['user_avatar'] = $avatarPath;
-                }
+            $res = salvarUploadSeguro($_FILES['avatar'], 'avatars', 'user_' . (int)$userId, ['jpg','jpeg','png','gif','webp']);
+            if ($res['sucesso']) {
+                $avatarPath = $res['url'];
+                $stmt = $pdo->prepare("UPDATE clientes SET avatar=? WHERE id=?");
+                $stmt->execute([$avatarPath, $userId]);
+                $_SESSION['user_avatar'] = $avatarPath;
             }
         }
 

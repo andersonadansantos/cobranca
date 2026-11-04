@@ -10,36 +10,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
 
     if ($acao === 'logo_login') {
-        if (isset($_FILES['logo_login']) && $_FILES['logo_login']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['logo_login']['name'], PATHINFO_EXTENSION));
-            $permitidos = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
-
-            if (in_array($ext, $permitidos)) {
-                $nome = 'logo_login_' . time() . '.' . $ext;
-                $destino = __DIR__ . '/../assets/img/' . $nome;
-
-                if (move_uploaded_file($_FILES['logo_login']['tmp_name'], $destino)) {
-                    $logoAntiga = getConfigGlobal('logo_login');
-                    $logoAntigaPath = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', (string)$logoAntiga);
-                    $logoAntigaPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $logoAntigaPath);
-                    if ($logoAntiga && strpos($logoAntiga, 'http') !== 0 && $logoAntigaPath !== __DIR__ . '/../assets/img/' . $nome && file_exists($logoAntigaPath)) {
-                        unlink($logoAntigaPath);
-                    }
-
-                    salvarConfigGlobal('logo_login', APP_BASE . '/assets/img/' . $nome);
-
-                    $mensagem = 'Logo de login atualizada com sucesso!';
-                    $tipo = 'success';
-                } else {
-                    $mensagem = 'Falha ao salvar o arquivo.';
-                    $tipo = 'danger';
-                }
-            } else {
-                $mensagem = 'Formato de arquivo não permitido. Use: JPG, PNG, GIF, SVG ou WEBP.';
-                $tipo = 'danger';
-            }
+        $res = salvarUploadSeguro($_FILES['logo_login'] ?? null, 'logos', 'logo_login_global');
+        if ($res['sucesso']) {
+            salvarConfigGlobal('logo_login', $res['url']);
+            $mensagem = 'Logo de login atualizada com sucesso!';
+            $tipo = 'success';
         } else {
-            $mensagem = 'Selecione uma imagem para upload.';
+            $mensagem = $res['erro'];
             $tipo = 'danger';
         }
     }

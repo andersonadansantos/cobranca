@@ -29,12 +29,18 @@ WORKDIR /var/www/html/cobranca
 COPY . /var/www/html/cobranca/
 
 # Permissões de escrita para uploads e logs
-RUN mkdir -p /var/www/html/cobranca/assets/img/avatars \
+RUN mkdir -p /var/www/html/cobranca/uploads/logos \
+             /var/www/html/cobranca/uploads/banners \
+             /var/www/html/cobranca/uploads/avatars \
+             /var/www/html/cobranca/uploads/comprovantes \
+             /var/www/html/cobranca/uploads/geral \
+             /var/www/html/cobranca/assets/img/avatars \
              /var/www/html/cobranca/assets/img/banners \
              /var/www/html/cobranca/assets/boletos_inter \
              /var/www/html/cobranca/assets/boletos_pagbank \
              /var/www/html/cobranca/config/inter_certs \
-    && chown -R www-data:www-data /var/www/html/cobranca
+    && chown -R www-data:www-data /var/www/html/cobranca \
+    && chmod -R 775 /var/www/html/cobranca/uploads
 
 # Apache expõe a aplicação pela URL /cobranca
 COPY docker/vhost.conf /etc/apache2/conf-available/cobranca.conf
