@@ -129,7 +129,9 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `pix_inter_codigo` VARCHAR(100) DEFAULT NULL AFTER `inter_data_situacao`"); } catch (PDOException $e) {}
         // ENUM da frequência passa a aceitar 'lote'. Mantém 'bimestral' por
         // compatibilidade com migração anterior.
-        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `carne_id` INT DEFAULT NULL AFTER `fatura_recorrente_id`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas` ADD INDEX `idx_faturas_carne_id` (`carne_id`)"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote','carne') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
 
         // Lapide das faturas excluidas. Sem ela, o cron recria e reenvia a
         // cobranca de um ciclo que o admin apagou (a fatura e DELETE e a
@@ -164,7 +166,7 @@ function getConnection() {
         try { $pdo->exec("ALTER TABLE `clientes` MODIFY COLUMN `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"); } catch (PDOException $e) {}
 
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` ADD COLUMN `status` VARCHAR(20) DEFAULT 'ativa' AFTER `ativo`"); } catch (PDOException $e) {}
-        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote', 'carne') NOT NULL DEFAULT 'mensal'"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `ativo` TINYINT(1) NOT NULL DEFAULT 1"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'ativa'"); } catch (PDOException $e) {}
         try { $pdo->exec("UPDATE `faturas_recorrentes` SET `ativo` = 1, `status` = 'ativa' WHERE `ativo` IS NULL OR `status` IS NULL"); } catch (PDOException $e) {}
@@ -728,7 +730,7 @@ function getConnection() {
         // Periodicidades aceitas pelo motor, incluindo 'bimestral'. Registros
         // antigos ('unica', 'diaria', 'lote') continuam válidos.
         try {
-            $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote') NOT NULL DEFAULT 'mensal'");
+            $pdo->exec("ALTER TABLE `faturas_recorrentes` MODIFY COLUMN `frequencia` ENUM('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote','carne') NOT NULL DEFAULT 'mensal'");
         } catch (PDOException $e) {}
 
         // Ancora das recorrências existentes. Para as de dia (diaria/semanal/
@@ -827,7 +829,7 @@ function criarTabelas($pdo) {
         `cliente_id` INT NOT NULL,
         `descricao` VARCHAR(200) NOT NULL,
         `valor` DECIMAL(10,2) NOT NULL,
-        `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote') DEFAULT 'mensal',
+        `frequencia` ENUM('unica', 'diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote', 'carne') DEFAULT 'mensal',
         `dia_vencimento` INT DEFAULT 1,
         `data_inicio` DATE NOT NULL,
         `data_fim` DATE,
@@ -842,6 +844,7 @@ function criarTabelas($pdo) {
         `id` INT AUTO_INCREMENT PRIMARY KEY,
         `cliente_id` INT NOT NULL,
         `fatura_recorrente_id` INT,
+        `carne_id` INT DEFAULT NULL,
         `parcela_atual` INT DEFAULT NULL,
         `total_parcelas` INT DEFAULT NULL,
         `numero` VARCHAR(20) NOT NULL UNIQUE,
