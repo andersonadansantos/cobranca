@@ -442,7 +442,16 @@ if (isset($_GET['msg'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cliente_id = intval($_POST['cliente_id'] ?? 0);
     $descricao = trim($_POST['descricao'] ?? '');
-    $valor = floatval($_POST['valor'] ?? 0);
+    
+    // Tratamento de valor monetário no padrão brasileiro (ex: R$ 1.500,50 ou 1500.50)
+    $valorRaw = trim((string)($_POST['valor'] ?? '0'));
+    if (strpos($valorRaw, ',') !== false) {
+        $valorLimpo = preg_replace('/[^\d,]/', '', $valorRaw);
+        $valorLimpo = str_replace(',', '.', $valorLimpo);
+    } else {
+        $valorLimpo = preg_replace('/[^\d.]/', '', $valorRaw);
+    }
+    $valor = round((float)$valorLimpo, 2);
     $frequencia = $_POST['frequencia'] ?? 'mensal';
     // Vencimento da 1ª Transação: obrigatório e válido. O dia do mês dele é a
     // âncora da recorrência (dia_vencimento / dia_ancora).
@@ -647,7 +656,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  data_inicio, data_fim, data_proxima_fatura, data_ultima_fatura,
                  antecedencia_emissao, dias_vencimento, politica_atraso,
                  quantidade_transacoes, numero, ativo, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
             $stmt->execute([
                 $adminIdE, $cliente_id, $descricao, $valor, $frequencia,
                 $dia_vencimento, $ancora, $data_fim,
@@ -882,7 +891,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Valor (R$) *</label>
-                        <input type="number" name="valor" class="form-control" step="0.01" min="0.01" required>
+                        <input type="text" name="valor" id="campo_valor" class="form-control" placeholder="R$ 0,00" required inputmode="numeric" oninput="mascaraMoeda(this)" autocomplete="off">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Frequência</label>
@@ -1345,10 +1354,63 @@ on('selectAll', 'change', function() {
     for (var i = 0; i < checks.length; i++) { checks[i].checked = this.checked; }
 });
 
+// Mascara monetária brasileira: R$ 0.000,00
+function mascaraMoeda(el) {
+    var v = el.value.replace(/\D/g, '');
+    if (!v || parseInt(v, 10) === 0) {
+        el.value = '';
+        return;
+    }
+    var num = (parseInt(v, 10) / 100).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    el.value = 'R$ ' + num;
+}
+
+var campoValorEl = document.getElementById('campo_valor');
+if (campoValorEl) {
+    campoValorEl.addEventListener('paste', function(e) {
+        e.preventDefault();
+        var pasted = (e.clipboardData || window.clipboardData).getData('text');
+        if (!pasted) return;
+        pasted = pasted.trim().replace(/^R\$\s*/i, '');
+        var num = 0;
+        if (pasted.indexOf(',') !== -1) {
+            num = parseFloat(pasted.replace(/\./g, '').replace(',', '.'));
+        } else {
+            num = parseFloat(pasted);
+        }
+        if (isNaN(num) || num <= 0) {
+            this.value = '';
+        } else {
+            this.value = 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+    });
+}
+
 // Modal de carregamento enquanto a fatura e gerada. Vale para fatura
 // avulsa e para recorrencia: os dois saem do mesmo formulario.
 var formNovaFatura = document.getElementById('formNovaFatura');
 if (formNovaFatura) {
+    // Validar valor antes de travar o formulário
+    formNovaFatura.addEventListener('submit', function (e) {
+        var cv = document.getElementById('campo_valor');
+        if (cv) {
+            var raw = cv.value.replace(/\D/g, '');
+            if (!raw || parseInt(raw, 10) <= 0) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                cv.focus();
+                cv.classList.add('is-invalid');
+                alert('Por favor, informe um valor válido maior que zero (R$ 0,00).');
+                return false;
+            } else {
+                cv.classList.remove('is-invalid');
+            }
+        }
+    }, true);
+
     travarFormulario(formNovaFatura, 'submit');
     formNovaFatura.addEventListener('submit', function () {
         var el = document.getElementById('modalCriando');
