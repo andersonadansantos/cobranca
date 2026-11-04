@@ -391,11 +391,27 @@ if (isset($_GET['msg'])) {
         'sem_fatura' => ['Nenhuma fatura pendente encontrada para esta recorrência.', 'warning'],
         'erro_boleto' => ['Erro ao gerar boleto. Verifique a configuração da API de pagamento.', 'danger'],
         'lote_criado' => ['Boleto em Lote criado com sucesso!', 'success'],
+        'carne_criado' => ['Carnê gerado com sucesso!', 'success'],
         'erro' => ['Erro ao salvar.', 'danger'],
     ];
     if (isset($msgs[$_GET['msg']])) {
         $mensagem = $msgs[$_GET['msg']][0];
         $tipo = $msgs[$_GET['msg']][1];
+        if ($_GET['msg'] === 'carne_criado') {
+            $qtdCarne = (int)($_GET['qtd'] ?? 0);
+            $bolCarne = (int)($_GET['bol'] ?? 0);
+            $pixCarne = (int)($_GET['pix'] ?? 0);
+            $frCarne = (int)($_GET['fr'] ?? 0);
+            $mensagem = '<strong>Carnê gerado com sucesso!</strong> ' . $qtdCarne . ' parcelas mensais criadas.';
+            if ($bolCarne > 0) {
+                $mensagem .= ' (' . $bolCarne . ' boleto(s) registrado(s)';
+                if ($pixCarne > 0) $mensagem .= ', ' . $pixCarne . ' PIX';
+                $mensagem .= ')';
+            }
+            if ($frCarne > 0) {
+                $mensagem .= ' <a href="carne_pdf.php?fr=' . $frCarne . '" target="_blank" class="btn btn-sm btn-outline-success ms-2"><i class="fas fa-file-pdf me-1"></i>Visualizar / Baixar Carnê Completo</a>';
+            }
+        }
         if ($_GET['msg'] === 'lote_criado') {
             $qtdLote = (int)($_GET['qtd'] ?? 0);
             $bolLote = (int)($_GET['bol'] ?? 0);
@@ -450,20 +466,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Antecedencia da emissao automatica pelo CRON, definida pela frequencia.
     $antecedencia_emissao = recorrenciaAntecedenciaEmissao($frequencia);
 
-    // ===== BOLETO EM LOTE (carne) =====
-    // Materializa N faturas de uma vez (uma por mes, mesmo dia de vencimento) e
-    // gera um boleto para cada. Nao tem ciclo: o cron nunca reemite a serie.
-    if ($frequencia === 'lote') {
-        $quantidade_lote = max(1, min(24, intval($_POST['quantidade_transacoes'] ?? 0)));
+    // ===== CARNÊ (ou Boleto em Lote legado) =====
+    // Materializa N faturas de uma vez com vencimentos mensais consecutivos
+    // (a 1ª parcela vence na data escolhida em data_primeiro_vencimento e as demais
+    // nos meses seguintes preservando o dia âncora com clamping de fim de mês).
+    if ($frequencia === 'carne' || $frequencia === 'lote') {
+        $quantidade_boletos = max(1, min(72, intval($_POST['quantidade_boletos'] ?? ($_POST['quantidade_transacoes'] ?? 12))));
         if ($cliente_id <= 0 || empty($descricao) || $valor <= 0) {
             $mensagem = 'Preencha todos os campos obrigatórios.';
+            $tipo = 'danger';
+        } elseif (!$validacaoVenc['ok']) {
+            $mensagem = $validacaoVenc['motivo'];
             $tipo = 'danger';
         } else {
             try {
                 $stChkCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ? AND admin_id = ?");
                 $stChkCli->execute([$cliente_id, $adminIdE]);
-                $cliLote = $stChkCli->fetch();
-                if (!$cliLote) {
+                $cliCarne = $stChkCli->fetch();
+                if (!$cliCarne) {
                     $mensagem = 'Cliente inválido.';
                     $tipo = 'danger';
                     $erroCliente = true;
@@ -473,66 +493,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $mensagem = $limiteFat['mensagem'];
                         $tipo = 'danger';
                     } else {
-                        $numeroLote = generateInvoiceNumber();
+                        $numeroCarne = generateInvoiceNumber();
                         $ancora = $dia_vencimento;
                         $dataBase = date('Y-m-d');
-                        // Primeira competencia do lote = proximo mes na ancora.
-                        $primeiraComp = proximoVencimentoRecorrencia('mensal', $dataBase, $ancora);
-                        if ($primeiraComp === null) {
-                            $primeiraComp = date('Y-m-01', strtotime('+1 month'));
-                        }
+
+                        // Calcula os vencimentos mensais consecutivos usando a regra de âncora e clamping
+                        $vencimentos = calcularVencimentosCarne($primeiroVencimentoData, $quantidade_boletos);
 
                         $pdo->beginTransaction();
                         $stmtFr = $pdo->prepare("INSERT INTO faturas_recorrentes
                             (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, dia_ancora,
-                             data_inicio, data_fim, data_proxima_fatura, data_ultima_fatura,
+                             data_inicio, data_primeiro_vencimento, data_fim, data_proxima_fatura, data_ultima_fatura,
                              antecedencia_emissao, dias_vencimento, politica_atraso,
                              quantidade_transacoes, numero, ativo, status)
-                            VALUES (?, ?, ?, ?, 'lote', ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, 1, 'ativa')");
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, 1, 'ativa')");
                         $stmtFr->execute([
                             $adminIdE, $cliente_id, $descricao, $valor,
+                            $frequencia,
                             $dia_vencimento, $ancora, $dataBase,
-                            $antecedencia_emissao, $dias_vencimento, $politica_atraso,
-                            $quantidade_lote, $numeroLote,
+                            $primeiroVencimentoData,
+                            $antecedencia_emissao, 0, $politica_atraso,
+                            $quantidade_boletos, $numeroCarne,
                         ]);
                         $frId = (int)$pdo->lastInsertId();
 
                         $stmtFat = $pdo->prepare("INSERT INTO faturas
-                            (admin_id, cliente_id, fatura_recorrente_id, parcela_atual, total_parcelas,
+                            (admin_id, cliente_id, fatura_recorrente_id, carne_id, parcela_atual, total_parcelas,
                              numero, descricao, valor, valor_final, data_emissao, competencia, data_vencimento,
                              status, acesso_token, api_pagamento)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, 'pendente', ?, ?)");
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, 'pendente', ?, ?)");
                         $stmtBoleto = $pdo->prepare("UPDATE faturas SET boleto_url = ?, boleto_codigo_barras = ?, boleto_linha_digitavel = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?");
                         $stmtPix = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, pix_inter_codigo = ? WHERE id = ? AND admin_id = ?");
 
-                        $vencimento = $primeiraComp;
                         $parcelas = [];
                         $boletosOk = 0;
                         $pixOk = 0;
                         $apiAgora = getApiAtiva();
-                        for ($i = 1; $i <= $quantidade_lote; $i++) {
-                            $comp = $vencimento;
-                            $venc = $dias_vencimento > 0
-                                ? date('Y-m-d', strtotime($comp . ' +' . $dias_vencimento . ' days'))
-                                : $comp;
-                            $numParc = $descricao . ' (' . $i . '/' . $quantidade_lote . ')';
+                        for ($idx = 0; $idx < $quantidade_boletos; $idx++) {
+                            $parcNum = $idx + 1;
+                            $venc = $vencimentos[$idx] ?? date('Y-m-d', strtotime("+$idx month", strtotime($primeiroVencimentoData)));
+                            $comp = $venc;
+                            $numParcRotulo = sprintf('%02d/%02d', $parcNum, $quantidade_boletos);
+                            $descFat = $descricao . ' (' . $numParcRotulo . ')';
+                            $fatNum = generateInvoiceNumber();
+                            $tokenAcesso = generateAcessoToken();
 
                             $stmtFat->execute([
-                                $adminIdE, $cliente_id, $frId, $i, $quantidade_lote,
-                                generateInvoiceNumber(), $numParc, $valor, $valor, $comp, $venc,
-                                generateAcessoToken(), $apiAgora,
+                                $adminIdE, $cliente_id, $frId, $frId, $parcNum, $quantidade_boletos,
+                                $fatNum, $descFat, $valor, $valor, $comp, $venc,
+                                $tokenAcesso, $apiAgora,
                             ]);
                             $fid = (int)$pdo->lastInsertId();
-                            $parcelas[] = ['id' => $fid, 'venc' => $venc, 'num' => $numParc];
+                            $parcelas[] = ['id' => $fid, 'venc' => $venc, 'num' => $descFat];
 
-                            // Boleto por parcela registrado no banco com o vencimento
-                            // real da parcela — e assim que entra no DDA do pagador.
-                            // Falha individual nao descarta a serie.
+                            // Boleto por parcela registrado no gateway configurado
                             $resBol = criarBoleto(
-                                $numParc, $valor, $cliLote['nome_razao'] ?? '',
-                                $cliLote['cpf_cnpj'] ?? '', $cliLote['email'] ?? '', $cliLote['cep'] ?? '',
-                                $cliLote['logradouro'] ?? '', $cliLote['numero'] ?? '', $cliLote['bairro'] ?? '',
-                                $cliLote['cidade'] ?? '', $cliLote['estado'] ?? '', $venc
+                                $descFat, $valor, $cliCarne['nome_razao'] ?? '',
+                                $cliCarne['cpf_cnpj'] ?? '', $cliCarne['email'] ?? '', $cliCarne['cep'] ?? '',
+                                $cliCarne['logradouro'] ?? '', $cliCarne['numero'] ?? '', $cliCarne['bairro'] ?? '',
+                                $cliCarne['cidade'] ?? '', $cliCarne['estado'] ?? '', $venc
                             );
                             $temBoleto = false;
                             if (is_array($resBol) && !empty($resBol['sucesso']) && !empty($resBol['boleto_url'])) {
@@ -549,10 +568,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $temBoleto = true;
                             }
 
-                            // PIX da parcela. No Inter a mesma cobranca ja traz o
-                            // QR Code (boleto + Pix juntos); nos demais gateways,
-                            // cai para criarPagamento. Poucas tentativas no lote
-                            // para nao estourar o tempo de resposta.
+                            // PIX da parcela
                             $pixCopia = (string)($resBol['qr_code_copia_cola'] ?? '');
                             $pixQr = (string)($resBol['qr_code'] ?? '');
                             $pixCod = $temBoleto ? (string)($resBol['payment_id'] ?? '') : '';
@@ -560,7 +576,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 ? ($pixCopia === '')
                                 : true;
                             if ($precisaPixExtra) {
-                                $resPix = criarPagamento($numParc, $valor, $cliLote['email'] ?? '', $cliLote['nome_razao'] ?? '', $venc, 2);
+                                $resPix = criarPagamento($descFat, $valor, $cliCarne['email'] ?? '', $cliCarne['nome_razao'] ?? '', $venc, 2);
                                 if (is_array($resPix) && !empty($resPix['sucesso'])) {
                                     $pixCopia = (string)($resPix['qr_code_copia_cola'] ?? '');
                                     $pixQr = (string)($resPix['qr_code'] ?? '');
@@ -571,13 +587,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmtPix->execute([$pixQr, $pixCopia, '', $pixCod, $fid, $adminIdE]);
                                 $pixOk++;
                             }
-
-                            $vencimento = proximoVencimentoRecorrencia('mensal', $comp, $ancora);
-                            if ($vencimento === null) break;
                         }
 
-                        // Envio imediato do 1o boleto (regua 1 "geracao"), como no
-                        // fluxo de Nova Fatura. Os demais seguem a regua do cron.
+                        // Envio imediato da 1ª parcela
                         if (!empty($parcelas[0])) {
                             $stF = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.email2, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
                             $stF->execute([$parcelas[0]['id'], $adminIdE]);
@@ -593,7 +605,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
 
                         $pdo->commit();
-                        header('Location: emissao.php?msg=lote_criado&qtd=' . $quantidade_lote . '&bol=' . $boletosOk . '&pix=' . $pixOk);
+                        $msgTipo = ($frequencia === 'carne') ? 'carne_criado' : 'lote_criado';
+                        header('Location: emissao.php?msg=' . $msgTipo . '&fr=' . $frId . '&qtd=' . $quantidade_boletos . '&bol=' . $boletosOk . '&pix=' . $pixOk);
                         exit;
                     }
                 }
@@ -804,21 +817,29 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <div class="row g-2 mt-1">
                     <div class="col-md-3">
                         <label class="form-label">Vencimento da 1ª Transação (cobrar em) *</label>
-                        <input type="date" name="data_primeiro_vencimento" class="form-control" min="<?= date('Y-m-d') ?>" required>
+                        <input type="date" name="data_primeiro_vencimento" id="data_primeiro_vencimento" class="form-control" min="<?= date('Y-m-d') ?>" required>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3" id="wrapQtdBoletos" style="display:none;">
+                        <label class="form-label">Quantidade de boletos *</label>
+                        <input type="number" name="quantidade_boletos" id="quantidade_boletos" class="form-control" min="1" max="72" placeholder="Ex: 12" value="12">
+                        <small class="text-muted">Boletos mensais consecutivos</small>
+                    </div>
+                    <div class="col-md-3" id="wrapPoliticaAtraso">
                         <label class="form-label">Se o cron atrasar</label>
                         <select name="politica_atraso" class="form-select">
                             <option value="todas">Emitir todas as pendentes</option>
                             <option value="mais_recente">Emitir só a mais recente</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <small class="text-muted d-block mt-4">Emissão automática pelo CRON: Semanal 2 dias, Quinzenal 5 dias; Mensal, Bimestral, Trimestral, Semestral e Anual 10 dias antes do vencimento.</small>
+                    <div class="col-md-4" id="wrapCronHint">
+                        <small class="text-muted d-block mt-4">Emissão automática pelo CRON: Semanal 2 dias, Quinzenal 5 dias; Mensal, Trimestral, Semestral e Anual 10 dias antes do vencimento.</small>
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="fas fa-save me-1"></i> Criar Fatura
+                    <div class="col-md-4" id="wrapCarneHint" style="display:none;">
+                        <small class="text-muted d-block mt-4"><i class="fas fa-info-circle text-primary me-1"></i>O carnê gera todas as parcelas mensais de uma vez, cada uma com seu próprio boleto e PIX.</small>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end ms-auto">
+                        <button type="submit" id="btnSubmitEmissao" class="btn btn-primary w-100">
+                            <i class="fas fa-save me-1"></i> <span id="btnSubmitTexto">Criar Fatura</span>
                         </button>
                     </div>
                 </div>
@@ -939,8 +960,8 @@ if (($fr['status'] ?? 'ativa') !== 'cancelado'
                                 <?php endif; ?>
                                 <div class="fr-acoes">
                                     <span class="fr-chevron text-muted"><i class="bi bi-chevron-down"></i></span>
-                                    <?php if (($fr['frequencia'] ?? '') === 'lote'): ?>
-                                    <a href="carne_pdf.php?fr=<?= (int)$fr['id'] ?>" target="_blank" class="acao-btn acao-btn-success ms-2" title="Baixar carnê (PDF com todos os boletos)" onclick="event.stopPropagation();"><i class="bi bi-file-earmark-pdf"></i></a>
+                                    <?php if (in_array(($fr['frequencia'] ?? ''), ['lote', 'carne'], true)): ?>
+                                    <a href="carne_pdf.php?fr=<?= (int)$fr['id'] ?>" target="_blank" class="acao-btn acao-btn-success ms-2" title="Visualizar / Baixar carnê (PDF com todos os boletos)" onclick="event.stopPropagation();"><i class="bi bi-file-earmark-pdf"></i></a>
                                     <?php endif; ?>
                                     <?php if (($fr['status'] ?? 'ativa') !== 'cancelado'): ?>
                                     <a href="?excluir=<?= (int)$fr['id'] ?>" class="acao-btn acao-btn-danger ms-2" title="Excluir recorrência" onclick="event.stopPropagation(); return confirmarExcluirRecorrencia(this, <?= htmlspecialchars(json_encode((string)$fr['nome_razao'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_TAG), ENT_QUOTES) ?>);"><i class="bi bi-trash3"></i></a>
@@ -1173,29 +1194,37 @@ function on(id, evento, fn) {
     if (el) el.addEventListener(evento, fn);
 }
 
-// Boleto em Lote: habilita/obriga a "Qtd. Transacoes" (1 a 24) e esconde os
-// controles de ciclo (Indeterminado / antecedencia / politica), que nao se
-// aplicam a uma serie materializada de uma vez.
-function aplicarModoLote() {
+// Carnê: exibe dinamicamente o campo obrigatorio "Quantidade de boletos",
+// oculta controles de atraso do cron e atualiza o botao para "Criar Carnê".
+function aplicarModoCarne() {
     var freq = document.getElementById('frequencia');
-    var qtd = document.getElementById('quantidade_transacoes');
-    var hint = document.getElementById('qtdHintLote');
-    var wrapTipo = document.getElementById('qtdTipoWrap');
-    if (!freq || !qtd) return;
-    var lote = (freq.value === 'lote');
-    qtd.disabled = !lote;
-    qtd.required = lote;
-    if (lote) {
-        if (!qtd.value) qtd.value = 12;
-        if (parseInt(qtd.value, 10) > 24) qtd.value = 24;
-    } else {
-        qtd.value = '';
+    var wrapQtd = document.getElementById('wrapQtdBoletos');
+    var qtdInput = document.getElementById('quantidade_boletos');
+    var wrapPolitica = document.getElementById('wrapPoliticaAtraso');
+    var wrapCronHint = document.getElementById('wrapCronHint');
+    var wrapCarneHint = document.getElementById('wrapCarneHint');
+    var btnTexto = document.getElementById('btnSubmitTexto');
+    if (!freq) return;
+
+    var isCarne = (freq.value === 'carne' || freq.value === 'lote');
+
+    if (wrapQtd) wrapQtd.style.display = isCarne ? 'block' : 'none';
+    if (qtdInput) {
+        qtdInput.required = isCarne;
+        qtdInput.disabled = !isCarne;
+        if (isCarne && (!qtdInput.value || parseInt(qtdInput.value, 10) < 1)) {
+            qtdInput.value = 12;
+        }
     }
-    if (hint) hint.classList.toggle('d-none', !lote);
-    if (wrapTipo) wrapTipo.classList.toggle('d-none', lote);
+    if (wrapPolitica) wrapPolitica.style.display = isCarne ? 'none' : 'block';
+    if (wrapCronHint) wrapCronHint.style.display = isCarne ? 'none' : 'block';
+    if (wrapCarneHint) wrapCarneHint.style.display = isCarne ? 'block' : 'none';
+    if (btnTexto) {
+        btnTexto.textContent = isCarne ? 'Criar Carnê' : 'Criar Fatura';
+    }
 }
-on('frequencia', 'change', aplicarModoLote);
-document.addEventListener('DOMContentLoaded', aplicarModoLote);
+on('frequencia', 'change', aplicarModoCarne);
+document.addEventListener('DOMContentLoaded', aplicarModoCarne);
 
 // Evita duplo clique em formulario de criacao.
 function travarFormulario(form, evento) {

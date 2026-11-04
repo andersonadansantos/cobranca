@@ -25,7 +25,7 @@ if ($frId <= 0) {
 $stmt = $pdo->prepare("SELECT * FROM faturas_recorrentes WHERE id = ? AND admin_id = ?");
 $stmt->execute([$frId, $adminIdE]);
 $rec = $stmt->fetch();
-if (!$rec || ($rec['frequencia'] ?? '') !== 'lote') {
+if (!$rec || !in_array($rec['frequencia'] ?? '', ['carne', 'lote'], true)) {
     http_response_code(404);
     exit('Carnê não encontrado.');
 }
@@ -101,7 +101,7 @@ class CarneLotePdf extends FPDF
         $this->Cell($this->cw, 12, $this->t('CARNÊ DE PAGAMENTO'), 0, 1, 'C');
         $this->SetFont('Helvetica', '', 11);
         $this->SetTextColor(80, 80, 90);
-        $this->Cell($this->cw, 7, $this->t('Boleto em Lote — ' . $totalParcelas . ' parcelas'), 0, 1, 'C');
+        $this->Cell($this->cw, 7, $this->t('Carnê de Cobrança — ' . $totalParcelas . ' parcelas'), 0, 1, 'C');
         $this->Ln(6);
 
         $this->boxDados('BENEFICIÁRIO', [
@@ -137,7 +137,7 @@ class CarneLotePdf extends FPDF
         $this->SetFont('Helvetica', 'B', 14);
         $this->SetTextColor($p[0], $p[1], $p[2]);
         $this->SetY(24);
-        $this->Cell($this->cw, 8, $this->t('PARCELA ' . $parc . ' / ' . $totalParcelas), 0, 1, 'C');
+        $this->Cell($this->cw, 8, $this->t('PARCELA ' . sprintf('%02d/%02d', $parc, $totalParcelas)), 0, 1, 'C');
         $this->Ln(2);
 
         $this->boxDados('PAGADOR', [

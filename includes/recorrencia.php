@@ -66,13 +66,13 @@ define('RECORRENCIA_MESES', [
 
 // Periodicidades aceitas, em ordem de exibicao. Fonte da verdade para validar
 // o que vem do formulario e para montar as opcoes da interface.
-// 'lote' (Boleto em Lote) nao tem ciclo: gera N faturas de uma vez, e por isso
-// nunca entra no motor do cron (ver recorrenciaSemCiclo).
-define('RECORRENCIAS_VALIDAS', ['diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote']);
+// 'lote' (Boleto em Lote) e 'carne' (Carne) nao tem ciclo: geram N faturas de uma vez, e por isso
+// nunca entram no motor do cron (ver recorrenciaSemCiclo).
+define('RECORRENCIAS_VALIDAS', ['diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote', 'carne']);
 
 // Opcoes que o cadastro de cobranca oferece no campo Frequencia. Registros
 // antigos com outras periodicidades continuam sendo processados pelo motor.
-define('RECORRENCIAS_CADASTRO', ['semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual']);
+define('RECORRENCIAS_CADASTRO', ['mensal', 'semanal', 'quinzenal', 'trimestral', 'semestral', 'anual', 'carne']);
 
 // Antecedencia da emissao automatica pelo CRON, em dias antes do vencimento.
 // Regra propria da emissao: nao altera os lembretes da regua de cobranca.
@@ -97,6 +97,7 @@ define('RECORRENCIA_ROTULOS', [
     'semestral'  => 'Semestral',
     'anual'      => 'Anual',
     'lote'       => 'Boleto em Lote',
+    'carne'      => 'Carnê',
     'unica'      => 'Fatura Única',
 ]);
 
@@ -137,10 +138,10 @@ function recorrenciaValida($frequencia) {
     return in_array(recorrenciaNormalizar($frequencia), RECORRENCIAS_VALIDAS, true);
 }
 
-/** true quando a frequencia NAO gera recorrencia (unica, lote, vazia ou invalida). */
+/** true quando a frequencia NAO gera recorrencia (unica, lote, carne, vazia ou invalida). */
 function recorrenciaSemCiclo($frequencia) {
     $f = recorrenciaNormalizar($frequencia);
-    if ($f === 'unica' || $f === 'lote' || $f === '') return true;
+    if ($f === 'unica' || $f === 'lote' || $f === 'carne' || $f === '') return true;
     return !isset(RECORRENCIA_DIAS[$f]) && !isset(RECORRENCIA_MESES[$f]);
 }
 
@@ -208,6 +209,47 @@ function recorrenciaSomarMeses($data, $meses, $diaAncora = null) {
     $ultimoDia = (int)(new DateTimeImmutable(sprintf('%04d-%02d-01', $ano, $mes)))
         ->modify('last day of this month')->format('j');
     return sprintf('%04d-%02d-%02d', $ano, $mes, min($dia, $ultimoDia));
+}
+
+/**
+ * Calcula a lista de vencimentos mensais consecutivos para um carne.
+ *
+ * Regra:
+ * - A 1a parcela vence exatamente na data definida em $primeiroVencimento.
+ * - As parcelas seguintes vencem de mes em mes, preservando o dia ancora da 1a parcela.
+ * - Meses que nao possuem o dia de referencia usam o ultimo dia daquele mes (clamping),
+ *   sem perder o dia de referencia para os meses seguintes (ex.: 31/01 -> 28/02 -> 31/03).
+ *
+ * @param string $primeiroVencimento Data 'Y-m-d'
+ * @param int $totalParcelas Quantidade de parcelas (ex.: 12)
+ * @return array Lista de strings 'Y-m-d' de tamanho $totalParcelas
+ */
+function calcularVencimentosCarne($primeiroVencimento, $totalParcelas) {
+    $primeiroVencimento = substr(trim((string)$primeiroVencimento), 0, 10);
+    $ts = strtotime($primeiroVencimento);
+    $totalParcelas = max(1, (int)$totalParcelas);
+    if (!$ts) return [];
+
+    $diaAncora = (int)date('j', $ts);
+    $anoBase = (int)date('Y', $ts);
+    $mesBase = (int)date('n', $ts);
+    $vencimentos = [];
+
+    for ($i = 0; $i < $totalParcelas; $i++) {
+        if ($i === 0) {
+            $vencimentos[] = $primeiroVencimento;
+            continue;
+        }
+        $totalMeses = ($anoBase * 12) + ($mesBase - 1) + $i;
+        $ano = intdiv($totalMeses, 12);
+        $mes = ($totalMeses % 12) + 1;
+        $ultimoDia = (int)(new DateTimeImmutable(sprintf('%04d-%02d-01', $ano, $mes)))
+            ->modify('last day of this month')->format('j');
+        $diaReal = min($diaAncora, $ultimoDia);
+        $vencimentos[] = sprintf('%04d-%02d-%02d', $ano, $mes, $diaReal);
+    }
+
+    return $vencimentos;
 }
 
 /**

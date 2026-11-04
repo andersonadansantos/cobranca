@@ -355,6 +355,7 @@ CREATE TABLE `faturas` (
   `admin_id` int(11) DEFAULT NULL,
   `cliente_id` int(11) NOT NULL,
   `fatura_recorrente_id` int(11) DEFAULT NULL,
+  `carne_id` int(11) DEFAULT NULL,
   `parcela_atual` int(11) DEFAULT NULL,
   `total_parcelas` int(11) DEFAULT NULL,
   `numero` varchar(20) NOT NULL,
@@ -394,6 +395,7 @@ CREATE TABLE `faturas` (
   KEY `idx_faturas_cliente` (`cliente_id`),
   KEY `idx_faturas_status` (`status`),
   KEY `idx_faturas_vencimento` (`data_vencimento`),
+  KEY `idx_faturas_carne_id` (`carne_id`),
   KEY `idx_faturas_admin` (`admin_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -450,7 +452,7 @@ CREATE TABLE `faturas_recorrentes` (
   `cliente_id` int(11) NOT NULL,
   `descricao` varchar(200) NOT NULL,
   `valor` decimal(10,2) NOT NULL,
-  `frequencia` enum('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote') NOT NULL DEFAULT 'mensal',
+  `frequencia` enum('unica','diaria','semanal','quinzenal','mensal','bimestral','trimestral','semestral','anual','lote','carne') NOT NULL DEFAULT 'mensal',
   `dia_vencimento` int(11) DEFAULT NULL,
   `dia_ancora` tinyint(4) DEFAULT NULL,
   `data_inicio` date NOT NULL,

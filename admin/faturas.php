@@ -186,7 +186,12 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                             <tr><td colspan="8" class="text-center text-muted py-4"><?= t('txt.nenhuma_fatura') ?></td></tr>
                         <?php else: foreach ($faturas as $f): ?>
                             <tr style="<?= $f['status'] === 'cancelado' ? 'opacity:0.55; pointer-events:none;' : '' ?>">
-                                <td><strong><?= htmlspecialchars($f['numero']) ?></strong></td>
+                                <td>
+                                    <strong><?= htmlspecialchars($f['numero']) ?></strong>
+                                    <?php if (!empty($f['parcela_atual']) && !empty($f['total_parcelas'])): ?>
+                                        <span class="badge bg-secondary ms-1" title="Carnê: Parcela <?= (int)$f['parcela_atual'] ?> de <?= (int)$f['total_parcelas'] ?>"><?= sprintf('%02d/%02d', $f['parcela_atual'], $f['total_parcelas']) ?></span>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= htmlspecialchars($f['nome_razao']) ?></td>
                                 <td><?= htmlspecialchars($f['descricao']) ?></td>
                                 <td>R$ <?= number_format($f['valor_final'], 2, ',', '.') ?></td>
@@ -207,6 +212,12 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </td>
                                 <td class="text-nowrap">
                                     <?php if ($f['status'] !== 'cancelado'): ?>
+                                    <?php $carneRefId = (int)(!empty($f['carne_id']) ? $f['carne_id'] : ($f['fatura_recorrente_id'] ?? 0)); ?>
+                                    <?php if ($carneRefId > 0 && !empty($f['parcela_atual'])): ?>
+                                        <a href="carne_pdf.php?fr=<?= $carneRefId ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Visualizar Carnê Completo (PDF)">
+                                            <i class="fas fa-book-open"></i>
+                                        </a>
+                                    <?php endif; ?>
                                     <?php if ($f['pix_copia_cola']): ?>
                                         <button class="btn btn-sm btn-outline-success" onclick="copiarPix('<?= htmlspecialchars($f['pix_copia_cola']) ?>')" title="<?= t('fat.copiar_pix') ?>">
                                             <i class="fas fa-qrcode"></i>
