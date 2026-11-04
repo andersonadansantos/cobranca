@@ -503,15 +503,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $pdo->beginTransaction();
                         $stmtFr = $pdo->prepare("INSERT INTO faturas_recorrentes
                             (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, dia_ancora,
-                             data_inicio, data_primeiro_vencimento, data_fim, data_proxima_fatura, data_ultima_fatura,
+                             data_inicio, data_fim, data_proxima_fatura, data_ultima_fatura,
                              antecedencia_emissao, dias_vencimento, politica_atraso,
                              quantidade_transacoes, numero, ativo, status)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, 1, 'ativa')");
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, 1, 'ativa')");
                         $stmtFr->execute([
                             $adminIdE, $cliente_id, $descricao, $valor,
                             $frequencia,
                             $dia_vencimento, $ancora, $dataBase,
-                            $primeiroVencimentoData,
                             $antecedencia_emissao, 0, $politica_atraso,
                             $quantidade_boletos, $numeroCarne,
                         ]);
@@ -646,13 +645,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ancora = $dia_vencimento;
             $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes
                 (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, dia_ancora,
-                 data_inicio, data_primeiro_vencimento, data_fim, data_proxima_fatura, data_ultima_fatura,
+                 data_inicio, data_fim, data_proxima_fatura, data_ultima_fatura,
                  antecedencia_emissao, dias_vencimento, politica_atraso,
                  quantidade_transacoes, numero, ativo, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 1, 'ativa')");
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 1, 'ativa')");
             $stmt->execute([
                 $adminIdE, $cliente_id, $descricao, $valor, $frequencia,
-                $dia_vencimento, $ancora, $data_inicio, $primeiroVencimentoData, $data_fim,
+                $dia_vencimento, $ancora, $data_inicio, $data_fim,
                 $primeiroVencimentoData,
                 $antecedencia_emissao, $dias_vencimento, $politica_atraso,
                 $quantidade_transacoes, $numero,
