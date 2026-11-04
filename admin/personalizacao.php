@@ -1,28 +1,31 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../includes/auth.php';
 requireAdmin();
 requirePlanoAtivo();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
-
 $mensagem = '';
 $tipo = '';
-
 // Salvar personalização
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
     
+    if ($acao === 'template') {
+        $templateEscolhido = in_array($_POST['template_admin'] ?? '', ['classico', 'fintech'], true) ? $_POST['template_admin'] : 'classico';
+        saveConfig('template_admin', $templateEscolhido);
+        $_SESSION['admin_template'] = $templateEscolhido;
+        $mensagem = 'Template atualizado com sucesso!';
+        $tipo = 'success';
+    }
     if ($acao === 'cores') {
         $corPrimaria = trim($_POST['cor_primaria'] ?? '#0f7b5c');
         $corSecundaria = trim($_POST['cor_secundaria'] ?? '#6c757d');
         $corFundo = trim($_POST['cor_fundo'] ?? '#f8f9fa');
         $nomeSistema = trim($_POST['nome_sistema'] ?? 'Sistema de Cobrança');
-
         saveConfig('cor_primaria', $corPrimaria);
         saveConfig('cor_secundaria', $corSecundaria);
         saveConfig('cor_fundo', $corFundo);
         saveConfig('nome_sistema', $nomeSistema);
-
         $mensagem = 'Personalização salva com sucesso!';
         $tipo = 'success';
     }
@@ -53,7 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tipo = 'danger';
         }
     }
-
     if ($acao === 'logo_painel') {
         $adminId = (int)($_SESSION['admin_id'] ?? 0);
         $res = salvarUploadSeguro($_FILES['logo_painel'] ?? null, 'logos', 'logo_empresa_admin_' . $adminId);
@@ -67,14 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-
 $config = getAllConfig();
-
 $pageTitle = 'Personalização';
 include __DIR__ . '/../includes/header.php';
 include __DIR__ . '/../includes/sidebar_admin.php';
 ?>
-
 <div class="main-content">
     <div class="topbar">
         <div>
@@ -94,7 +93,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             </ul>
         </div>
     </div>
-
     <div class="content-area fade-in">
         <?php if ($mensagem): ?>
             <div class="alert alert-<?= $tipo ?> alert-dismissible fade show">
@@ -102,7 +100,79 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-
+        <!-- SELETOR DE TEMPLATES: APARÊNCIA / TEMPLATES -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="form-card" style="border: 2px solid #e2e8f0; border-radius: 14px;">
+                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="mb-1"><i class="fas fa-layer-group text-primary me-2"></i>Aparência / Templates do Sistema</h5>
+                            <p class="text-muted mb-0" style="font-size:0.88rem;">Selecione a identidade visual que você deseja utilizar em todo o painel de controle administrativo.</p>
+                        </div>
+                        <?php $tplAtual = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech'; ?>
+                        <span class="badge <?= $tplAtual === 'fintech' ? 'bg-dark' : 'bg-success' ?> px-3 py-2" style="font-size:0.8rem; border-radius: 20px;">
+                            Template Ativo: <?= $tplAtual === 'fintech' ? 'Fintech Minimalist (V2)' : 'Template 1 – Atual (Original)' ?>
+                        </span>
+                    </div>
+                    <form method="POST">
+                        <input type="hidden" name="acao" value="template">
+                        <div class="row g-3">
+                            <!-- Template 1 - Atual -->
+                            <div class="col-md-6">
+                                <div class="card h-100 p-3" style="border: <?= $tplAtual === 'classico' ? '2px solid #0f7b5c' : '1px solid #dee2e6' ?>; border-radius: 12px; cursor: pointer;" onclick="document.getElementById('radio_classico').checked = true;">
+                                    <div class="d-flex align-items-start justify-content-between mb-2">
+                                        <div>
+                                            <h6 class="fw-bold mb-1"><i class="fas fa-desktop text-success me-2"></i>Template 1 – Atual</h6>
+                                            <small class="text-muted">Manter a identidade visual original do sistema, com navegação clássica e layout estabelecido.</small>
+                                        </div>
+                                        <input class="form-check-input fs-5" type="radio" name="template_admin" id="radio_classico" value="classico" <?= $tplAtual === 'classico' ? 'checked' : '' ?>>
+                                    </div>
+                                    <div class="p-3 my-2" style="background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px;">
+                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                            <span class="badge bg-success">Pago</span>
+                                            <span class="badge bg-warning text-dark">Pendente</span>
+                                            <span class="badge bg-danger">Vencido</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between text-muted" style="font-size:0.8rem;">
+                                            <span>Visual Original</span>
+                                            <span>Barra Lateral Padrão</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Template 2 - Fintech Minimalist -->
+                            <div class="col-md-6">
+                                <div class="card h-100 p-3" style="border: <?= $tplAtual === 'fintech' ? '2px solid #0f172a' : '1px solid #dee2e6' ?>; border-radius: 12px; cursor: pointer; background: #fafbff;" onclick="document.getElementById('radio_fintech').checked = true;">
+                                    <div class="d-flex align-items-start justify-content-between mb-2">
+                                        <div>
+                                            <h6 class="fw-bold mb-1 text-dark"><i class="fas fa-sparkles text-primary me-2"></i>Template 2 – Fintech Minimalist</h6>
+                                            <small class="text-muted">Conceito Executive Precision: estética minimalista, tipografia Plus Jakarta Sans, fundo #f8f9ff e badges em pílula com ponto luminoso.</small>
+                                        </div>
+                                        <input class="form-check-input fs-5" type="radio" name="template_admin" id="radio_fintech" value="fintech" <?= $tplAtual === 'fintech' ? 'checked' : '' ?>>
+                                    </div>
+                                    <div class="p-3 my-2" style="background:#ffffff; border:1px solid #eef2f6; border-radius:10px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                            <span class="badge" style="background:#ecfdf5;color:#059669;border-radius:9999px;font-size:11px;font-weight:600;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;margin-right:4px;"></span>Pago</span>
+                                            <span class="badge" style="background:#fffbeb;color:#d97706;border-radius:9999px;font-size:11px;font-weight:600;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#f59e0b;margin-right:4px;"></span>Pendente</span>
+                                            <span class="badge" style="background:#fef2f2;color:#dc2626;border-radius:9999px;font-size:11px;font-weight:600;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ef4444;margin-right:4px;"></span>Vencido</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between text-muted" style="font-size:0.8rem;">
+                                            <span>Slate 900 Executivo</span>
+                                            <span>Microbarras & Gráficos Suaves</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="fas fa-check-circle me-1"></i> Salvar Preferência de Template
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
         <div class="row g-4">
             <!-- Cores e Nome -->
             <div class="col-lg-6">
@@ -134,7 +204,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </form>
                 </div>
             </div>
-
             <!-- Logo -->
             <div class="col-lg-6">
                 <div class="form-card">
@@ -161,7 +230,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </form>
                 </div>
             </div>
-
 <!-- Logo Mobile -->
             <div class="col-lg-6">
                 <div class="form-card">
@@ -188,7 +256,6 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </form>
                 </div>
             </div>
-
 <!-- Logo da Empresa -->
             <div class="col-lg-6">
                 <div class="form-card">
@@ -215,9 +282,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     </form>
                 </div>
             </div>
-
         </div>
     </div>
 </div>
-
 <?php include __DIR__ . '/../includes/footer.php'; ?>

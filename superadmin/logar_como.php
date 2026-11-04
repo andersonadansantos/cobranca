@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // =====================================================
 // LOGAR COMO ADMIN (impersonação pelo superadmin)
 // =====================================================
@@ -48,6 +48,7 @@ $_SESSION['admin_avatar'] = $adm['avatar'];
 $_SESSION['admin_origem'] = $adm['origem'] ?? 'painel';
 $_SESSION['admin_login_via'] = 'impersonacao';
 $_SESSION['impersonando'] = true;
+$_SESSION['admin_template'] = 'fintech';
 
 header('Location: ' . APP_BASE . '/admin/index.php');
 exit;

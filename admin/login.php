@@ -1,8 +1,9 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/lang_painel.php';
 
 if (isLoggedInAdmin()) {
+    $_SESSION['admin_template'] = 'fintech';
     header('Location: index.php');
     exit;
 }
@@ -46,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
         if (empty($usuario) || empty($senha)) {
             $erro = t('login.erro_vazio');
         } elseif (loginAdmin($usuario, $senha)) {
+            $_SESSION['admin_template'] = 'fintech';
             header('Location: index.php');
             exit;
         } else {

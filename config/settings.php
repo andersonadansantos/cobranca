@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // =====================================================
 // CONFIGURAÇÕES DO SISTEMA
 // =====================================================
@@ -400,63 +400,120 @@ function logoPathValido($caminho) {
     $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
     return file_exists($arquivo);
 }
-
-// Verifica se o caminho do avatar aponta para um arquivo físico existente.
-function avatarPathValido($caminho) {
-    $caminho = trim((string)$caminho);
-    if ($caminho === '') return false;
-    if (strpos($caminho, 'http') === 0 || strpos($caminho, 'data:') === 0) return true;
-    $caminhoLimpo = str_contains($caminho, '?') ? strtok($caminho, '?') : $caminho;
-    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
-    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
-    return file_exists($arquivo);
-}
-
-// Retorna a URL segura do avatar do administrador com fallback para admin.svg
-function getAdminAvatarUrl($avatar = null) {
-    $base = defined('APP_BASE') ? APP_BASE : '/cobranca';
-    $default = rtrim($base, '/') . '/assets/img/avatars/admin.svg';
-    if ($avatar === null) {
-        $avatar = $_SESSION['admin_avatar'] ?? null;
-    }
-    if (empty($avatar) || !is_string($avatar)) {
-        return $default;
-    }
-    $avatar = trim($avatar);
-    if ($avatar === '' || !avatarPathValido($avatar)) {
-        return $default;
-    }
-    $caminhoLimpo = str_contains($avatar, '?') ? strtok($avatar, '?') : $avatar;
-    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
-    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
-    if (file_exists($arquivo) && !str_contains($avatar, '?')) {
-        return $avatar . '?v=' . filemtime($arquivo);
-    }
-    return $avatar;
-}
-
-// Retorna a URL segura do avatar do usuário/cliente com fallback para user.svg
-function getUserAvatarUrl($avatar = null) {
-    $base = defined('APP_BASE') ? APP_BASE : '/cobranca';
-    $default = rtrim($base, '/') . '/assets/img/avatars/user.svg';
-    if ($avatar === null) {
-        $avatar = $_SESSION['user_avatar'] ?? null;
-    }
-    if (empty($avatar) || !is_string($avatar)) {
-        return $default;
-    }
-    $avatar = trim($avatar);
-    if ($avatar === '' || !avatarPathValido($avatar)) {
-        return $default;
-    }
-    $caminhoLimpo = str_contains($avatar, '?') ? strtok($avatar, '?') : $avatar;
-    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
-    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
-    if (file_exists($arquivo) && !str_contains($avatar, '?')) {
-        return $avatar . '?v=' . filemtime($arquivo);
-    }
-    return $avatar;
-}
+
+
+// Verifica se o caminho do avatar aponta para um arquivo físico existente.
+
+function avatarPathValido($caminho) {
+
+    $caminho = trim((string)$caminho);
+
+    if ($caminho === '') return false;
+
+    if (strpos($caminho, 'http') === 0 || strpos($caminho, 'data:') === 0) return true;
+
+    $caminhoLimpo = str_contains($caminho, '?') ? strtok($caminho, '?') : $caminho;
+
+    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
+
+    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
+
+    return file_exists($arquivo);
+
+}
+
+
+
+// Retorna a URL segura do avatar do administrador com fallback para admin.svg
+
+function getAdminAvatarUrl($avatar = null) {
+
+    $base = defined('APP_BASE') ? APP_BASE : '/cobranca';
+
+    $default = rtrim($base, '/') . '/assets/img/avatars/admin.svg';
+
+    if ($avatar === null) {
+
+        $avatar = $_SESSION['admin_avatar'] ?? null;
+
+    }
+
+    if (empty($avatar) || !is_string($avatar)) {
+
+        return $default;
+
+    }
+
+    $avatar = trim($avatar);
+
+    if ($avatar === '' || !avatarPathValido($avatar)) {
+
+        return $default;
+
+    }
+
+    $caminhoLimpo = str_contains($avatar, '?') ? strtok($avatar, '?') : $avatar;
+
+    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
+
+    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
+
+    if (file_exists($arquivo) && !str_contains($avatar, '?')) {
+
+        return $avatar . '?v=' . filemtime($arquivo);
+
+    }
+
+    return $avatar;
+
+}
+
+
+
+// Retorna a URL segura do avatar do usuário/cliente com fallback para user.svg
+
+function getUserAvatarUrl($avatar = null) {
+
+    $base = defined('APP_BASE') ? APP_BASE : '/cobranca';
+
+    $default = rtrim($base, '/') . '/assets/img/avatars/user.svg';
+
+    if ($avatar === null) {
+
+        $avatar = $_SESSION['user_avatar'] ?? null;
+
+    }
+
+    if (empty($avatar) || !is_string($avatar)) {
+
+        return $default;
+
+    }
+
+    $avatar = trim($avatar);
+
+    if ($avatar === '' || !avatarPathValido($avatar)) {
+
+        return $default;
+
+    }
+
+    $caminhoLimpo = str_contains($avatar, '?') ? strtok($avatar, '?') : $avatar;
+
+    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
+
+    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
+
+    if (file_exists($arquivo) && !str_contains($avatar, '?')) {
+
+        return $avatar . '?v=' . filemtime($arquivo);
+
+    }
+
+    return $avatar;
+
+}
+
 
 
 // Verifica se o caminho do avatar aponta para um arquivo físico existente.
@@ -734,3 +791,22 @@ function verificarLimitePlano($tipo, $adminId = null) {
 
     return ['ok' => true, 'atual' => $atual, 'max' => $limite, 'nome' => $plano['nome'] ?: '', 'mensagem' => ''];
 }
+
+// =====================================================
+// SELETOR DE TEMPLATES (Clássico vs Fintech Minimalist)
+// =====================================================
+function getAdminTemplate($adminId = null) {
+    if (isset($_GET['template']) && in_array($_GET['template'], ['classico', 'fintech'], true)) {
+        $_SESSION['admin_template'] = $_GET['template'];
+        if (function_exists('saveConfig') && isset($_SESSION['admin_id'])) {
+            saveConfig('template_admin', $_GET['template']);
+        }
+        return $_GET['template'];
+    }
+    if (isset($_SESSION['admin_template']) && in_array($_SESSION['admin_template'], ['classico', 'fintech'], true)) {
+        return $_SESSION['admin_template'];
+    }
+    $_SESSION['admin_template'] = 'fintech';
+    return 'fintech';
+}
+

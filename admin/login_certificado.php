@@ -1,7 +1,8 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../includes/auth.php';
 
 if (isLoggedInAdmin()) {
+    $_SESSION['admin_template'] = 'fintech';
     header('Location: index.php');
     exit;
 }
@@ -16,6 +17,7 @@ if ($hasSSL) {
 
     if ($cert) {
         if (loginAdminCertificado()) {
+            $_SESSION['admin_template'] = 'fintech';
             header('Location: index.php');
             exit;
         } else {

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // =====================================================
 // SISTEMA DE AUTENTICAÇÃO
 // =====================================================
@@ -141,6 +141,7 @@ function loginAdmin($usuario, $senha) {
             $_SESSION['admin_usuario'] = $admin['usuario'];
             $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($admin['avatar'] ?? null) : ($admin['avatar'] ?? null);
             $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
+            $_SESSION['admin_template'] = 'fintech';
             
             $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
             $stmt->execute([$admin['id']]);
@@ -296,6 +297,7 @@ function loginAdminGoogle($googleId, $email, $nome) {
         $_SESSION['admin_usuario'] = $admin['usuario'];
         $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($admin['avatar'] ?? null) : ($admin['avatar'] ?? null);
         $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
+            $_SESSION['admin_template'] = 'fintech';
         $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
         $stmt->execute([$admin['id']]);
         return true;
@@ -395,6 +397,7 @@ function loginAdminCertificado() {
     $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($certRecord['avatar'] ?? null) : ($certRecord['avatar'] ?? null);
     $_SESSION['admin_origem'] = $certRecord['origem'] ?? 'painel';
     $_SESSION['admin_login_via'] = 'certificado';
+    $_SESSION['admin_template'] = 'fintech';
 
     $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
     $stmt->execute([$certRecord['admin_id']]);

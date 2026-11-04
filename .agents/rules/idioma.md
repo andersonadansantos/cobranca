@@ -22,3 +22,4 @@ Nomes de funções, bibliotecas, comandos, variáveis, APIs e termos técnicos p
 Esta é uma regra permanente para todo o projeto e deve ser respeitada em todas as tarefas futuras, sem necessidade de novas solicitações ou lembretes.
 
 O objetivo é garantir que o usuário compreenda integralmente todas as etapas, decisões, solicitações e resultados, sem precisar traduzir nenhuma comunicação.
+
