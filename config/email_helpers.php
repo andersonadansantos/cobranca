@@ -221,7 +221,8 @@ if (!function_exists('montarMensagemHtml')) {
         $linkPag = $fatura['link_pagamento'] ?? '';
         $logoTag = getLogoTagEmail($fatura['admin_id'] ?? null);
 
-        $chaveTemplate = ($tipo === 'antes') ? 'template_email_corpo_antes' : 'template_email_corpo_depois';
+        $isAntes = in_array($tipo, ['antes', 'geracao', 'lembrete1', 'lembrete2', 'vencimento'], true);
+        $chaveTemplate = $isAntes ? 'template_email_corpo_antes' : 'template_email_corpo_depois';
         $templateHtml = getConfig($chaveTemplate, '');
         $corPrimaria = getCorPrimaria();
 
@@ -231,7 +232,7 @@ if (!function_exists('montarMensagemHtml')) {
             $mensagemHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:\'Inter\',Arial,sans-serif;"><div style="max-width:600px;margin:30px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);"><div style="background:' . $corPrimaria . ';height:50px;"></div><div style="padding:30px 30px 0 30px;text-align:center;">' . $logoTag . '</div><div style="padding:20px 30px 30px 30px;">{{CONTEUDO}}</div></div></body></html>';
         }
 
-        if ($tipo === 'antes') {
+        if ($isAntes) {
             $conteudo = '<div style="background:#ffffff;border:1px solid #e8edf5;border-radius:12px;padding:24px;margin-bottom:24px;">';
             $conteudo .= '<h2 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#1a1a2e;">Lembrete de Fatura</h2>';
             $conteudo .= '<p style="margin:0 0 12px 0;font-size:15px;color:#333;line-height:1.6;">Olá, <strong>' . htmlspecialchars($fatura['nome_razao']) . '</strong>,</p>';
@@ -324,7 +325,8 @@ if (!function_exists('montarMensagemTxt')) {
         $linkFatura = getLinkFatura($fatura['id']);
         $linkPag = $fatura['link_pagamento'] ?? '';
 
-        if ($tipo === 'antes') {
+        $isAntes = in_array($tipo, ['antes', 'geracao', 'lembrete1', 'lembrete2', 'vencimento'], true);
+        if ($isAntes) {
             $msg = "Olá, {$fatura['nome_razao']}!\n\n";
             $msg .= "Identificamos que sua fatura {$fatura['numero']} vence em " . date('d/m/Y', strtotime($fatura['data_vencimento'])) . ".\n\n";
             $msg .= "Descrição: {$fatura['descricao']}\n";
@@ -680,7 +682,8 @@ if (!function_exists('enviarEmailFatura')) {
             }
         }
 
-        $assunto = getConfig(($tipo === 'antes') ? 'template_email_assunto_antes' : 'template_email_assunto_depois', 'Fatura ' . $fatura['numero']);
+        $isAntes = in_array($tipo, ['antes', 'geracao', 'lembrete1', 'lembrete2', 'vencimento'], true);
+        $assunto = getConfig($isAntes ? 'template_email_assunto_antes' : 'template_email_assunto_depois', 'Fatura ' . $fatura['numero']);
         $assunto = str_replace(['{numero}', '{data_vencimento}', '{valor}'], [
             $fatura['numero'],
             date('d/m/Y', strtotime($fatura['data_vencimento'])),

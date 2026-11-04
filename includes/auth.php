@@ -139,7 +139,7 @@ function loginAdmin($usuario, $senha) {
             $_SESSION['admin_id'] = $admin['id'];
             $_SESSION['admin_nome'] = $admin['nome'];
             $_SESSION['admin_usuario'] = $admin['usuario'];
-            $_SESSION['admin_avatar'] = $admin['avatar'] ?? null;
+            $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($admin['avatar'] ?? null) : ($admin['avatar'] ?? null);
             $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
             
             $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
@@ -221,7 +221,7 @@ function loginUser($cpfCnpj, $senha = '') {
         $_SESSION['user_nome'] = $cliente['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $cliente['cpf_cnpj'];
         $_SESSION['user_tipo'] = $cliente['tipo_pessoa'];
-        $_SESSION['user_avatar'] = $cliente['avatar'] ?? null;
+        $_SESSION['user_avatar'] = function_exists('getUserAvatarUrl') ? getUserAvatarUrl($cliente['avatar'] ?? null) : ($cliente['avatar'] ?? null);
         clearLoginAttempts('user', $cpfCnpj);
         return true;
     }
@@ -294,7 +294,7 @@ function loginAdminGoogle($googleId, $email, $nome) {
         $_SESSION['admin_id'] = $admin['id'];
         $_SESSION['admin_nome'] = $admin['nome'];
         $_SESSION['admin_usuario'] = $admin['usuario'];
-        $_SESSION['admin_avatar'] = $admin['avatar'] ?? null;
+        $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($admin['avatar'] ?? null) : ($admin['avatar'] ?? null);
         $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
         $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
         $stmt->execute([$admin['id']]);
@@ -328,7 +328,7 @@ function loginUserGoogle($googleId, $email, $nome) {
         $_SESSION['user_nome'] = $cliente['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $cliente['cpf_cnpj'];
         $_SESSION['user_tipo'] = $cliente['tipo_pessoa'];
-        $_SESSION['user_avatar'] = $cliente['avatar'] ?? null;
+        $_SESSION['user_avatar'] = function_exists('getUserAvatarUrl') ? getUserAvatarUrl($cliente['avatar'] ?? null) : ($cliente['avatar'] ?? null);
         clearLoginAttempts('user_google', $email);
         return true;
     }
@@ -392,7 +392,7 @@ function loginAdminCertificado() {
     $_SESSION['admin_id'] = $certRecord['admin_id'];
     $_SESSION['admin_nome'] = $certRecord['nome'];
     $_SESSION['admin_usuario'] = $certRecord['usuario'];
-    $_SESSION['admin_avatar'] = $certRecord['avatar'] ?? null;
+    $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($certRecord['avatar'] ?? null) : ($certRecord['avatar'] ?? null);
     $_SESSION['admin_origem'] = $certRecord['origem'] ?? 'painel';
     $_SESSION['admin_login_via'] = 'certificado';
 
@@ -510,7 +510,7 @@ function autoLoginByToken($token) {
         $_SESSION['user_nome'] = $row['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $row['cpf_cnpj'];
         $_SESSION['user_tipo'] = $row['tipo_pessoa'];
-        $_SESSION['user_avatar'] = $row['avatar'] ?? null;
+        $_SESSION['user_avatar'] = function_exists('getUserAvatarUrl') ? getUserAvatarUrl($row['avatar'] ?? null) : ($row['avatar'] ?? null);
         clearLoginAttempts('user', $row['cpf_cnpj']);
         return $row['id'];
     }

@@ -219,6 +219,16 @@ $regua3 = intval(getConfig('regua_3_dias_antes', '0'));
 $regua4 = (getConfig('regua_4_no_vencimento', '0') === '1');
 $regua5 = intval(getConfig('regua_5_dias_depois', '0'));
 
+function envioJaRealizadoNoCiclo($pdo, $faturaId, $tipo) {
+    try {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM envios_log WHERE fatura_id = ? AND tipo = ? AND status = 'enviado'");
+        $st->execute([(int)$faturaId, $tipo]);
+        return ((int)$st->fetchColumn() > 0);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function buscarFaturas($pdo, $statuses) {
     $ph = implode(',', array_fill(0, count($statuses), '?'));
     // admin_id IS NOT NULL: fatura sem admin nao tem SMTP, horario nem templates
@@ -308,7 +318,15 @@ foreach ($faturas as &$fat) {
     $dataAlvo3 = ($regua3 > 0) ? date('Y-m-d', strtotime("+{$regua3} days")) : null;
     $dataAlvo5 = ($regua5 > 0) ? date('Y-m-d', strtotime("-{$regua5} days")) : null;
 
-    if ($regua1 && $fat['ultimo_envio_tipo'] === null) {
+    // CONTROLE ANTIDUPLICIDADE 1: Não reenviar se a fatura já teve qualquer envio hoje (evita duplicar com emissão imediata)
+    if (!empty($fat['ultimo_envio']) && substr((string)$fat['ultimo_envio'], 0, 10) === $hoje) {
+        continue;
+    }
+
+    // Identifica se é parcela futura de carnê (deve aguardar a data de vencimento e não receber 'geracao' antecipada)
+    $isParcelaCarneFutura = (!empty($fat['carne_id']) && (int)($fat['parcela_atual'] ?? 0) > 1);
+
+    if ($regua1 && ($fat['ultimo_envio_tipo'] === null || $fat['ultimo_envio_tipo'] === '') && !$isParcelaCarneFutura) {
         $tipoEnviado = 'geracao';
     } elseif ($regua2 > 0 && $fat['data_vencimento'] === $dataAlvo2 && !in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) {
         $tipoEnviado = 'lembrete1';
@@ -322,10 +340,19 @@ foreach ($faturas as &$fat) {
 
     if ($tipoEnviado === null) continue;
 
+    // CONTROLE ANTIDUPLICIDADE 2: Verifica no histórico de envios se este estágio já foi concluído com sucesso
+    if (envioJaRealizadoNoCiclo($pdo, $fat['id'], $tipoEnviado)) {
+        continue;
+    }
+
     // Janela de envio por admin (60 min a partir do envio_hora do admin)
+    // Permite execução forçada em testes CLI via parâmetro --force ou HTTP ?forcar=1
     $envioHoraAdmin = getConfig('envio_hora', '08:00');
     $tsAlvoAdmin = strtotime(date('Y-m-d') . ' ' . $envioHoraAdmin . ':00');
-    if ($tsAlvoAdmin === false || time() < $tsAlvoAdmin || time() >= $tsAlvoAdmin + 3600) continue;
+    $forcarEnvio = (!$isHttp && in_array('--force', $argv ?? [])) || (isset($_GET['forcar']) && $_GET['forcar'] === '1');
+    if (!$forcarEnvio && ($tsAlvoAdmin === false || time() < $tsAlvoAdmin || time() >= $tsAlvoAdmin + 3600)) {
+        continue;
+    }
 
     if (empty($fat['pix_copia_cola']) && ($fat['status'] ?? '') !== 'pago' && !empty($fat['email'])) {
             $resultadoPix = criarPagamento($fat['descricao'], $fat['valor_final'], $fat['email'], $fat['nome_razao'], $fat['data_vencimento'] ?? null);

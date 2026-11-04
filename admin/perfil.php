@@ -133,7 +133,7 @@ $avatarPath = $admin['avatar'] ?? null;
     }
 }
 
-$avatarSrc = $admin['avatar'] ?: '/cobranca/assets/img/avatars/admin.svg';
+$avatarSrc = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($admin['avatar'] ?? null) : ($admin['avatar'] ?: '/cobranca/assets/img/avatars/admin.svg');
 $avatarLocal = __DIR__ . '/..' . (strncmp($avatarSrc, '/cobranca/', 10) === 0 ? substr($avatarSrc, 8) : $avatarSrc);
 $avatarLocal = str_contains($avatarLocal, '?') ? strtok($avatarLocal, '?') : $avatarLocal;
 if (is_file($avatarLocal)) $avatarSrc .= '?v=' . filemtime($avatarLocal);
@@ -152,7 +152,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> Suporte</a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
-                <img src="<?= htmlspecialchars($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;">
+                <img src="<?= htmlspecialchars(function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl() : ($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg')) ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;" onerror="this.onerror=null;this.src='/cobranca/assets/img/avatars/admin.svg';">
                 <span class="text-muted d-none d-md-inline"><?= htmlspecialchars($_SESSION['admin_nome']) ?></span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">
@@ -175,7 +175,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
             <div class="row">
                 <div class="col-lg-4">
                     <div class="form-card text-center">
-                        <img src="<?= htmlspecialchars($avatarSrc) ?>" alt="Avatar" class="rounded-circle mb-3" width="120" height="120" style="object-fit:cover; border: 3px solid var(--cor-primaria);">
+                        <img src="<?= htmlspecialchars($avatarSrc) ?>" alt="Avatar" class="rounded-circle mb-3" width="120" height="120" style="object-fit:cover; border: 3px solid var(--cor-primaria);" onerror="this.onerror=null;this.src='/cobranca/assets/img/avatars/admin.svg';">
                         <h5><?= htmlspecialchars($admin['nome']) ?></h5>
                         <small class="text-muted"><?= htmlspecialchars($admin['email']) ?></small>
                     </div>

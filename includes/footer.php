@@ -3,7 +3,7 @@
     <?php if (strpos($_SERVER['PHP_SELF'], '/usuario/') !== false): ?>
     <div class="topbar-mobile-user" style="display:none; position:fixed; top:0; right:0; z-index:201; padding:10px 16px; align-items:center; gap:8px;">
         <a href="/cobranca/usuario/perfil.php" style="display:flex; align-items:center; gap:6px; text-decoration:none;">
-            <img src="<?= htmlspecialchars($_SESSION['user_avatar'] ?? '/cobranca/assets/img/avatars/user.svg') ?>" alt="Avatar" style="width:30px; height:30px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-primaria);">
+            <img src="<?= htmlspecialchars(function_exists('getUserAvatarUrl') ? getUserAvatarUrl() : ($_SESSION['user_avatar'] ?? '/cobranca/assets/img/avatars/user.svg')) ?>" alt="Avatar" style="width:30px; height:30px; border-radius:50%; object-fit:cover; border:2px solid var(--cor-primaria);" onerror="this.onerror=null;this.src='/cobranca/assets/img/avatars/user.svg';">
         </a>
     </div>
     <nav class="app-bottom-nav-mobile">

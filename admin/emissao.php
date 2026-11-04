@@ -519,8 +519,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmtFat = $pdo->prepare("INSERT INTO faturas
                             (admin_id, cliente_id, fatura_recorrente_id, carne_id, parcela_atual, total_parcelas,
                              numero, descricao, valor, valor_final, data_emissao, competencia, data_vencimento,
-                             status, acesso_token, api_pagamento)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, 'pendente', ?, ?)");
+                             status, acesso_token, api_pagamento, ultimo_envio_tipo)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, 'pendente', ?, ?, 'agendado')");
                         $stmtBoleto = $pdo->prepare("UPDATE faturas SET boleto_url = ?, boleto_codigo_barras = ?, boleto_linha_digitavel = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?");
                         $stmtPix = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, pix_inter_codigo = ? WHERE id = ? AND admin_id = ?");
 
@@ -588,16 +588,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
 
-                        // Envio imediato da 1ª parcela
+                        // Envio imediato da 1ª parcela (apenas uma vez para a emissão)
                         if (!empty($parcelas[0])) {
                             $stF = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.email2, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
                             $stF->execute([$parcelas[0]['id'], $adminIdE]);
                             $fat1 = $stF->fetch();
                             if ($fat1 && !empty($fat1['email'])) {
-                                enviarEmailFatura($fat1, 'antes');
+                                enviarEmailFatura($fat1, 'geracao');
                             }
                             if ($fat1 && (!empty($fat1['celular']) || !empty($fat1['telefone']))) {
-                                enviarWhatsAppFatura($fat1, 'antes');
+                                enviarWhatsAppFatura($fat1, 'geracao');
                             }
                             $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = 'geracao' WHERE id = ? AND admin_id = ?")
                                 ->execute([$parcelas[0]['id'], $adminIdE]);
@@ -636,28 +636,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mensagem = $limiteFat['mensagem'];
                 $tipo = 'danger';
             } else {
-            $numero = generateInvoiceNumber();
-
-            // A 1a transacao vence na data escolhida. Ela NAO e emitida agora:
-            // o CRON emite cada fatura antecedencia dias antes do vencimento
-            // (RECORRENCIA_ANTECEDENCIA_EMISSAO). Por isso a data escolhida ja
-            // e o proximo vencimento que o cron deve processar.
+            $numero = generateInvoiceNumber($adminIdE);
             $ancora = $dia_vencimento;
+            $proximaComp = proximoVencimentoRecorrencia($frequencia, $primeiroVencimentoData, $ancora);
+
+            $pdo->beginTransaction();
+
             $stmt = $pdo->prepare("INSERT INTO faturas_recorrentes
                 (admin_id, cliente_id, descricao, valor, frequencia, dia_vencimento, dia_ancora,
                  data_inicio, data_fim, data_proxima_fatura, data_ultima_fatura,
                  antecedencia_emissao, dias_vencimento, politica_atraso,
                  quantidade_transacoes, numero, ativo, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 1, 'ativa')");
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, 1, 'ativa')");
             $stmt->execute([
                 $adminIdE, $cliente_id, $descricao, $valor, $frequencia,
-                $dia_vencimento, $ancora, $data_inicio, $data_fim,
+                $dia_vencimento, $ancora, $data_fim,
+                $proximaComp,
                 $primeiroVencimentoData,
                 $antecedencia_emissao, $dias_vencimento, $politica_atraso,
-                $quantidade_transacoes, $numero,
+                $quantidade_transacoes ?: null, $numero,
             ]);
-            $faturaRecorrenteId = $pdo->lastInsertId();
+            $faturaRecorrenteId = (int)$pdo->lastInsertId();
 
+            // Emitir IMEDIATAMENTE a primeira fatura da recorrência
+            $fatNum1 = generateInvoiceNumber($adminIdE);
+            $tokenAcesso1 = generateAcessoToken();
+            $apiAgora = getApiAtiva();
+
+            $stmtFat1 = $pdo->prepare("INSERT INTO faturas
+                (admin_id, cliente_id, fatura_recorrente_id, carne_id, parcela_atual, total_parcelas,
+                 numero, descricao, valor, valor_final, data_emissao, competencia, data_vencimento,
+                 status, acesso_token, api_pagamento, ultimo_envio_tipo)
+                VALUES (?, ?, ?, NULL, 1, ?, ?, ?, ?, ?, CURDATE(), ?, ?, 'pendente', ?, ?, 'geracao')");
+            $stmtFat1->execute([
+                $adminIdE, $cliente_id, $faturaRecorrenteId,
+                $quantidade_transacoes ?: null,
+                $fatNum1, $descricao, $valor, $valor,
+                $primeiroVencimentoData, $primeiroVencimentoData,
+                $tokenAcesso1, $apiAgora,
+            ]);
+            $fid1 = (int)$pdo->lastInsertId();
+
+            // Buscar dados completos do cliente para registro de boleto / PIX
+            $stCliData = $pdo->prepare("SELECT * FROM clientes WHERE id = ? AND admin_id = ?");
+            $stCliData->execute([$cliente_id, $adminIdE]);
+            $cliData = $stCliData->fetch() ?: [];
+
+            // Gerar boleto para a primeira fatura
+            $resBol = criarBoleto(
+                $descricao, $valor, $cliData['nome_razao'] ?? '',
+                $cliData['cpf_cnpj'] ?? '', $cliData['email'] ?? '', $cliData['cep'] ?? '',
+                $cliData['logradouro'] ?? '', $cliData['numero'] ?? '', $cliData['bairro'] ?? '',
+                $cliData['cidade'] ?? '', $cliData['estado'] ?? '', $primeiroVencimentoData
+            );
+            $temBoleto = false;
+            if (is_array($resBol) && !empty($resBol['sucesso']) && !empty($resBol['boleto_url'])) {
+                $pdo->prepare("UPDATE faturas SET boleto_url = ?, boleto_codigo_barras = ?, boleto_linha_digitavel = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?")
+                    ->execute([
+                        $resBol['boleto_url'],
+                        $resBol['boleto_codigo_barras'] ?? '',
+                        $resBol['boleto_linha_digitavel'] ?? '',
+                        $resBol['payment_id'] ?? '',
+                        in_array($apiAgora, ['inter', 'bb'], true) ? ($resBol['payment_id'] ?? '') : '',
+                        $resBol['api'] ?? $apiAgora,
+                        $fid1, $adminIdE,
+                    ]);
+                $temBoleto = true;
+            }
+
+            // Gerar PIX para a primeira fatura
+            $pixCopia = (string)($resBol['qr_code_copia_cola'] ?? '');
+            $pixQr = (string)($resBol['qr_code'] ?? '');
+            $pixCod = $temBoleto ? (string)($resBol['payment_id'] ?? '') : '';
+            $precisaPixExtra = in_array($apiAgora, ['inter', 'bb'], true)
+                ? ($pixCopia === '')
+                : true;
+            if ($precisaPixExtra) {
+                $resPix = criarPagamento($descricao, $valor, $cliData['email'] ?? '', $cliData['nome_razao'] ?? '', $primeiroVencimentoData, 2);
+                if (is_array($resPix) && !empty($resPix['sucesso'])) {
+                    $pixCopia = (string)($resPix['qr_code_copia_cola'] ?? '');
+                    $pixQr = (string)($resPix['qr_code'] ?? '');
+                    $pixCod = (string)($resPix['payment_id'] ?? '');
+                }
+            }
+            if ($pixCopia !== '' || $pixQr !== '') {
+                $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, pix_inter_codigo = ? WHERE id = ? AND admin_id = ?")
+                    ->execute([$pixQr, $pixCopia, '', $pixCod, $fid1, $adminIdE]);
+            }
+
+            // Envio imediato da primeira fatura (1 e-mail e 1 WhatsApp)
+            $stF1 = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.email2, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
+            $stF1->execute([$fid1, $adminIdE]);
+            $fat1 = $stF1->fetch();
+            if ($fat1 && !empty($fat1['email'])) {
+                enviarEmailFatura($fat1, 'geracao');
+            }
+            if ($fat1 && (!empty($fat1['celular']) || !empty($fat1['telefone']))) {
+                enviarWhatsAppFatura($fat1, 'geracao');
+            }
+            $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = 'geracao' WHERE id = ? AND admin_id = ?")
+                ->execute([$fid1, $adminIdE]);
+
+            $pdo->commit();
             header('Location: emissao.php?msg=salvo');
             exit;
                 }
@@ -764,7 +844,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
         <a href="https://wa.me/5591982675573" target="_blank" class="btn btn-light btn-sm ms-auto me-2" style="font-size:0.8rem;border:1px solid #dee2e6;"><i class="fas fa-headset"></i> Suporte</a>
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
-                <img src="<?= htmlspecialchars($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg') ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;">
+                <img src="<?= htmlspecialchars(function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl() : ($_SESSION['admin_avatar'] ?? '/cobranca/assets/img/avatars/admin.svg')) ?>" alt="Avatar" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover;" onerror="this.onerror=null;this.src='/cobranca/assets/img/avatars/admin.svg';">
                 <span class="text-muted d-none d-md-inline"><?= htmlspecialchars($_SESSION['admin_nome']) ?></span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">

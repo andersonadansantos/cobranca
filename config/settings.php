@@ -400,10 +400,67 @@ function logoPathValido($caminho) {
     $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
     return file_exists($arquivo);
 }
+
+// Verifica se o caminho do avatar aponta para um arquivo físico existente.
+function avatarPathValido($caminho) {
+    $caminho = trim((string)$caminho);
+    if ($caminho === '') return false;
+    if (strpos($caminho, 'http') === 0 || strpos($caminho, 'data:') === 0) return true;
+    $caminhoLimpo = str_contains($caminho, '?') ? strtok($caminho, '?') : $caminho;
+    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
+    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
+    return file_exists($arquivo);
+}
+
+// Retorna a URL segura do avatar do administrador com fallback para admin.svg
+function getAdminAvatarUrl($avatar = null) {
+    $base = defined('APP_BASE') ? APP_BASE : '/cobranca';
+    $default = rtrim($base, '/') . '/assets/img/avatars/admin.svg';
+    if ($avatar === null) {
+        $avatar = $_SESSION['admin_avatar'] ?? null;
+    }
+    if (empty($avatar) || !is_string($avatar)) {
+        return $default;
+    }
+    $avatar = trim($avatar);
+    if ($avatar === '' || !avatarPathValido($avatar)) {
+        return $default;
+    }
+    $caminhoLimpo = str_contains($avatar, '?') ? strtok($avatar, '?') : $avatar;
+    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
+    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
+    if (file_exists($arquivo) && !str_contains($avatar, '?')) {
+        return $avatar . '?v=' . filemtime($arquivo);
+    }
+    return $avatar;
+}
+
+// Retorna a URL segura do avatar do usuário/cliente com fallback para user.svg
+function getUserAvatarUrl($avatar = null) {
+    $base = defined('APP_BASE') ? APP_BASE : '/cobranca';
+    $default = rtrim($base, '/') . '/assets/img/avatars/user.svg';
+    if ($avatar === null) {
+        $avatar = $_SESSION['user_avatar'] ?? null;
+    }
+    if (empty($avatar) || !is_string($avatar)) {
+        return $default;
+    }
+    $avatar = trim($avatar);
+    if ($avatar === '' || !avatarPathValido($avatar)) {
+        return $default;
+    }
+    $caminhoLimpo = str_contains($avatar, '?') ? strtok($avatar, '?') : $avatar;
+    $arquivo = __DIR__ . '/..' . preg_replace('#^/cobranca#', '', $caminhoLimpo);
+    $arquivo = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $arquivo);
+    if (file_exists($arquivo) && !str_contains($avatar, '?')) {
+        return $avatar . '?v=' . filemtime($arquivo);
+    }
+    return $avatar;
+}
 
-// Logo da marca global (enviada pelo Super Admin). Usada nos painéis,
-// e-mails, PDFs e site público. As logos de personalização do admin
-// (logo_empresa/logo_mobile) ficam reservadas ao login do cliente.
+
+// Verifica se o caminho do avatar aponta para um arquivo físico existente.
+
 function getLogo() {
     return getLogoLoginGlobal();
 }

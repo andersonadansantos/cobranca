@@ -1,215 +1,222 @@
-<?php
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../config/settings.php';
-
-// Resolve a configuração de WhatsApp do tenant/admin para envio.
-// Prioridade: 1) tabela admin_evolution do admin; 2) configurações por admin
-// (configuracoes) quando preenchidas; 3) configurações globais. Linhas vazias
-// são tratadas como "não configuradas" para permitir o fallback.
-function getWhatsAppConfig() {
-    $pdo = getConnection();
-    $adminId = getConfigAdminId();
-
-    // 1) Preferência: config por admin na tabela admin_evolution (painel/superadmin).
-    if ($pdo && $adminId > 0) {
-        $stmt = $pdo->prepare("SELECT url_api, api_key, instance, ativo FROM admin_evolution WHERE admin_id = ?");
-        $stmt->execute([$adminId]);
-        $evo = $stmt->fetch();
-        if ($evo && trim((string)$evo['url_api']) !== '' && trim((string)$evo['instance']) !== '') {
-            return [
-                'url_api'  => (string)$evo['url_api'],
-                'api_key'  => (string)($evo['api_key'] ?? ''),
-                'instance' => (string)$evo['instance'],
-                'ativo'    => (string)($evo['ativo'] ?? '1'),
-            ];
-        }
-    }
-
-    // 2) Fallback: configurações por admin em `configuracoes`; se vazias, usa as globais.
-    $cfg = ['url_api' => '', 'api_key' => '', 'instance' => '', 'ativo' => '0'];
-    $chaves = [
-        'url_api'  => 'whatsapp_api_url',
-        'api_key'  => 'whatsapp_api_key',
-        'instance' => 'whatsapp_instance',
-        'ativo'    => 'whatsapp_ativo',
-    ];
-    foreach ($chaves as $campo => $chave) {
-        $valor = '';
-        if ($pdo && $adminId > 0) {
-            $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = ?");
-            $stmt->execute([$adminId, $chave]);
-            $row = $stmt->fetch();
-            if ($row && trim((string)$row['valor']) !== '') $valor = (string)$row['valor'];
-        }
-        if (trim($valor) === '') {
-            $valor = getConfigGlobal($chave, '');
-        }
-        $cfg[$campo] = (string)$valor;
-    }
-    return $cfg;
-}
-
-function enviarWhatsApp($telefone, $mensagem) {
-    $falha = function ($motivo) {
-        $GLOBALS['whatsapp_ultimo_erro'] = $motivo;
-        return false;
-    };
-    $GLOBALS['whatsapp_ultimo_erro'] = '';
-
-    $wa = getWhatsAppConfig();
-    $apiUrl = rtrim($wa['url_api'], '/');
-    $apiKey = $wa['api_key'];
-    $instance = $wa['instance'];
-    $whatsappAtivo = $wa['ativo'];
-
-    if ($whatsappAtivo !== '1') return $falha('WhatsApp desativado para este administrador');
-    if (empty($apiUrl) || empty($apiKey) || empty($instance)) return $falha('configuracao do WhatsApp incompleta (URL, chave ou instancia)');
-    if (empty($telefone)) return $falha('cliente sem telefone');
-
-    $telefone = preg_replace('/[^0-9]/', '', $telefone);
-    if (strlen($telefone) < 10) return $falha('telefone invalido');
-    if (strlen($telefone) === 10) $telefone = '55' . $telefone;
-    if (strlen($telefone) === 11) $telefone = '55' . $telefone;
-    if (strlen($telefone) === 12 && substr($telefone, 0, 2) !== '55') $telefone = '55' . $telefone;
-
-    $endpoint = "{$apiUrl}/message/sendText/{$instance}";
-    $payload = [
-        'number' => $telefone,
-        'text' => $mensagem,
-    ];
-
-    $ch = curl_init($endpoint);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'apikey: ' . $apiKey,
-        ],
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    $resp = curl_exec($ch);
-    $err = curl_error($ch);
-    curl_close($ch);
-
-    if ($err) return $falha('erro de conexao com a API do WhatsApp: ' . $err);
-    $data = json_decode($resp, true);
-    if ($data && isset($data['key']['id'])) return true;
-    return $falha('API do WhatsApp nao confirmou o envio: ' . substr((string)$resp, 0, 300));
-}
-
-function registrarResultadoWhats($fatura, $tipo, $ok, $telefone) {
-    registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo,
-        $ok ? 'enviado' : 'erro', $telefone, $ok ? '' : ($GLOBALS['whatsapp_ultimo_erro'] ?? ''));
-    return $ok;
-}
-
-function renderizarTemplateWhats($template, $fatura, $dias = 0) {
-    $pdo = getConnection();
-    $nomeEmpresa = getNomeSistema();
-    $adminFatura = (int) ($fatura['admin_id'] ?? 0);
-    if ($pdo && $adminFatura > 0) {
-        $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = ?");
-        $stmt->execute([$adminFatura]);
-        $admin = $stmt->fetch();
-        if ($admin && !empty($admin['nome_fantasia'])) $nomeEmpresa = $admin['nome_fantasia'];
-    }
-    $linkFatura = getLinkFatura($fatura['id']);
-
-    $substituicoes = [
-        '{nomeEmpresa}' => $nomeEmpresa,
-        '{cliente}' => $fatura['nome_razao'] ?? '',
-        '{numero}' => $fatura['numero'] ?? '',
-        '{data_vencimento}' => date('d/m/Y', strtotime($fatura['data_vencimento'])),
-        '{descricao}' => $fatura['descricao'] ?? '',
-        '{valor}' => number_format($fatura['valor_final'], 2, ',', '.'),
-        '{link_fatura}' => $linkFatura,
-        '{pix}' => $fatura['pix_copia_cola'] ?? '',
-        '{cpf_cnpj}' => $fatura['cpf_cnpj'] ?? '',
-        '{dias}' => $dias,
-    ];
-
-    return str_replace(array_keys($substituicoes), array_values($substituicoes), $template);
-}
-
-function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
-    if (!planoPermiteEnvio('whatsapp', (int)($fatura['admin_id'] ?? 0))) {
-        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo, 'ignorado', '', 'plano sem envio por WhatsApp');
-        return false;
-    }
-    $telefone = $fatura['celular'] ?? $fatura['telefone'] ?? '';
-    if (empty($telefone)) {
-        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo, 'ignorado', '', 'cliente sem telefone');
-        return false;
-    }
-
-    $template = getConfig(($tipo === 'pagamento') ? 'template_whats_pagamento' : 'template_whats_antes', '');
-    if (!empty(trim($template))) {
-        $msg = renderizarTemplateWhats($template, $fatura, $dias);
-        return registrarResultadoWhats($fatura, $tipo, enviarWhatsApp($telefone, $msg), $telefone);
-    }
-
-    $pdo = getConnection();
-    $nomeEmpresa = getNomeSistema();
-    $adminFatura = (int) ($fatura['admin_id'] ?? 0);
-    if ($pdo && $adminFatura > 0) {
-        $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = ?");
-        $stmt->execute([$adminFatura]);
-        $admin = $stmt->fetch();
-        if ($admin && !empty($admin['nome_fantasia'])) $nomeEmpresa = $admin['nome_fantasia'];
-    }
-    $linkFatura = getLinkFatura($fatura['id']);
-
-    $pixTexto = '';
-    if (!empty($fatura['pix_copia_cola'])) {
-        $pixTexto = "\n💳 *Pague via PIX*\n";
-        $pixTexto .= "Código Pix: {$fatura['pix_copia_cola']}\n\n";
-    }
-
-    $cpfCnpj = $fatura['cpf_cnpj'] ?? '';
-    $acessoTexto = '';
-    if (!empty($cpfCnpj)) {
-        $acessoTexto = "\n🔐 *Acesso ao Painel de faturas:*\n";
-        $acessoTexto .= "CPF/CNPJ: {$cpfCnpj}\n";
-        $acessoTexto .= "Senha padrão: {$cpfCnpj} (ou a senha que você cadastrou)\n";
-        $acessoTexto .= "_Esqueceu sua senha? Use a recuperação de senha na área do cliente_\n\n";
-    }
-
-    if ($tipo === 'pagamento') {
-        $msg = "*{$nomeEmpresa}*\n\n";
-        $msg .= "Olá, {$fatura['nome_razao']}!\n\n";
-        $msg .= "Recebemos o pagamento da sua fatura *{$fatura['numero']}*.\n\n";
-        $msg .= "📋 Descrição: {$fatura['descricao']}\n";
-        $msg .= "💰 Valor: *R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "*\n\n";
-        $msg .= "✅ Pagamento confirmado com sucesso!\n\n";
-        $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
-    } elseif ($tipo === 'antes') {
-        $diasTexto = $dias > 0 ? " em {$dias} dia(s)" : "";
-        $msg = "*{$nomeEmpresa}*\n\n";
-        $msg .= "Olá, {$fatura['nome_razao']}!\n\n";
-        $msg .= "Sua fatura *{$fatura['numero']}* vence{$diasTexto} em *" . date('d/m/Y', strtotime($fatura['data_vencimento'])) . "*.\n\n";
-        $msg .= "📋 Descrição: {$fatura['descricao']}\n";
-        $msg .= "💰 Valor: *R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "*\n\n";
-        $msg .= $pixTexto;
-        $msg .= "🔗 Acesse sua fatura: {$linkFatura}\n\n";
-        $msg .= $acessoTexto;
-        $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
-    } else {
-        $diasAtraso = $dias > 0 ? $dias : max(1, round((time() - strtotime($fatura['data_vencimento'])) / 86400));
-        $msg = "*{$nomeEmpresa}*\n\n";
-        $msg .= "Olá, {$fatura['nome_razao']}!\n\n";
-        $msg .= "Sua fatura *{$fatura['numero']}* está *vencida há {$diasAtraso} dia(s)*.\n\n";
-        $msg .= "📋 Descrição: {$fatura['descricao']}\n";
-        $msg .= "💰 Valor: *R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "*\n";
-        $msg .= "📅 Vencimento: " . date('d/m/Y', strtotime($fatura['data_vencimento'])) . "\n\n";
-        $msg .= $pixTexto;
-        $msg .= "Por favor, regularize sua situação.\n";
-        $msg .= "🔗 Acesse sua fatura: {$linkFatura}\n\n";
-        $msg .= $acessoTexto;
-        $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
-    }
-
-    return registrarResultadoWhats($fatura, $tipo, enviarWhatsApp($telefone, $msg), $telefone);
+<?php
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/settings.php';
+
+// Resolve a configuração de WhatsApp do tenant/admin para envio.
+// Prioridade: 1) tabela admin_evolution do admin; 2) configurações por admin
+// (configuracoes) quando preenchidas; 3) configurações globais. Linhas vazias
+// são tratadas como "não configuradas" para permitir o fallback.
+function getWhatsAppConfig() {
+    $pdo = getConnection();
+    $adminId = getConfigAdminId();
+
+    // 1) Preferência: config por admin na tabela admin_evolution (painel/superadmin).
+    if ($pdo && $adminId > 0) {
+        $stmt = $pdo->prepare("SELECT url_api, api_key, instance, ativo FROM admin_evolution WHERE admin_id = ?");
+        $stmt->execute([$adminId]);
+        $evo = $stmt->fetch();
+        if ($evo && trim((string)$evo['url_api']) !== '' && trim((string)$evo['instance']) !== '') {
+            return [
+                'url_api'  => (string)$evo['url_api'],
+                'api_key'  => (string)($evo['api_key'] ?? ''),
+                'instance' => (string)$evo['instance'],
+                'ativo'    => (string)($evo['ativo'] ?? '1'),
+            ];
+        }
+    }
+
+    // 2) Fallback: configurações por admin em `configuracoes`; se vazias, usa as globais.
+    $cfg = ['url_api' => '', 'api_key' => '', 'instance' => '', 'ativo' => '0'];
+    $chaves = [
+        'url_api'  => 'whatsapp_api_url',
+        'api_key'  => 'whatsapp_api_key',
+        'instance' => 'whatsapp_instance',
+        'ativo'    => 'whatsapp_ativo',
+    ];
+    foreach ($chaves as $campo => $chave) {
+        $valor = '';
+        if ($pdo && $adminId > 0) {
+            $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = ?");
+            $stmt->execute([$adminId, $chave]);
+            $row = $stmt->fetch();
+            if ($row && trim((string)$row['valor']) !== '') $valor = (string)$row['valor'];
+        }
+        if (trim($valor) === '') {
+            $valor = getConfigGlobal($chave, '');
+        }
+        $cfg[$campo] = (string)$valor;
+    }
+    return $cfg;
+}
+
+function enviarWhatsApp($telefone, $mensagem) {
+    $falha = function ($motivo) {
+        $GLOBALS['whatsapp_ultimo_erro'] = $motivo;
+        return false;
+    };
+    $GLOBALS['whatsapp_ultimo_erro'] = '';
+
+    $wa = getWhatsAppConfig();
+    $apiUrl = rtrim($wa['url_api'], '/');
+    $apiKey = $wa['api_key'];
+    $instance = $wa['instance'];
+    $whatsappAtivo = $wa['ativo'];
+
+    if ($whatsappAtivo !== '1') return $falha('WhatsApp desativado para este administrador');
+    if (empty($apiUrl) || empty($apiKey) || empty($instance)) return $falha('configuracao do WhatsApp incompleta (URL, chave ou instancia)');
+    if (empty($telefone)) return $falha('cliente sem telefone');
+
+    $telefone = preg_replace('/[^0-9]/', '', $telefone);
+    if (strlen($telefone) < 10) return $falha('telefone invalido');
+    if (strlen($telefone) === 10) $telefone = '55' . $telefone;
+    if (strlen($telefone) === 11) $telefone = '55' . $telefone;
+    if (strlen($telefone) === 12 && substr($telefone, 0, 2) !== '55') $telefone = '55' . $telefone;
+
+    $endpoint = "{$apiUrl}/message/sendText/{$instance}";
+    $payload = [
+        'number' => $telefone,
+        'text' => $mensagem,
+    ];
+
+    $ch = curl_init($endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'apikey: ' . $apiKey,
+        ],
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    $resp = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($err) return $falha('erro de conexao com a API do WhatsApp: ' . $err);
+    $data = json_decode($resp, true);
+    if ($data && isset($data['key']['id'])) return true;
+    return $falha('API do WhatsApp nao confirmou o envio: ' . substr((string)$resp, 0, 300));
+}
+
+function registrarResultadoWhats($fatura, $tipo, $ok, $telefone) {
+    registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo,
+        $ok ? 'enviado' : 'erro', $telefone, $ok ? '' : ($GLOBALS['whatsapp_ultimo_erro'] ?? ''));
+    return $ok;
+}
+
+function renderizarTemplateWhats($template, $fatura, $dias = 0) {
+    $pdo = getConnection();
+    $nomeEmpresa = getNomeSistema();
+    $adminFatura = (int) ($fatura['admin_id'] ?? 0);
+    if ($pdo && $adminFatura > 0) {
+        $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = ?");
+        $stmt->execute([$adminFatura]);
+        $admin = $stmt->fetch();
+        if ($admin && !empty($admin['nome_fantasia'])) $nomeEmpresa = $admin['nome_fantasia'];
+    }
+    $linkFatura = getLinkFatura($fatura['id']);
+
+    $substituicoes = [
+        '{nomeEmpresa}' => $nomeEmpresa,
+        '{cliente}' => $fatura['nome_razao'] ?? '',
+        '{numero}' => $fatura['numero'] ?? '',
+        '{data_vencimento}' => date('d/m/Y', strtotime($fatura['data_vencimento'])),
+        '{descricao}' => $fatura['descricao'] ?? '',
+        '{valor}' => number_format($fatura['valor_final'], 2, ',', '.'),
+        '{link_fatura}' => $linkFatura,
+        '{pix}' => $fatura['pix_copia_cola'] ?? '',
+        '{cpf_cnpj}' => $fatura['cpf_cnpj'] ?? '',
+        '{dias}' => $dias,
+    ];
+
+    return str_replace(array_keys($substituicoes), array_values($substituicoes), $template);
+}
+
+function enviarWhatsAppFatura($fatura, $tipo = 'antes', $dias = 0) {
+    if (!planoPermiteEnvio('whatsapp', (int)($fatura['admin_id'] ?? 0))) {
+        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo, 'ignorado', '', 'plano sem envio por WhatsApp');
+        return false;
+    }
+    $telefone = $fatura['celular'] ?? $fatura['telefone'] ?? '';
+    if (empty($telefone)) {
+        registrarEnvioLog($fatura['admin_id'] ?? 0, $fatura['id'] ?? 0, 'whatsapp', $tipo, 'ignorado', '', 'cliente sem telefone');
+        return false;
+    }
+
+    $template = getConfig(($tipo === 'pagamento') ? 'template_whats_pagamento' : 'template_whats_antes', '');
+    if (!empty(trim($template))) {
+        $msg = renderizarTemplateWhats($template, $fatura, $dias);
+        return registrarResultadoWhats($fatura, $tipo, enviarWhatsApp($telefone, $msg), $telefone);
+    }
+
+    $pdo = getConnection();
+    $nomeEmpresa = getNomeSistema();
+    $adminFatura = (int) ($fatura['admin_id'] ?? 0);
+    if ($pdo && $adminFatura > 0) {
+        $stmt = $pdo->prepare("SELECT nome_fantasia FROM administradores WHERE id = ?");
+        $stmt->execute([$adminFatura]);
+        $admin = $stmt->fetch();
+        if ($admin && !empty($admin['nome_fantasia'])) $nomeEmpresa = $admin['nome_fantasia'];
+    }
+    $linkFatura = getLinkFatura($fatura['id']);
+
+    $pixTexto = '';
+    if (!empty($fatura['pix_copia_cola'])) {
+        $pixTexto = "\n💳 *Pague via PIX*\n";
+        $pixTexto .= "Código Pix: {$fatura['pix_copia_cola']}\n\n";
+    }
+
+    $cpfCnpj = $fatura['cpf_cnpj'] ?? '';
+    $acessoTexto = '';
+    if (!empty($cpfCnpj)) {
+        $acessoTexto = "\n🔐 *Acesso ao Painel de faturas:*\n";
+        $acessoTexto .= "CPF/CNPJ: {$cpfCnpj}\n";
+        $acessoTexto .= "Senha padrão: {$cpfCnpj} (ou a senha que você cadastrou)\n";
+        $acessoTexto .= "_Esqueceu sua senha? Use a recuperação de senha na área do cliente_\n\n";
+    }
+
+    $isAntes = in_array($tipo, ['antes', 'geracao', 'lembrete1', 'lembrete2', 'vencimento'], true);
+    if ($tipo === 'pagamento') {
+        $msg = "*{$nomeEmpresa}*\n\n";
+        $msg .= "Olá, {$fatura['nome_razao']}!\n\n";
+        $msg .= "Recebemos o pagamento da sua fatura *{$fatura['numero']}*.\n\n";
+        $msg .= "📋 Descrição: {$fatura['descricao']}\n";
+        $msg .= "💰 Valor: *R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "*\n\n";
+        $msg .= "✅ Pagamento confirmado com sucesso!\n\n";
+        $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
+    } elseif ($isAntes) {
+        $diasTexto = $dias > 0 ? " em {$dias} dia(s)" : "";
+        $msg = "*{$nomeEmpresa}*\n\n";
+        $msg .= "Olá, {$fatura['nome_razao']}!\n\n";
+        if ($tipo === 'geracao') {
+            $msg .= "Sua nova cobrança *{$fatura['numero']}* foi gerada e vence em *" . date('d/m/Y', strtotime($fatura['data_vencimento'])) . "*.\n\n";
+        } elseif ($tipo === 'vencimento') {
+            $msg .= "Lembramos que sua fatura *{$fatura['numero']}* vence *hoje* (" . date('d/m/Y', strtotime($fatura['data_vencimento'])) . ").\n\n";
+        } else {
+            $msg .= "Sua fatura *{$fatura['numero']}* vence{$diasTexto} em *" . date('d/m/Y', strtotime($fatura['data_vencimento'])) . "*.\n\n";
+        }
+        $msg .= "📋 Descrição: {$fatura['descricao']}\n";
+        $msg .= "💰 Valor: *R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "*\n\n";
+        $msg .= $pixTexto;
+        $msg .= "🔗 Acesse sua fatura: {$linkFatura}\n\n";
+        $msg .= $acessoTexto;
+        $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
+    } else {
+        $diasAtraso = $dias > 0 ? $dias : max(1, round((time() - strtotime($fatura['data_vencimento'])) / 86400));
+        $msg = "*{$nomeEmpresa}*\n\n";
+        $msg .= "Olá, {$fatura['nome_razao']}!\n\n";
+        $msg .= "Sua fatura *{$fatura['numero']}* está *vencida há {$diasAtraso} dia(s)*.\n\n";
+        $msg .= "📋 Descrição: {$fatura['descricao']}\n";
+        $msg .= "💰 Valor: *R$ " . number_format($fatura['valor_final'], 2, ',', '.') . "*\n";
+        $msg .= "📅 Vencimento: " . date('d/m/Y', strtotime($fatura['data_vencimento'])) . "\n\n";
+        $msg .= $pixTexto;
+        $msg .= "Por favor, regularize sua situação.\n";
+        $msg .= "🔗 Acesse sua fatura: {$linkFatura}\n\n";
+        $msg .= $acessoTexto;
+        $msg .= "Atenciosamente,\n*{$nomeEmpresa}*";
+    }
+
+    return registrarResultadoWhats($fatura, $tipo, enviarWhatsApp($telefone, $msg), $telefone);
 }
