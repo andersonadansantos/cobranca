@@ -86,32 +86,34 @@ foreach ($charges as $charge) {
     }
 
     if ($novoStatus !== null && $novoStatus !== $fatura['status']) {
-        $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
-        $stmt->execute([$novoStatus, $dataPagamento, $fatura['id']]);
-
         $tipoPgto = $charge['payment_method']['type'] ?? 'unknown';
-        $stmt = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $fatura['id'],
-            $chargeId ?: $orderPagBankId,
-            $chargeStatus,
-            $charge['payment_response']['message'] ?? '',
-            ($charge['amount']['paid'] ?? 0) / 100,
-            $tipoPgto,
-            json_encode($dados)
-        ]);
-
+        $valorPago = ($charge['amount']['paid'] ?? 0) / 100;
         if ($novoStatus === 'pago') {
-            $stmtCli = $pdo->prepare("SELECT c.nome_razao, c.email FROM clientes c WHERE c.id = ?");
-            $stmtCli->execute([$fatura['cliente_id']]);
-            $cli = $stmtCli->fetch();
-            if ($cli) {
-                $fatura['nome_razao'] = $cli['nome_razao'];
-                $fatura['email'] = $cli['email'];
-                $fatura['data_pagamento'] = $dataPagamento;
-                enviarEmailPagamento($fatura);
-            }
-            notificarPagamentoRecebidoAdmin($fatura['id']);
+            confirmarPagamentoEBaixarFatura($fatura['id'], [
+                'gateway' => 'pagbank',
+                'payment_id' => $chargeId ?: $orderPagBankId,
+                'valor_pago' => $valorPago > 0 ? $valorPago : $fatura['valor_final'],
+                'tipo_pagamento' => $tipoPgto,
+                'status_gateway' => $chargeStatus,
+                'status_detail' => $charge['payment_response']['message'] ?? 'Recebido via PagBank',
+                'data_pagamento' => $dataPagamento,
+                'dados_raw' => $dados
+            ]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
+            $stmt->execute([$novoStatus, $dataPagamento, $fatura['id']]);
+
+            $stmt = $pdo->prepare("INSERT INTO pagamentos_log (admin_id, fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([
+                $fatura['admin_id'] ?? 0,
+                $fatura['id'],
+                $chargeId ?: $orderPagBankId,
+                $chargeStatus,
+                $charge['payment_response']['message'] ?? '',
+                $valorPago,
+                $tipoPgto,
+                json_encode($dados)
+            ]);
         }
     }
 }

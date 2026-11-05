@@ -1,174 +1,135 @@
-<?php
-$currentPage = basename($_SERVER['PHP_SELF'], '.php');
-$basePath = '/cobranca/admin';
-$templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';
-if ($templateAtivo === 'fintech') {
-    include __DIR__ . '/../includes_v2/sidebar_admin.php';
-    return;
-}
-$planoExpirado = function_exists('adminPlanoExpirado') ? adminPlanoExpirado() : false;
-$adminDesativado = function_exists('adminEstaAtivo') ? !adminEstaAtivo() : false;
-$acessoRestrito = $adminDesativado;
-$semPlano = function_exists('adminTemPlanoAtivo') ? !adminTemPlanoAtivo() : false;
-
-$logoEmpresaAdmin = function_exists('getConfig') ? getConfig('logo_empresa_admin', '') : '';
-if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($logoEmpresaAdmin)) {
-    $logo = $logoEmpresaAdmin;
-}
-
-// A logo do topo do menu esquerdo entra com no maximo 200px de largura.
-$logoMaxWidth = 200;
-?>
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <?php if ($logo): ?>
-            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: <?= $logoMaxWidth ?>px; max-height: 70px;">
-        <?php endif; ?>
-        <h4><i class="fas fa-shield-halved me-2"></i><?= t('layout.admin_area') ?></h4>
-    </div>
-    <nav class="sidebar-nav">
-        <?php if (!$acessoRestrito): ?>
-        <div class="nav-section"><?= t('layout.menu_label') ?></div>
-        <a href="<?= $basePath ?>/index.php" class="nav-link <?= $currentPage === 'index' ? 'active' : '' ?>">
-            <i class="fas fa-chart-pie"></i> <?= t('nav.painel_geral') ?>
-            <?php if (($totalAlerta ?? 0) > 0): ?>
-                <span class="badge bg-danger ms-auto" style="font-size:0.65rem;"><?= $totalAlerta ?></span>
-            <?php endif; ?>
-        </a>
-        <a href="<?= $basePath ?>/cadastro.php" class="nav-link <?= $currentPage === 'cadastro' ? 'active' : '' ?>">
-            <i class="fas fa-building"></i> <?= t('nav.cadastro') ?>
-        </a>
-        <?php if (!$semPlano): ?>
-        <a href="<?= $basePath ?>/emissao.php" class="nav-link <?= $currentPage === 'emissao' ? 'active' : '' ?>">
-            <i class="fas fa-file-invoice-dollar"></i> <?= t('nav.emissao') ?>
-        </a>
-        <a href="<?= $basePath ?>/recibo_avulso.php" class="nav-link <?= $currentPage === 'recibo_avulso' ? 'active' : '' ?>">
-            <i class="fas fa-file-invoice"></i> Recibo Avulso
-        </a>
-        <?php endif; ?>
-        <a href="<?= $basePath ?>/livro_caixa.php" class="nav-link <?= $currentPage === 'livro_caixa' ? 'active' : '' ?>">
-            <i class="fas fa-book"></i> <?= t('nav.livro_caixa') ?>
-        </a>
-        <a href="<?= $basePath ?>/inadimplencia.php" class="nav-link <?= $currentPage === 'inadimplencia' ? 'active' : '' ?>">
-            <i class="fas fa-exclamation-triangle"></i> <?= t('nav.inadimplencia') ?>
-        </a>
-
-        <?php if (!$semPlano): ?>
-        <div class="nav-section"><?= t('nav.configuracoes') ?></div>
-        <a href="#" class="nav-link sidebar-toggle-config" onclick="var el=document.getElementById('configSubmenu');el.style.display=el.style.display==='none'?'block':'none';var icon=this.querySelector('.fa-chevron-down,.fa-chevron-up');if(icon){icon.classList.toggle('fa-chevron-down');icon.classList.toggle('fa-chevron-up');}return false;">
-            <i class="fas fa-cog"></i> <?= t('nav.configuracoes') ?> <i class="fas fa-chevron-down ms-auto" style="font-size:0.65rem;"></i>
-        </a>
-        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','template_whats','template_recibo','config_financeiro','whatsapp'])) ? 'block' : 'none' ?>;">
-            <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fas fa-key"></i> <?= t('nav.api_pagamento') ?>
-            </a>
-            <a href="<?= $basePath ?>/personalizacao.php" class="nav-link <?= $currentPage === 'personalizacao' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fas fa-palette"></i> <?= t('nav.personalizacao') ?>
-            </a>
-            <a href="<?= $basePath ?>/banners.php" class="nav-link <?= $currentPage === 'banners' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fas fa-image"></i> <?= t('nav.banners') ?>
-            </a>
-            <a href="<?= $basePath ?>/envios.php" class="nav-link <?= $currentPage === 'envios' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fas fa-paper-plane"></i> <?= t('nav.config_envios') ?>
-            </a>
-            <a href="<?= $basePath ?>/template_email.php" class="nav-link <?= $currentPage === 'template_email' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fas fa-envelope-open-text"></i> <?= t('nav.template_email') ?>
-            </a>
-            <a href="<?= $basePath ?>/template_whats.php" class="nav-link <?= $currentPage === 'template_whats' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fab fa-whatsapp" style="color:#25D366;"></i> <?= t('nav.template_whats') ?>
-            </a>
-            <a href="<?= $basePath ?>/template_recibo.php" class="nav-link <?= $currentPage === 'template_recibo' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fas fa-file-invoice"></i> <?= t('nav.template_recibo') ?>
-            </a>
-            <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fas fa-headset"></i> <?= t('nav.contato_financeiro') ?>
-            </a>
-            <a href="<?= $basePath ?>/whatsapp.php" class="nav-link <?= $currentPage === 'whatsapp' ? 'active' : '' ?>" style="padding-left:2rem;">
-                <i class="fab fa-whatsapp" style="color:#25D366;"></i> <?= t('nav.config_whatsapp') ?>
-            </a>
-        </div>
-        <?php else: ?>
-        <div style="margin:0 16px 14px;padding:12px 14px;border-radius:8px;background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.35);font-size:.75rem;color:#7a5b00;">
-            <i class="fas fa-rocket me-1"></i>
-            <span class="fw-bold d-block mb-1"><?= t('layout.sem_plano_titulo') ?></span>
-            <?= t('layout.sem_plano_msg') ?>
-            <a href="<?= $basePath ?>/meu_plano.php" class="btn btn-sm btn-warning fw-bold w-100 mt-2" style="font-size:.72rem;color:#1f2937;"><?= t('layout.sem_plano_btn') ?></a>
-        </div>
-        <?php endif; ?>
-        <?php endif; ?>
-
-        <?php if ($acessoRestrito): ?>
-        <div class="nav-section"><?= $adminDesativado ? t('layout.conta_desativada') : t('layout.plano_expirado') ?></div>
-        <div style="margin:0 16px 14px;padding:10px 12px;border-radius:8px;background:rgba(220,53,69,.08);border:1px solid rgba(220,53,69,.25);font-size:.75rem;color:#b02a37;">
-            <i class="fas <?= $adminDesativado ? 'fa-user-slash' : 'fa-exclamation-triangle' ?> me-1"></i>
-            <?= $adminDesativado
-                ? t('layout.conta_desativada_msg')
-                : t('layout.plano_vencido_msg') ?>
-        </div>
-        <?php endif; ?>
-
-        <div class="nav-section"><?= t('layout.conta') ?></div>
-        <a href="<?= $basePath ?>/meu_plano.php" class="nav-link <?= $currentPage === 'meu_plano' ? 'active' : '' ?>">
-            <i class="fas fa-tags"></i> <?= t('nav.meu_plano') ?>
-        </a>
-        <a href="<?= $basePath ?>/minhas_faturas.php" class="nav-link <?= $currentPage === 'minhas_faturas' ? 'active' : '' ?>">
-            <i class="fas fa-file-invoice-dollar"></i> <?= t('nav.minhas_faturas') ?>
-        </a>
-        <?php if (!$acessoRestrito): ?>
-        <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
-            <i class="fas fa-users-cog"></i> <?= t('nav.usuarios_admin') ?>
-        </a>
-        <a href="<?= $basePath ?>/perfil.php" class="nav-link <?= $currentPage === 'perfil' ? 'active' : '' ?>">
-            <i class="fas fa-user-edit"></i> <?= t('nav.meu_perfil') ?>
-        </a>
-        <?php endif; ?>
-        <?php if (isset($_SESSION['impersonando']) && $_SESSION['impersonando']): ?>
-        <div class="nav-section"><?= t('layout.super_admin') ?></div>
-        <a href="/cobranca/superadmin/logar_como.php?voltar=1" class="nav-link" style="color:var(--cor-primaria);font-weight:600;">
-            <i class="fas fa-user-shield"></i> <?= t('nav.voltar_super') ?>
-        </a>
-        <?php endif; ?>
-        <div class="nav-section">EXPERIMENTAR NOVO TEMPLATE</div>
-        <a href="?template=fintech" class="nav-link" style="color:#0f172a;background:rgba(15,23,42,0.06);border-radius:8px;font-weight:600;margin:0 12px 10px;" title="Ativar Template Fintech Minimalist">
-            <i class="fas fa-sparkles text-primary"></i> Ativar Fintech Minimalist
-        </a>
-        <a href="<?= $basePath ?>/logout.php" class="nav-link">
-            <i class="fas fa-sign-out-alt"></i> <?= t('nav.sair') ?>
-        </a>
-    </nav>
-</aside>
+<?php
+$currentPage = basename($_SERVER['PHP_SELF'], '.php');
+$basePath = '/cobranca/admin';
+$templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';
+if ($templateAtivo === 'fintech') {
+    include __DIR__ . '/../includes_v2/sidebar_admin.php';
+    return;
+}
+$planoExpirado = function_exists('adminPlanoExpirado') ? adminPlanoExpirado() : false;
+$adminDesativado = function_exists('adminEstaAtivo') ? !adminEstaAtivo() : false;
+$acessoRestrito = $adminDesativado;
+$semPlano = function_exists('adminTemPlanoAtivo') ? !adminTemPlanoAtivo() : false;
 
-<!-- Injeção do Botão "Trocar Template" no Topo do Sistema (Template Clássico) -->
-<script>
-(function() {
-    function injectTrocarTemplate() {
-        if (document.documentElement.classList.contains('fintech-theme') || document.querySelector('.fintech-topbar')) return;
-        if (document.getElementById('btnTrocarTemplateTopo')) return;
-        var topbar = document.querySelector('.topbar');
-        if (!topbar) return;
-        
-        var btn = document.createElement('a');
-        btn.id = 'btnTrocarTemplateTopo';
-        btn.href = '?template=fintech';
-        btn.className = 'btn btn-sm d-inline-flex align-items-center gap-2 me-2';
-        btn.title = 'Clique para alternar para o Template 2 – Fintech Minimalist';
-        btn.style.cssText = 'background: #0f172a; color: #ffffff; border-radius: 20px; padding: 6px 14px; font-weight: 700; font-size: 0.8rem; text-decoration: none; box-shadow: 0 2px 6px rgba(15,23,42,0.18); border: 1px solid rgba(255,255,255,0.15); transition: all 0.2s ease; cursor: pointer;';
-        btn.innerHTML = '<i class="fas fa-layer-group" style="color:#38bdf8;"></i><span>Trocar Template</span><span class="badge bg-primary text-white" style="font-size:0.65rem; padding: 3px 6px; border-radius: 10px;">Fintech</span>';
-        
-        btn.onmouseover = function() { this.style.background = '#1e293b'; this.style.color = '#ffffff'; };
-        btn.onmouseout = function() { this.style.background = '#0f172a'; this.style.color = '#ffffff'; };
-        
-        var ref = topbar.querySelector('a[href*="wa.me"]') || topbar.querySelector('.dropdown') || topbar.lastElementChild;
-        if (ref) {
-            topbar.insertBefore(btn, ref);
-        } else {
-            topbar.appendChild(btn);
-        }
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', injectTrocarTemplate);
-    } else {
-        injectTrocarTemplate();
-    }
-})();
-</script>
+$logoEmpresaAdmin = function_exists('getConfig') ? getConfig('logo_empresa_admin', '') : '';
+if ($logoEmpresaAdmin && function_exists('logoPathValido') && logoPathValido($logoEmpresaAdmin)) {
+    $logo = $logoEmpresaAdmin;
+}
+
+// A logo do topo do menu esquerdo entra com no maximo 200px de largura.
+$logoMaxWidth = 200;
+?>
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <?php if ($logo): ?>
+            <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: <?= $logoMaxWidth ?>px; max-height: 70px;">
+        <?php endif; ?>
+        <h4><i class="fas fa-shield-halved me-2"></i><?= t('layout.admin_area') ?></h4>
+    </div>
+    <nav class="sidebar-nav">
+        <?php if (!$acessoRestrito): ?>
+        <div class="nav-section"><?= t('layout.menu_label') ?></div>
+        <a href="<?= $basePath ?>/index.php" class="nav-link <?= $currentPage === 'index' ? 'active' : '' ?>">
+            <i class="fas fa-chart-pie"></i> <?= t('nav.painel_geral') ?>
+            <?php if (($totalAlerta ?? 0) > 0): ?>
+                <span class="badge bg-danger ms-auto" style="font-size:0.65rem;"><?= $totalAlerta ?></span>
+            <?php endif; ?>
+        </a>
+        <a href="<?= $basePath ?>/cadastro.php" class="nav-link <?= $currentPage === 'cadastro' ? 'active' : '' ?>">
+            <i class="fas fa-building"></i> <?= t('nav.cadastro') ?>
+        </a>
+        <?php if (!$semPlano): ?>
+        <a href="<?= $basePath ?>/emissao.php" class="nav-link <?= $currentPage === 'emissao' ? 'active' : '' ?>">
+            <i class="fas fa-file-invoice-dollar"></i> <?= t('nav.emissao') ?>
+        </a>
+        <a href="<?= $basePath ?>/recibo_avulso.php" class="nav-link <?= $currentPage === 'recibo_avulso' ? 'active' : '' ?>">
+            <i class="fas fa-file-invoice"></i> Recibo Avulso
+        </a>
+        <?php endif; ?>
+        <a href="<?= $basePath ?>/livro_caixa.php" class="nav-link <?= $currentPage === 'livro_caixa' ? 'active' : '' ?>">
+            <i class="fas fa-book"></i> <?= t('nav.livro_caixa') ?>
+        </a>
+        <a href="<?= $basePath ?>/inadimplencia.php" class="nav-link <?= $currentPage === 'inadimplencia' ? 'active' : '' ?>">
+            <i class="fas fa-exclamation-triangle"></i> <?= t('nav.inadimplencia') ?>
+        </a>
+
+        <?php if (!$semPlano): ?>
+        <div class="nav-section"><?= t('nav.configuracoes') ?></div>
+        <a href="#" class="nav-link sidebar-toggle-config" onclick="var el=document.getElementById('configSubmenu');el.style.display=el.style.display==='none'?'block':'none';var icon=this.querySelector('.fa-chevron-down,.fa-chevron-up');if(icon){icon.classList.toggle('fa-chevron-down');icon.classList.toggle('fa-chevron-up');}return false;">
+            <i class="fas fa-cog"></i> <?= t('nav.configuracoes') ?> <i class="fas fa-chevron-down ms-auto" style="font-size:0.65rem;"></i>
+        </a>
+        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','template_whats','template_recibo','config_financeiro','whatsapp'])) ? 'block' : 'none' ?>;">
+            <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-key"></i> <?= t('nav.api_pagamento') ?>
+            </a>
+            <a href="<?= $basePath ?>/personalizacao.php" class="nav-link <?= $currentPage === 'personalizacao' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-palette"></i> <?= t('nav.personalizacao') ?>
+            </a>
+            <a href="<?= $basePath ?>/banners.php" class="nav-link <?= $currentPage === 'banners' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-image"></i> <?= t('nav.banners') ?>
+            </a>
+            <a href="<?= $basePath ?>/envios.php" class="nav-link <?= $currentPage === 'envios' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-paper-plane"></i> <?= t('nav.config_envios') ?>
+            </a>
+            <a href="<?= $basePath ?>/template_email.php" class="nav-link <?= $currentPage === 'template_email' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-envelope-open-text"></i> <?= t('nav.template_email') ?>
+            </a>
+            <a href="<?= $basePath ?>/template_whats.php" class="nav-link <?= $currentPage === 'template_whats' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fab fa-whatsapp" style="color:#25D366;"></i> <?= t('nav.template_whats') ?>
+            </a>
+            <a href="<?= $basePath ?>/template_recibo.php" class="nav-link <?= $currentPage === 'template_recibo' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-file-invoice"></i> <?= t('nav.template_recibo') ?>
+            </a>
+            <a href="<?= $basePath ?>/config_financeiro.php" class="nav-link <?= $currentPage === 'config_financeiro' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-headset"></i> <?= t('nav.contato_financeiro') ?>
+            </a>
+            <a href="<?= $basePath ?>/whatsapp.php" class="nav-link <?= $currentPage === 'whatsapp' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fab fa-whatsapp" style="color:#25D366;"></i> <?= t('nav.config_whatsapp') ?>
+            </a>
+        </div>
+        <?php else: ?>
+        <div style="margin:0 16px 14px;padding:12px 14px;border-radius:8px;background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.35);font-size:.75rem;color:#7a5b00;">
+            <i class="fas fa-rocket me-1"></i>
+            <span class="fw-bold d-block mb-1"><?= t('layout.sem_plano_titulo') ?></span>
+            <?= t('layout.sem_plano_msg') ?>
+            <a href="<?= $basePath ?>/meu_plano.php" class="btn btn-sm btn-warning fw-bold w-100 mt-2" style="font-size:.72rem;color:#1f2937;"><?= t('layout.sem_plano_btn') ?></a>
+        </div>
+        <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ($acessoRestrito): ?>
+        <div class="nav-section"><?= $adminDesativado ? t('layout.conta_desativada') : t('layout.plano_expirado') ?></div>
+        <div style="margin:0 16px 14px;padding:10px 12px;border-radius:8px;background:rgba(220,53,69,.08);border:1px solid rgba(220,53,69,.25);font-size:.75rem;color:#b02a37;">
+            <i class="fas <?= $adminDesativado ? 'fa-user-slash' : 'fa-exclamation-triangle' ?> me-1"></i>
+            <?= $adminDesativado
+                ? t('layout.conta_desativada_msg')
+                : t('layout.plano_vencido_msg') ?>
+        </div>
+        <?php endif; ?>
+
+        <div class="nav-section"><?= t('layout.conta') ?></div>
+        <a href="<?= $basePath ?>/meu_plano.php" class="nav-link <?= $currentPage === 'meu_plano' ? 'active' : '' ?>">
+            <i class="fas fa-tags"></i> <?= t('nav.meu_plano') ?>
+        </a>
+        <a href="<?= $basePath ?>/minhas_faturas.php" class="nav-link <?= $currentPage === 'minhas_faturas' ? 'active' : '' ?>">
+            <i class="fas fa-file-invoice-dollar"></i> <?= t('nav.minhas_faturas') ?>
+        </a>
+        <?php if (!$acessoRestrito): ?>
+        <a href="<?= $basePath ?>/usuarios.php" class="nav-link <?= $currentPage === 'usuarios' ? 'active' : '' ?>">
+            <i class="fas fa-users-cog"></i> <?= t('nav.usuarios_admin') ?>
+        </a>
+        <a href="<?= $basePath ?>/perfil.php" class="nav-link <?= $currentPage === 'perfil' ? 'active' : '' ?>">
+            <i class="fas fa-user-edit"></i> <?= t('nav.meu_perfil') ?>
+        </a>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['impersonando']) && $_SESSION['impersonando']): ?>
+        <div class="nav-section"><?= t('layout.super_admin') ?></div>
+        <a href="/cobranca/superadmin/logar_como.php?voltar=1" class="nav-link" style="color:var(--cor-primaria);font-weight:600;">
+            <i class="fas fa-user-shield"></i> <?= t('nav.voltar_super') ?>
+        </a>
+        <?php endif; ?>
+        <a href="<?= $basePath ?>/logout.php" class="nav-link">
+            <i class="fas fa-sign-out-alt"></i> <?= t('nav.sair') ?>
+        </a>
+    </nav>
+</aside>

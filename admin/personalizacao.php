@@ -111,7 +111,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                         </div>
                         <?php $tplAtual = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech'; ?>
                         <span class="badge <?= $tplAtual === 'fintech' ? 'bg-dark' : 'bg-success' ?> px-3 py-2" style="font-size:0.8rem; border-radius: 20px;">
-                            Template Ativo: <?= $tplAtual === 'fintech' ? 'Fintech Minimalist (V2)' : 'Template 1 – Atual (Original)' ?>
+                            Template Ativo: <?= $tplAtual === 'fintech' ? 'Fintech Minimalist (V2)' : 'Template Padrão (Unificado com Painel do Usuário)' ?>
                         </span>
                     </div>
                     <form method="POST">
@@ -122,8 +122,8 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 <div class="card h-100 p-3" style="border: <?= $tplAtual === 'classico' ? '2px solid #0f7b5c' : '1px solid #dee2e6' ?>; border-radius: 12px; cursor: pointer;" onclick="document.getElementById('radio_classico').checked = true;">
                                     <div class="d-flex align-items-start justify-content-between mb-2">
                                         <div>
-                                            <h6 class="fw-bold mb-1"><i class="fas fa-desktop text-success me-2"></i>Template 1 – Atual</h6>
-                                            <small class="text-muted">Manter a identidade visual original do sistema, com navegação clássica e layout estabelecido.</small>
+                                            <h6 class="fw-bold mb-1"><i class="fas fa-desktop text-success me-2"></i>Template 1 – Padrão (Unificado com Painel do Usuário) <span class="badge bg-success" style="font-size:0.68rem;">Principal</span></h6>
+                                            <small class="text-muted">Mesma identidade visual, estrutura, tipografia, cores e componentes aplicados ao painel do usuário, unificando a experiência da plataforma.</small>
                                         </div>
                                         <input class="form-check-input fs-5" type="radio" name="template_admin" id="radio_classico" value="classico" <?= $tplAtual === 'classico' ? 'checked' : '' ?>>
                                     </div>

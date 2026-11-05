@@ -65,30 +65,31 @@ if ($fatura) {
             break;
     }
 
-    $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ?");
-    $stmt->execute([$novoStatus, $dataPagamento, $fatura['id']]);
-
-    $stmt = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, ?, ?, ?, 'inter', ?)");
-    $stmt->execute([
-        $fatura['id'],
-        $codigoSolicitacao,
-        $situacao,
-        $situacao,
-        $fatura['valor_final'],
-        json_encode($dados)
-    ]);
-
     if ($novoStatus === 'pago') {
-        $stmtCli = $pdo->prepare("SELECT c.nome_razao, c.email FROM clientes c WHERE c.id = ?");
-        $stmtCli->execute([$fatura['cliente_id']]);
-        $cli = $stmtCli->fetch();
-        if ($cli) {
-            $fatura['nome_razao'] = $cli['nome_razao'];
-            $fatura['email'] = $cli['email'];
-            $fatura['data_pagamento'] = $dataPagamento;
-            enviarEmailPagamento($fatura);
-        }
-        notificarPagamentoRecebidoAdmin($fatura['id']);
+        confirmarPagamentoEBaixarFatura($fatura['id'], [
+            'gateway' => 'inter',
+            'payment_id' => $codigoSolicitacao,
+            'valor_pago' => $fatura['valor_final'],
+            'tipo_pagamento' => 'pix',
+            'status_gateway' => $situacao,
+            'status_detail' => 'Recebido via Webhook Banco Inter',
+            'data_pagamento' => $dataPagamento,
+            'dados_raw' => $dados
+        ]);
+    } else {
+        $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ?");
+        $stmt->execute([$novoStatus, $dataPagamento, $fatura['id']]);
+
+        $stmt = $pdo->prepare("INSERT INTO pagamentos_log (admin_id, fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw, criado_em) VALUES (?, ?, ?, ?, ?, ?, 'inter', ?, NOW())");
+        $stmt->execute([
+            $fatura['admin_id'] ?? 0,
+            $fatura['id'],
+            $codigoSolicitacao,
+            $situacao,
+            $situacao,
+            $fatura['valor_final'],
+            json_encode($dados)
+        ]);
     }
 }
 

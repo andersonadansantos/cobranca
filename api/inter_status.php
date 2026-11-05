@@ -53,22 +53,15 @@ if (!$detalhe || isset($detalhe['erro'])) {
 $situacao = strtoupper($detalhe['situacao'] ?? $detalhe['cobranca']['situacao'] ?? '');
 
 if ($situacao === 'PAGA' || $situacao === 'RECEBIDO') {
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ? AND status != 'pago'");
-    $stmt->execute([$faturaId]);
-
-    $stmt = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, 'PAGA', 'Verificado via inter_status', ?, 'inter', ?)");
-    $stmt->execute([$faturaId, $codigo, $fatura['valor_final'], json_encode($detalhe)]);
-
-    $stmtCli = $pdo->prepare("SELECT c.nome_razao, c.email FROM clientes c WHERE c.id = ?");
-    $stmtCli->execute([$fatura['cliente_id']]);
-    $cli = $stmtCli->fetch();
-    if ($cli) {
-        $fatura['nome_razao'] = $cli['nome_razao'];
-        $fatura['email'] = $cli['email'];
-        $fatura['data_pagamento'] = date('Y-m-d');
-        enviarEmailPagamento($fatura);
-    }
-    notificarPagamentoRecebidoAdmin($fatura['id']);
+    confirmarPagamentoEBaixarFatura($faturaId, [
+        'gateway' => 'inter',
+        'payment_id' => $codigo,
+        'valor_pago' => $fatura['valor_final'],
+        'tipo_pagamento' => 'pix',
+        'status_gateway' => 'PAGA',
+        'status_detail' => 'Verificado via inter_status',
+        'dados_raw' => $detalhe
+    ]);
 
     echo json_encode(['status' => 'pago']);
     exit;

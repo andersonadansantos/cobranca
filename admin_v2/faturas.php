@@ -33,8 +33,17 @@ if (isset($_GET['cancelar'])) {
 // Marcar fatura como paga
 if (isset($_GET['marcar_pago'])) {
     $id = intval($_GET['marcar_pago']);
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ? AND admin_id = ?");
-    $stmt->execute([$id, $adminIdF]);
+    $stVer = $pdo->prepare("SELECT id FROM faturas WHERE id = ? AND admin_id = ?");
+    $stVer->execute([$id, $adminIdF]);
+    if ($stVer->fetch()) {
+        require_once __DIR__ . '/../config/email_helpers.php';
+        confirmarPagamentoEBaixarFatura($id, [
+            'gateway' => 'pix_manual',
+            'tipo_pagamento' => 'pix_manual',
+            'status_gateway' => 'manual',
+            'status_detail' => 'Confirmação manual pelo administrador'
+        ]);
+    }
     header('Location: faturas.php?msg=pago');
     exit;
 }

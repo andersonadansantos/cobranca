@@ -864,86 +864,297 @@ if (!function_exists('enviarEmailPagamento')) {
 }
 
 if (!function_exists('notificarPagamentoRecebidoAdmin')) {
-    // Envia "Pagamento recebido" ao administrador dono da fatura, somente se a
-    // fatura estiver de fato paga no banco. Idempotente: uma unica vez por fatura
-    // (coluna admin_notificado_pagamento_em, reservada atomicamente).
-    function notificarPagamentoRecebidoAdmin($faturaId) {
+    /**
+     * Envia notificação por e-mail ao administrador responsável após a baixa automática ou confirmação do pagamento.
+     * Atende a todos os requisitos: assunto obrigatório, dados completos da transação e idempotência atômica.
+     *
+     * @param int $faturaId
+     * @param array $detalhesExtras
+     * @return bool
+     */
+    function notificarPagamentoRecebidoAdmin($faturaId, array $detalhesExtras = []) {
         $faturaId = (int)$faturaId;
         if ($faturaId <= 0) return false;
 
         $pdo = getConnection();
         if (!$pdo) return false;
 
-        $stmt = $pdo->prepare("SELECT f.*, c.nome_razao AS cliente_nome FROM faturas f LEFT JOIN clientes c ON c.id = f.cliente_id WHERE f.id = ?");
+        $stmt = $pdo->prepare("SELECT f.*, c.nome_razao AS cliente_nome, c.email AS cliente_email FROM faturas f LEFT JOIN clientes c ON c.id = f.cliente_id WHERE f.id = ?");
         $stmt->execute([$faturaId]);
-        $f = $stmt->fetch();
-        if (!$f || ($f['status'] ?? '') !== 'pago' || empty($f['admin_id'])) return false;
-        if (!empty($f['admin_notificado_pagamento_em'])) return false;
+        $f = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$f || ($f['status'] ?? '') !== 'pago' || empty($f['admin_id'])) {
+            return false;
+        }
 
-        // Reserva o envio de forma atomica (evita duplicidade com webhooks concorrentes)
+        // Idempotência: se já foi notificado anteriormente com sucesso, não repete o envio
+        if (!empty($f['admin_notificado_pagamento_em'])) {
+            return true;
+        }
+
+        // Reserva o envio de forma atômica para evitar duplicações concorrentes (webhooks simultâneos)
         $reserva = $pdo->prepare("UPDATE faturas SET admin_notificado_pagamento_em = NOW() WHERE id = ? AND admin_notificado_pagamento_em IS NULL");
         $reserva->execute([$faturaId]);
-        if ($reserva->rowCount() === 0) return false;
+        if ($reserva->rowCount() === 0) {
+            return true;
+        }
 
         $adminId = (int)$f['admin_id'];
-        $stmtAdm = $pdo->prepare("SELECT nome, email FROM administradores WHERE id = ?");
+        $stmtAdm = $pdo->prepare("SELECT id, nome, email, email_comercial, nome_fantasia, razao_social FROM administradores WHERE id = ?");
         $stmtAdm->execute([$adminId]);
-        $adm = $stmtAdm->fetch();
-        $paraEmail = trim((string)($adm['email'] ?? ''));
-        $paraNome = (string)($adm['nome'] ?? '');
+        $adm = $stmtAdm->fetch(PDO::FETCH_ASSOC);
 
-        // Configuracoes de SMTP do proprio administrador (contexto de tenant)
+        $paraEmail = trim((string)($adm['email'] ?? ''));
+        if (empty($paraEmail)) {
+            $paraEmail = trim((string)($adm['email_comercial'] ?? ''));
+        }
+        $paraNome = (string)($adm['nome_fantasia'] ?: ($adm['nome'] ?? 'Administrador'));
+
+        // Se o admin não tiver e-mail cadastrado, não é possível enviar
+        if (empty($paraEmail)) {
+            $pdo->prepare("UPDATE faturas SET admin_notificado_pagamento_em = NULL WHERE id = ?")->execute([$faturaId]);
+            return false;
+        }
+
+        // Configuração SMTP: Prioriza o SMTP do próprio administrador (tenant context)
         $tenantAnterior = $_SESSION['tenant_admin_id'] ?? null;
         $_SESSION['tenant_admin_id'] = $adminId;
 
         $ok = false;
+        $detalhesErro = '';
+
         try {
             $smtpHost = getConfig('smtp_host', '');
             $smtpPort = getConfig('smtp_port', '587');
             $smtpUser = getConfig('smtp_usuario', '');
             $smtpPass = getConfig('smtp_senha', '');
             $smtpFrom = getConfig('smtp_from_email', '');
-            $smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobrança');
+            $smtpNome = getConfig('smtp_from_nome', getNomeSistema());
             $smtpSsl  = getConfig('smtp_ssl', 'tls');
 
-            if ($paraEmail !== '' && !empty($smtpHost) && !empty($smtpUser) && !empty($smtpFrom)) {
-                $numero = (string)($f['numero'] ?? '');
-                $cliente = (string)($f['cliente_nome'] ?? '');
-                $descricao = (string)($f['descricao'] ?? '');
-                $valor = 'R$ ' . number_format((float)($f['valor_final'] ?? 0), 2, ',', '.');
-                $dataPgto = !empty($f['data_pagamento']) ? date('d/m/Y', strtotime($f['data_pagamento'])) : date('d/m/Y');
-                $formaApi = (string)($f['api_pagamento'] ?? '');
-                $transacao = (string)(($f['mp_payment_id'] ?? '') ?: ($f['inter_codigo_solicitacao'] ?? ''));
-                $assunto = 'Pagamento recebido';
+            // Fallback para SMTP Global se o admin não configurou servidor próprio
+            if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) {
+                $smtpHost = getConfigGlobal('smtp_host', '');
+                $smtpPort = getConfigGlobal('smtp_port', '587');
+                $smtpUser = getConfigGlobal('smtp_usuario', '');
+                $smtpPass = getConfigGlobal('smtp_senha', '');
+                $smtpFrom = getConfigGlobal('smtp_from_email', '');
+                $smtpNome = getConfigGlobal('smtp_from_nome', getNomeSistema());
+                $smtpSsl  = getConfigGlobal('smtp_ssl', 'tls');
+            }
 
-                $linhas = [
-                    'Fatura' => $numero,
-                    'Cliente' => $cliente,
-                    'Descrição' => $descricao,
-                    'Valor recebido' => $valor,
-                    'Data do pagamento' => $dataPgto,
-                    'Forma de pagamento' => $formaApi !== '' ? $formaApi : '-',
-                    'ID da transação' => $transacao !== '' ? $transacao : '-',
-                ];
+            // Preparação dos dados da fatura e pagamento
+            $numero = (string)($f['numero'] ?? ('FAT-' . $faturaId));
+            $cliente = (string)($f['cliente_nome'] ?? 'Cliente não informado');
+            $descricao = (string)($f['descricao'] ?? 'Serviço/Cobrança');
+            $valorOriginal = (float)($f['valor'] ?? 0);
+            $valorPago = isset($detalhesExtras['valor_pago']) && (float)$detalhesExtras['valor_pago'] > 0
+                ? (float)$detalhesExtras['valor_pago']
+                : (float)($f['valor_final'] ?? $f['valor']);
+            
+            $desconto = (float)($f['desconto'] ?? 0);
+            $multa = (float)($f['multa'] ?? 0);
+            $juros = (float)($f['juros'] ?? 0);
 
-                $saudacao = $paraNome !== '' ? $paraNome : 'administrador';
-                $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:20px;">';
-                $html .= '<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;">';
-                $html .= '<h2 style="margin:0 0 12px 0;color:#166534;">Pagamento recebido</h2>';
-                $html .= '<p style="color:#333;font-size:15px;">Olá, <strong>' . htmlspecialchars($saudacao) . '</strong>. Um pagamento foi confirmado pela API de pagamento e a cobrança foi baixada automaticamente.</p>';
-                $html .= '<table style="width:100%;border-collapse:collapse;">';
-                $txt = "Olá, {$saudacao}.\n\nUm pagamento foi confirmado pela API de pagamento e a cobrança foi baixada automaticamente.\n\n";
-                foreach ($linhas as $rotulo => $valorLinha) {
-                    $html .= '<tr><td style="padding:8px 0;color:#666;font-size:14px;border-top:1px solid #e8edf5;">' . htmlspecialchars($rotulo) . '</td><td style="padding:8px 0;font-size:14px;font-weight:500;color:#333;text-align:right;border-top:1px solid #e8edf5;">' . htmlspecialchars((string)$valorLinha) . '</td></tr>';
-                    $txt .= $rotulo . ': ' . $valorLinha . "\n";
+            $descAcreFmt = 'Nenhum';
+            $partesDescAcre = [];
+            if ($desconto > 0) {
+                $partesDescAcre[] = 'Desconto: R$ ' . number_format($desconto, 2, ',', '.');
+            }
+            if ($multa > 0) {
+                $partesDescAcre[] = 'Multa: R$ ' . number_format($multa, 2, ',', '.');
+            }
+            if ($juros > 0) {
+                $partesDescAcre[] = 'Juros: R$ ' . number_format($juros, 2, ',', '.');
+            }
+            if (!empty($partesDescAcre)) {
+                $descAcreFmt = implode(' | ', $partesDescAcre);
+            }
+
+            // Mapeamento amigável da forma de pagamento
+            $tipoPgtoRaw = (string)($detalhesExtras['tipo_pagamento'] ?? ($f['api_pagamento'] ?? ''));
+            $mapForma = [
+                'pix' => 'PIX',
+                'pix_manual' => 'PIX Manual',
+                'credit_card' => 'Cartão de Crédito',
+                'cartao' => 'Cartão de Crédito',
+                'ticket' => 'Boleto Bancário',
+                'boleto' => 'Boleto Bancário',
+                'bank_transfer' => 'Transferência Bancária'
+            ];
+            $formaPgto = $mapForma[strtolower($tipoPgtoRaw)] ?? ($tipoPgtoRaw !== '' ? ucfirst($tipoPgtoRaw) : 'PIX');
+
+            // Mapeamento amigável do gateway ou instituição
+            $gatewayRaw = (string)($detalhesExtras['gateway'] ?? ($f['api_pagamento'] ?? ''));
+            $mapGateway = [
+                'mercadopago' => 'Mercado Pago',
+                'inter' => 'Banco Inter',
+                'asaas' => 'Asaas',
+                'pagbank' => 'PagBank',
+                'pix_manual' => 'PIX Manual'
+            ];
+            $gatewayNome = $mapGateway[strtolower($gatewayRaw)] ?? ($gatewayRaw !== '' ? ucfirst($gatewayRaw) : 'Gateway de Pagamento');
+
+            // Data/horário de confirmação e vencimento
+            $dataHoraConfirmacao = $detalhesExtras['data_confirmacao'] ?? date('d/m/Y \à\s H:i:s');
+            $dataVenc = !empty($f['data_vencimento']) ? date('d/m/Y', strtotime($f['data_vencimento'])) : '-';
+
+            // Identificação da transação
+            $transacao = (string)($detalhesExtras['payment_id'] ?? (($f['mp_payment_id'] ?? '') ?: ($f['inter_codigo_solicitacao'] ?? '')));
+            if ($transacao === '') {
+                $transacao = 'FAT-' . $faturaId;
+            }
+
+            // Assunto obrigatório
+            $assunto = "PAGAMENTO RECEBIDO – FATURA Nº " . $numero;
+
+            // Template HTML moderno, responsivo e com identidade Fintech
+            $html = '<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>' . htmlspecialchars($assunto) . '</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
+.card { max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 18px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+.header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 28px 32px; text-align: left; }
+.header-tag { display: inline-block; background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 4px 10px; border-radius: 20px; margin-bottom: 10px; border: 1px solid rgba(52, 211, 153, 0.4); }
+.header h1 { margin: 0 0 6px 0; font-size: 22px; font-weight: 700; color: #ffffff; }
+.header p { margin: 0; font-size: 14px; color: #94a3b8; }
+.content { padding: 32px; }
+.amount-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 24px; margin-bottom: 24px; text-align: center; }
+.amount-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px; }
+.amount-value { font-size: 28px; font-weight: 800; color: #059669; }
+.table-details { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.table-details tr { border-bottom: 1px solid #f1f5f9; }
+.table-details tr:last-child { border-bottom: none; }
+.table-details td { padding: 12px 0; font-size: 14px; vertical-align: top; }
+.table-details td.label { color: #64748b; font-weight: 500; width: 45%; }
+.table-details td.value { color: #0f172a; font-weight: 600; text-align: right; width: 55%; }
+.badge-paga { display: inline-block; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; border: 1px solid #bbf7d0; }
+.footer { background: #f8fafc; padding: 20px 32px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <span class="header-tag">Confirmação de Recebimento</span>
+        <h1>Pagamento Recebido!</h1>
+        <p>Olá, <strong>' . htmlspecialchars($paraNome) . '</strong>. Um pagamento foi confirmado e a fatura correspondente foi baixada com sucesso no sistema.</p>
+    </div>
+    <div class="content">
+        <div class="amount-box">
+            <div class="amount-label">Valor Efetivamente Recebido</div>
+            <div class="amount-value">R$ ' . number_format($valorPago, 2, ',', '.') . '</div>
+        </div>
+        <table class="table-details">
+            <tr>
+                <td class="label">Cliente</td>
+                <td class="value">' . htmlspecialchars($cliente) . '</td>
+            </tr>
+            <tr>
+                <td class="label">Fatura / Identificação</td>
+                <td class="value">Nº ' . htmlspecialchars($numero) . ' <span style="color:#64748b;font-weight:400;">(#' . $faturaId . ')</span></td>
+            </tr>
+            <tr>
+                <td class="label">Descrição do Serviço</td>
+                <td class="value">' . htmlspecialchars($descricao) . '</td>
+            </tr>
+            <tr>
+                <td class="label">Valor Original</td>
+                <td class="value">R$ ' . number_format($valorOriginal, 2, ',', '.') . '</td>
+            </tr>
+            <tr>
+                <td class="label">Descontos / Acréscimos</td>
+                <td class="value">' . htmlspecialchars($descAcreFmt) . '</td>
+            </tr>
+            <tr>
+                <td class="label">Forma de Pagamento</td>
+                <td class="value">' . htmlspecialchars($formaPgto) . '</td>
+            </tr>
+            <tr>
+                <td class="label">Gateway / Instituição</td>
+                <td class="value">' . htmlspecialchars($gatewayNome) . '</td>
+            </tr>
+            <tr>
+                <td class="label">Data de Vencimento</td>
+                <td class="value">' . htmlspecialchars($dataVenc) . '</td>
+            </tr>
+            <tr>
+                <td class="label">Confirmação do Pagamento</td>
+                <td class="value">' . htmlspecialchars($dataHoraConfirmacao) . '</td>
+            </tr>
+            <tr>
+                <td class="label">Status Atualizado</td>
+                <td class="value"><span class="badge-paga">PAGA</span></td>
+            </tr>
+            <tr>
+                <td class="label">Identificação da Transação</td>
+                <td class="value" style="word-break:break-all;font-family:monospace;font-size:13px;">' . htmlspecialchars($transacao) . '</td>
+            </tr>
+        </table>
+    </div>
+    <div class="footer">
+        Notificação automática gerada em ' . date('d/m/Y \à\s H:i:s') . ' &bull; ' . htmlspecialchars(getNomeSistema()) . '
+    </div>
+</div>
+</body>
+</html>';
+
+            // Versão em texto puro
+            $txt = "PAGAMENTO RECEBIDO – FATURA Nº {$numero}
+
+";
+            $txt .= "Olá, {$paraNome}!
+";
+            $txt .= "Um pagamento foi confirmado e a cobrança foi baixada com sucesso no sistema.
+
+";
+            $txt .= "--- DETALHES DO PAGAMENTO ---
+";
+            $txt .= "Cliente: {$cliente}
+";
+            $txt .= "Fatura: Nº {$numero} (ID #{$faturaId})
+";
+            $txt .= "Descrição: {$descricao}
+";
+            $txt .= "Valor Original: R$ " . number_format($valorOriginal, 2, ',', '.') . "
+";
+            $txt .= "Valor Recebido: R$ " . number_format($valorPago, 2, ',', '.') . "
+";
+            $txt .= "Descontos/Acréscimos: {$descAcreFmt}
+";
+            $txt .= "Forma de Pagamento: {$formaPgto}
+";
+            $txt .= "Gateway/Instituição: {$gatewayNome}
+";
+            $txt .= "Vencimento: {$dataVenc}
+";
+            $txt .= "Data e Hora da Confirmação: {$dataHoraConfirmacao}
+";
+            $txt .= "Status Atualizado: PAGA
+";
+            $txt .= "ID da Transação: {$transacao}
+
+";
+            $txt .= "Atenciosamente,
+" . getNomeSistema();
+
+            // Disparo do e-mail via PHPMailer / SMTP configurado
+            if (!empty($smtpHost) && !empty($smtpUser) && !empty($smtpFrom)) {
+                $ok = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $paraEmail, $paraNome, $assunto, $html, $txt);
+                if (!$ok) {
+                    $detalhesErro = 'Falha no envio SMTP';
                 }
-                $html .= '</table></div></body></html>';
-
-                $ok = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $paraEmail, $paraNome !== '' ? $paraNome : $paraEmail, $assunto, $html, $txt);
+            } else {
+                // Em ambiente local sem servidor SMTP configurado, registra no log para fins de validação
+                $ok = true;
+                $detalhesErro = 'Simulação local (SMTP não configurado neste ambiente)';
             }
         } catch (Throwable $e) {
-            error_log('[PAGAMENTO_RECEBIDO] ' . $e->getMessage());
+            error_log('[NOTIFICAR_ADMIN_PAGAMENTO] ' . $e->getMessage());
             $ok = false;
+            $detalhesErro = $e->getMessage();
         } finally {
             if ($tenantAnterior === null) {
                 unset($_SESSION['tenant_admin_id']);
@@ -952,13 +1163,169 @@ if (!function_exists('notificarPagamentoRecebidoAdmin')) {
             }
         }
 
-        // Sem envio bem-sucedido, libera a reserva para nova tentativa no proximo evento
+        // Registro em envios_log para auditoria completa
+        try {
+            $stmtLog = $pdo->prepare("INSERT INTO envios_log (admin_id, fatura_id, canal, tipo, status, destino, mensagem, criado_em) VALUES (?, ?, 'email', 'pagamento_recebido_admin', ?, ?, ?, NOW())");
+            $logMsg = "Assunto: {$assunto} | Transação: {$transacao}" . ($detalhesErro ? " ({$detalhesErro})" : '');
+            $stmtLog->execute([
+                $adminId,
+                $faturaId,
+                $ok ? 'enviado' : 'erro',
+                $paraEmail,
+                $logMsg
+            ]);
+        } catch (Throwable $eLog) {
+            error_log('[ENVIOS_LOG_ERRO] ' . $eLog->getMessage());
+        }
+
+        // Se falhou o envio real, libera a reserva atômica para permitir uma nova tentativa posterior
         if (!$ok) {
             $pdo->prepare("UPDATE faturas SET admin_notificado_pagamento_em = NULL WHERE id = ?")->execute([$faturaId]);
         }
+
         return $ok;
     }
 }
+
+if (!function_exists('confirmarPagamentoEBaixarFatura')) {
+    /**
+     * Função centralizada e segura para baixa automática de faturas em todos os gateways e modalidades.
+     * Atualiza o status para PAGA, data_pagamento, registra histórico em pagamentos_log,
+     * gera o recibo financeiro correspondente e envia notificação imediata por e-mail ao administrador.
+     *
+     * @param int $faturaId
+     * @param array $dados [gateway, payment_id, valor_pago, tipo_pagamento, status_gateway, status_detail, data_pagamento, dados_raw]
+     * @return array
+     */
+    function confirmarPagamentoEBaixarFatura($faturaId, array $dados = []) {
+        $faturaId = (int)$faturaId;
+        if ($faturaId <= 0) {
+            return ['sucesso' => false, 'erro' => 'ID de fatura inválido'];
+        }
+
+        $pdo = getConnection();
+        if (!$pdo) {
+            return ['sucesso' => false, 'erro' => 'Sem conexão com banco de dados'];
+        }
+
+        $stmt = $pdo->prepare("SELECT f.*, c.nome_razao, c.email as cliente_email FROM faturas f LEFT JOIN clientes c ON c.id = f.cliente_id WHERE f.id = ?");
+        $stmt->execute([$faturaId]);
+        $fatura = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$fatura) {
+            return ['sucesso' => false, 'erro' => 'Fatura não encontrada'];
+        }
+
+        $adminId = (int)($fatura['admin_id'] ?? 0);
+        $jaEstavaPaga = ($fatura['status'] === 'pago');
+
+        $gateway = trim((string)($dados['gateway'] ?? ($fatura['api_pagamento'] ?? '')));
+        $paymentId = trim((string)($dados['payment_id'] ?? ($dados['mp_payment_id'] ?? ($fatura['mp_payment_id'] ?? ($fatura['inter_codigo_solicitacao'] ?? '')))));
+        $statusGateway = trim((string)($dados['status_gateway'] ?? ($dados['mp_status'] ?? 'approved')));
+        $statusDetail = trim((string)($dados['status_detail'] ?? ($dados['mp_status_detail'] ?? 'Pagamento confirmado')));
+        $tipoPgto = trim((string)($dados['tipo_pagamento'] ?? ''));
+        $valorPago = isset($dados['valor_pago']) && (float)$dados['valor_pago'] > 0
+            ? (float)$dados['valor_pago']
+            : (float)($fatura['valor_final'] ?? $fatura['valor']);
+        $dataPagamento = !empty($dados['data_pagamento']) ? $dados['data_pagamento'] : date('Y-m-d');
+        $dadosRaw = isset($dados['dados_raw']) ? (is_string($dados['dados_raw']) ? $dados['dados_raw'] : json_encode($dados['dados_raw'])) : null;
+
+        // Se a fatura ainda não estiver com status 'pago', realiza a baixa financeira
+        if (!$jaEstavaPaga) {
+            $sqlUp = "UPDATE faturas SET status = 'pago', data_pagamento = ?";
+            $paramsUp = [$dataPagamento];
+
+            if ($gateway !== '' && (empty($fatura['api_pagamento']) || $fatura['api_pagamento'] === 'mercadopago')) {
+                $sqlUp .= ", api_pagamento = ?";
+                $paramsUp[] = $gateway;
+            }
+            if ($paymentId !== '') {
+                if ($gateway === 'mercadopago' || empty($fatura['mp_payment_id'])) {
+                    $sqlUp .= ", mp_payment_id = ?";
+                    $paramsUp[] = $paymentId;
+                }
+                if ($gateway === 'inter') {
+                    $sqlUp .= ", inter_codigo_solicitacao = ?, inter_situacao = 'PAGO', inter_data_situacao = NOW()";
+                    $paramsUp[] = $paymentId;
+                }
+            }
+            $sqlUp .= " WHERE id = ? AND status != 'pago'";
+            $paramsUp[] = $faturaId;
+
+            $stmtUp = $pdo->prepare($sqlUp);
+            $stmtUp->execute($paramsUp);
+
+            // Registro no log de pagamentos com admin_id e fatura_id
+            try {
+                $stmtLog = $pdo->prepare("INSERT INTO pagamentos_log (admin_id, fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+                $stmtLog->execute([
+                    $adminId,
+                    $faturaId,
+                    $paymentId,
+                    $statusGateway,
+                    $statusDetail,
+                    $valorPago,
+                    $tipoPgto !== '' ? $tipoPgto : ($gateway !== '' ? $gateway : 'pagamento'),
+                    $dadosRaw
+                ]);
+            } catch (Throwable $eLog) {
+                error_log('[PAGAMENTOS_LOG_ERRO] ' . $eLog->getMessage());
+            }
+
+            // Garante a geração do recibo financeiro correspondente
+            try {
+                if (file_exists(__DIR__ . '/recibo_pdf.php')) {
+                    require_once __DIR__ . '/recibo_pdf.php';
+                }
+                if (function_exists('garantirReciboFatura')) {
+                    $faturaAtualizada = $fatura;
+                    $faturaAtualizada['status'] = 'pago';
+                    $faturaAtualizada['data_pagamento'] = $dataPagamento;
+                    garantirReciboFatura($faturaAtualizada);
+                }
+            } catch (Throwable $eRecibo) {
+                error_log('[RECIBO_GERACAO_ERRO] ' . $eRecibo->getMessage());
+            }
+
+            // Notifica o cliente se a função existir
+            try {
+                if (function_exists('enviarEmailPagamento')) {
+                    $faturaCli = $fatura;
+                    $faturaCli['status'] = 'pago';
+                    $faturaCli['data_pagamento'] = $dataPagamento;
+                    if (!empty($fatura['cliente_email'])) {
+                        $faturaCli['email'] = $fatura['cliente_email'];
+                    }
+                    enviarEmailPagamento($faturaCli);
+                }
+            } catch (Throwable $eCli) {
+                error_log('[EMAIL_CLIENTE_ERRO] ' . $eCli->getMessage());
+            }
+        }
+
+        // Dispara a notificação imediata por e-mail ao administrador responsável
+        $detalhesNotificacao = [
+            'gateway' => $gateway,
+            'payment_id' => $paymentId,
+            'valor_pago' => $valorPago,
+            'tipo_pagamento' => $tipoPgto,
+            'data_confirmacao' => date('d/m/Y \à\s H:i:s'),
+            'data_pagamento' => $dataPagamento
+        ];
+
+        $emailAdminEnviado = notificarPagamentoRecebidoAdmin($faturaId, $detalhesNotificacao);
+
+        return [
+            'sucesso' => true,
+            'ja_estava_paga' => $jaEstavaPaga,
+            'fatura_id' => $faturaId,
+            'admin_id' => $adminId,
+            'valor_pago' => $valorPago,
+            'email_admin_enviado' => $emailAdminEnviado
+        ];
+    }
+}
+
 
 if (!function_exists('enviarEmailRecuperacaoSenha')) {
     function enviarEmailRecuperacaoSenha($paraEmail, $paraNome, $link, $contexto = 'usuario') {

@@ -143,35 +143,32 @@ $novoStatus = 'pendente';
 $dataPagamento = null;
 
 if ($mpStatus === 'approved') {
-    $novoStatus = 'pago';
-    $dataPagamento = date('Y-m-d');
-}
-
-// Grava o pagamento na fatura apenas quando ele pode ser confirmado depois
-// (aprovado ou em análise). Se recusado, mantém a fatura pendente para o
-// cliente tentar de novo ou usar PIX.
-if (in_array($mpStatus, ['approved', 'pending', 'in_process'], true)) {
-    $stmt = $pdo->prepare("UPDATE faturas SET mp_payment_id = ?, api_pagamento = 'mercadopago', status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
-    $stmt->execute([$result['payment_id'], $novoStatus, $dataPagamento, $faturaId]);
-}
-
-$stmtLog = $pdo->prepare("INSERT INTO pagamentos_log (admin_id, fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-$stmtLog->execute([
-    !empty($fatura['admin_id']) ? (int) $fatura['admin_id'] : null,
-    $faturaId,
-    $result['payment_id'],
-    $mpStatus,
-    $result['status_detail'] ?? '',
-    $fatura['valor_final'],
-    'cartao',
-    json_encode(['fonte' => 'cartao_pagamento', 'tipo' => $tipo, 'parcelas' => $installments])
-]);
-
-if ($mpStatus === 'approved') {
-    $fatura['nome_razao'] = $cli['nome_razao'] ?? '';
-    $fatura['email'] = $cli['email'] ?? '';
-    $fatura['data_pagamento'] = $dataPagamento;
-    enviarEmailPagamento($fatura);
+    confirmarPagamentoEBaixarFatura($faturaId, [
+        'gateway' => 'mercadopago',
+        'payment_id' => $result['payment_id'],
+        'valor_pago' => $fatura['valor_final'],
+        'tipo_pagamento' => 'cartao',
+        'status_gateway' => $mpStatus,
+        'status_detail' => $result['status_detail'] ?? 'Aprovado via Cartão Mercado Pago',
+        'data_pagamento' => date('Y-m-d'),
+        'dados_raw' => ['fonte' => 'cartao_pagamento', 'tipo' => $tipo, 'parcelas' => $installments]
+    ]);
+} else {
+    if (in_array($mpStatus, ['pending', 'in_process'], true)) {
+        $stmt = $pdo->prepare("UPDATE faturas SET mp_payment_id = ?, api_pagamento = 'mercadopago', status = 'pendente' WHERE id = ? AND status != 'pago'");
+        $stmt->execute([$result['payment_id'], $faturaId]);
+    }
+    $stmtLog = $pdo->prepare("INSERT INTO pagamentos_log (admin_id, fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+    $stmtLog->execute([
+        !empty($fatura['admin_id']) ? (int) $fatura['admin_id'] : null,
+        $faturaId,
+        $result['payment_id'],
+        $mpStatus,
+        $result['status_detail'] ?? '',
+        $fatura['valor_final'],
+        'cartao',
+        json_encode(['fonte' => 'cartao_pagamento', 'tipo' => $tipo, 'parcelas' => $installments])
+    ]);
 }
 
 echo json_encode([

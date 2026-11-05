@@ -23,27 +23,17 @@ if ($paymentId && $status === 'approved') {
             $fatura = $stmt->fetch();
 
             if ($fatura) {
-                // Contexto de tenant para resolução de configurações (email etc.)
-                if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
-
-                $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ?");
-                $stmt->execute([$fatura['id']]);
-
                 $valorPago = $pagamento['transaction_amount'] ?? $fatura['valor_final'];
                 $tipoPgto = $pagamento['payment_type_id'] ?? '';
-                $stmt = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$fatura['id'], $paymentId, 'approved', 'Pagamento via callback', $valorPago, $tipoPgto, json_encode($pagamento)]);
-
-                $stmtCli = $pdo->prepare("SELECT c.nome_razao, c.email FROM clientes c WHERE c.id = ?");
-                $stmtCli->execute([$fatura['cliente_id']]);
-                $cli = $stmtCli->fetch();
-                if ($cli) {
-                    $fatura['nome_razao'] = $cli['nome_razao'];
-                    $fatura['email'] = $cli['email'];
-                    $fatura['data_pagamento'] = date('Y-m-d');
-                    enviarEmailPagamento($fatura);
-                }
-                notificarPagamentoRecebidoAdmin($fatura['id']);
+                confirmarPagamentoEBaixarFatura($fatura['id'], [
+                    'gateway' => 'mercadopago',
+                    'payment_id' => $paymentId,
+                    'valor_pago' => $valorPago,
+                    'tipo_pagamento' => $tipoPgto,
+                    'status_gateway' => 'approved',
+                    'status_detail' => 'Pagamento via callback',
+                    'dados_raw' => $pagamento
+                ]);
             }
         }
     }

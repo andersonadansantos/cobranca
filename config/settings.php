@@ -806,7 +806,11 @@ function getAdminTemplate($adminId = null) {
     if (isset($_SESSION['admin_template']) && in_array($_SESSION['admin_template'], ['classico', 'fintech'], true)) {
         return $_SESSION['admin_template'];
     }
-    $_SESSION['admin_template'] = 'fintech';
-    return 'fintech';
+    $salvo = function_exists('getConfig') ? getConfig('template_admin', 'fintech') : 'fintech';
+    if (!in_array($salvo, ['classico', 'fintech'], true)) {
+        $salvo = 'classico';
+    }
+    $_SESSION['admin_template'] = $salvo;
+    return $salvo;
 }
 

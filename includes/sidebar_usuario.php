@@ -1,6 +1,11 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $basePath = '/cobranca/usuario';
+$templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';
+if ($templateAtivo === 'fintech') {
+    include __DIR__ . '/../includes_v2/sidebar_usuario.php';
+    return;
+}
 $logo = function_exists('getLogoPainelUsuario') ? getLogoPainelUsuario() : ($logo ?? '');
 ?>
 <aside class="sidebar" id="sidebar">

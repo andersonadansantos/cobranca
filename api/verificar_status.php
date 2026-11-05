@@ -116,22 +116,20 @@ if ($apiAtiva === 'inter' && !empty($fatura['inter_codigo_solicitacao'])) {
 }
 
 if ($novoStatus !== $fatura['status']) {
-    $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
-    $stmt->execute([$novoStatus, $dataPagamento, $faturaId]);
-
     if ($novoStatus === 'pago') {
-        $stmtLog = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, 'approved', 'Verificado via polling', ?, ?, ?)");
-        $stmtLog->execute([$faturaId, $fatura['mp_payment_id'] ?? $fatura['inter_codigo_solicitacao'] ?? '', $fatura['valor_final'], $apiAtiva, json_encode(['source' => 'verificar_status'])]);
-        $stmtCli = $pdo->prepare("SELECT c.nome_razao, c.email FROM clientes c WHERE c.id = ?");
-        $stmtCli->execute([$fatura['cliente_id']]);
-        $cli = $stmtCli->fetch();
-        if ($cli) {
-            $fatura['nome_razao'] = $cli['nome_razao'];
-            $fatura['email'] = $cli['email'];
-            $fatura['data_pagamento'] = $dataPagamento;
-            enviarEmailPagamento($fatura);
-        }
-        notificarPagamentoRecebidoAdmin($fatura['id']);
+        confirmarPagamentoEBaixarFatura($faturaId, [
+            'gateway' => $apiAtiva,
+            'payment_id' => $fatura['mp_payment_id'] ?? $fatura['inter_codigo_solicitacao'] ?? '',
+            'valor_pago' => $fatura['valor_final'],
+            'tipo_pagamento' => $apiAtiva,
+            'status_gateway' => 'approved',
+            'status_detail' => 'Verificado via polling',
+            'data_pagamento' => $dataPagamento,
+            'dados_raw' => ['source' => 'verificar_status']
+        ]);
+    } else {
+        $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
+        $stmt->execute([$novoStatus, $dataPagamento, $faturaId]);
     }
 
     echo json_encode(['status' => $novoStatus]);

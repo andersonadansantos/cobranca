@@ -24,18 +24,13 @@ if (isset($_GET['pago'])) {
     $stFat = $pdo->prepare("SELECT f.id FROM faturas f WHERE f.fatura_recorrente_id = ? AND f.admin_id = ? AND f.status != 'pago' ORDER BY f.data_vencimento DESC LIMIT 1");
     $stFat->execute([$id, $adminIdE]);
     $fatPagaId = (int)$stFat->fetchColumn();
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE fatura_recorrente_id = ? AND admin_id = ? AND status != 'pago' ORDER BY data_vencimento DESC LIMIT 1");
-    $stmt->execute([$id, $adminIdE]);
-    if ($fatPagaId > 0 && $stmt->rowCount() > 0) {
-        $stFat2 = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
-        $stFat2->execute([$fatPagaId, $adminIdE]);
-        $fatPaga = $stFat2->fetch();
-        if ($fatPaga && !empty($fatPaga['email'])) {
-            $fatPaga['data_pagamento'] = date('Y-m-d');
-            if (function_exists('enviarEmailPagamento')) {
-                enviarEmailPagamento($fatPaga);
-            }
-        }
+    if ($fatPagaId > 0) {
+        confirmarPagamentoEBaixarFatura($fatPagaId, [
+            'gateway' => 'pix_manual',
+            'tipo_pagamento' => 'pix_manual',
+            'status_gateway' => 'manual',
+            'status_detail' => 'Confirmação manual / PIX Manual (Recorrência)'
+        ]);
     }
     header('Location: emissao.php?msg=pago');
     exit;
@@ -116,18 +111,15 @@ if (isset($_GET['whatsapp'])) {
 // Ações em uma fatura gerada específica
 if (isset($_GET['fatura_pago'])) {
     $id = intval($_GET['fatura_pago']);
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'pago', data_pagamento = CURDATE() WHERE id = ? AND admin_id = ? AND status != 'pago'");
-    $stmt->execute([$id, $adminIdE]);
-    if ($stmt->rowCount() > 0) {
-        $stFat = $pdo->prepare("SELECT f.*, c.nome_razao, c.email, c.email2, c.cpf_cnpj, c.celular, c.telefone FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
-        $stFat->execute([$id, $adminIdE]);
-        $fatPaga = $stFat->fetch();
-        if ($fatPaga && !empty($fatPaga['email'])) {
-            $fatPaga['data_pagamento'] = date('Y-m-d');
-            if (function_exists('enviarEmailPagamento')) {
-                enviarEmailPagamento($fatPaga);
-            }
-        }
+    $stFat = $pdo->prepare("SELECT id FROM faturas WHERE id = ? AND admin_id = ?");
+    $stFat->execute([$id, $adminIdE]);
+    if ($stFat->fetch()) {
+        confirmarPagamentoEBaixarFatura($id, [
+            'gateway' => 'pix_manual',
+            'tipo_pagamento' => 'pix_manual',
+            'status_gateway' => 'manual',
+            'status_detail' => 'Confirmação manual / PIX Manual'
+        ]);
     }
     header('Location: emissao.php?msg=pago');
     exit;

@@ -181,14 +181,23 @@ function loginUser($cpfCnpj, $senha = '') {
         unset($__host, $__base);
     }
     
-    if ($tenantId > 0) {
+    if ($tenantId > 0 && function_exists('temTenantContexto') && temTenantContexto()) {
         $stmt = $pdo->prepare("SELECT * FROM clientes WHERE cpf_cnpj = ? AND ativo = 1 AND admin_id = ?");
         $stmt->execute([$cpfCnpj, $tenantId]);
+        $cliente = $stmt->fetch();
     } else {
-        $stmt = $pdo->prepare("SELECT * FROM clientes WHERE cpf_cnpj = ? AND ativo = 1");
-        $stmt->execute([$cpfCnpj]);
+        $cliente = false;
+        if (!empty($_SESSION['admin_id'])) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE cpf_cnpj = ? AND ativo = 1 AND admin_id = ?");
+            $stmt->execute([$cpfCnpj, (int)$_SESSION['admin_id']]);
+            $cliente = $stmt->fetch();
+        }
+        if (!$cliente) {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE cpf_cnpj = ? AND ativo = 1 ORDER BY id DESC");
+            $stmt->execute([$cpfCnpj]);
+            $cliente = $stmt->fetch();
+        }
     }
-    $cliente = $stmt->fetch();
     
     if ($cliente) {
         $hash = $cliente['senha'] ?? '';
@@ -219,6 +228,7 @@ function loginUser($cpfCnpj, $senha = '') {
         }
         session_regenerate_id(true);
         $_SESSION['user_id'] = $cliente['id'];
+        $_SESSION['admin_template'] = 'fintech';
         $_SESSION['user_nome'] = $cliente['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $cliente['cpf_cnpj'];
         $_SESSION['user_tipo'] = $cliente['tipo_pessoa'];
