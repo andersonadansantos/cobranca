@@ -81,9 +81,22 @@ if ($fatura) {
     }
 
     $sitUpper = strtoupper((string)$situacao);
+
+    // Confirmacao dupla: quando a API responde, a situacao oficial prevalece
+    // sobre o corpo do webhook. Sem resposta da API, vale o proprio webhook.
+    if (!empty($codigoSolicitacao) && function_exists('consultarCobrancaInter')) {
+        $consultaInter = consultarCobrancaInter($codigoSolicitacao);
+        if (is_array($consultaInter) && !isset($consultaInter['erro'])) {
+            $sitApi = strtoupper((string)($consultaInter['situacao'] ?? ($consultaInter['cobranca']['situacao'] ?? '')));
+            if ($sitApi !== '') {
+                $sitUpper = $sitApi;
+            }
+        }
+    }
+
     $statusAprovados = ['PAGA', 'PAGO', 'RECEBIDO', 'RECEBIDA', 'LIQUIDADO', 'LIQUIDADA', 'COMPENSADO', 'BAIXADO'];
 
-    if (in_array($sitUpper, $statusAprovados, true) || $valorPagoInter > 0) {
+    if (in_array($sitUpper, $statusAprovados, true)) {
         $vFinal = $valorPagoInter > 0 ? $valorPagoInter : (float)$fatura['valor_final'];
         $codRef = $codigoSolicitacao ?: ($txid ?: ($fatura['inter_codigo_solicitacao'] ?? 'INTER'));
         

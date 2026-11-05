@@ -76,6 +76,21 @@ if (isset($mapeamento[$evento])) {
             // Contexto de tenant para resolução de configurações (email etc.)
             if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
 
+            // Confirmacao dupla: se a API do Asaas responder, ela e a fonte de
+            // verdade e impede baixa por evento forjado. Se a API estiver
+            // indisponivel, o proprio webhook (evento oficial) e aceito.
+            if ($novoStatus === 'pago' && function_exists('consultarPagamentoAsaas')) {
+                $consultaApi = consultarPagamentoAsaas($paymentId);
+                if (is_array($consultaApi) && !isset($consultaApi['erro'])) {
+                    $statusApi = strtoupper((string)($consultaApi['status'] ?? ''));
+                    if (!in_array($statusApi, ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'], true)) {
+                        http_response_code(200);
+                        echo json_encode(['status' => 'ok', 'ignorado' => 'pagamento ainda nao confirmado na API']);
+                        exit;
+                    }
+                }
+            }
+
             $valorPago = $payment['value'] ?? 0;
             $tipoPgto = $payment['billingType'] ?? '';
             if ($novoStatus === 'pago') {

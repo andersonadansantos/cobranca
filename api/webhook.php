@@ -118,9 +118,12 @@ if (!$fatura || !$pagamento) {
     }
 }
 
-// Se encontrou a fatura correspondente
-if ($fatura) {
-    $statusMP = $pagamento['status'] ?? 'approved';
+// Se encontrou a fatura correspondente E a API confirmou o pagamento.
+// Sem `$pagamento` valido nao existe confirmacao efetiva: o webhook do MP so
+// avisa que algo mudou, nao informa o status. Antes o codigo assumia
+// 'approved' quando a consulta falhava, dando baixa indevida.
+if ($fatura && is_array($pagamento) && !empty($pagamento['status'])) {
+    $statusMP = (string)$pagamento['status'];
     $statusDetail = $pagamento['status_detail'] ?? 'Webhook Mercado Pago';
     $valorPago = isset($pagamento['transaction_amount']) ? (float)$pagamento['transaction_amount'] : (float)$fatura['valor_final'];
     $tipoPgto = $pagamento['payment_type_id'] ?? ($pagamento['payment_method_id'] ?? 'pix');
@@ -141,6 +144,11 @@ if ($fatura) {
         $stmt = $pdo->prepare("UPDATE faturas SET status = ? WHERE id = ? AND status != 'pago'");
         $stmt->execute([$novoStatus, $fatura['id']]);
     }
+}
+
+// Fatura localizada, mas sem confirmacao da API: registra e nao baixa.
+if ($fatura && (!is_array($pagamento) || empty($pagamento['status']))) {
+    @file_put_contents(__DIR__ . '/webhook_log.txt', date('Y-m-d H:i:s') . " | SEM CONFIRMACAO DA API | Fatura: {$fatura['id']} | Payment: {$dataId}\n", FILE_APPEND | LOCK_EX);
 }
 
 http_response_code(200);

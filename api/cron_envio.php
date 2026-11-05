@@ -174,6 +174,49 @@ foreach ($pendentes as $fat) {
         }
 }
 
+// =====================================================
+// REENVIO DA NOTIFICACAO AO ADMIN (SEM REPETIR A BAIXA)
+// =====================================================
+// Se o e-mail "Pagamento recebido" falhou, a fatura continua paga e sem a
+// marca de notificacao. Aqui apenas o e-mail e tentado de novo, no maximo a
+// cada 15 minutos, sem tocar em status, valor, log financeiro ou recibo.
+// Faturas antigas (sem nenhuma falha registrada) nunca entram.
+try {
+    $stReenvio = $pdo->query("
+        SELECT e.fatura_id, MAX(e.criado_em) AS ultima
+        FROM envios_log e
+        JOIN faturas f ON f.id = e.fatura_id
+        WHERE e.canal = 'email'
+          AND e.tipo = 'pagamento_recebido_admin'
+          AND e.status = 'erro'
+          AND f.status = 'pago'
+          AND f.admin_notificado_pagamento_em IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM envios_log s
+              WHERE s.fatura_id = e.fatura_id
+                AND s.canal = 'email'
+                AND s.tipo = 'pagamento_recebido_admin'
+                AND s.status = 'enviado'
+          )
+        GROUP BY e.fatura_id
+        HAVING MAX(e.criado_em) < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+        ORDER BY ultima ASC
+        LIMIT 20
+    ");
+    foreach ($stReenvio->fetchAll() as $reenvio) {
+        $stDono = $pdo->prepare("SELECT admin_id FROM faturas WHERE id = ?");
+        $stDono->execute([$reenvio['fatura_id']]);
+        cronTenantContext((int)$stDono->fetchColumn());
+        if (notificarPagamentoRecebidoAdmin($reenvio['fatura_id'])) {
+            $log[] = "[email_admin_reenviado] fatura {$reenvio['fatura_id']}";
+        } else {
+            $log[] = "[email_admin_reenvio_falhou] fatura {$reenvio['fatura_id']}";
+        }
+    }
+} catch (Throwable $eReenvio) {
+    $log[] = "[email_admin_reenvio_erro] " . $eReenvio->getMessage();
+}
+
 // Baixa automática de pagamentos concluída acima. A geração de faturas
 // recorrentes (bloco abaixo) roda SEMPRE, independente do flag global de envio.
 $cronAtivoGlobal = getConfigGlobal('cron_envio_ativo', '');

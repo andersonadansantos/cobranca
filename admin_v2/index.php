@@ -32,7 +32,7 @@ if ($dadosEmpresa) {
 // Métricas Principais
 $totalClientes = (int)$pdo->query("SELECT COUNT(*) FROM clientes WHERE ativo = 1 AND admin_id = $adminIdI")->fetchColumn();
 $totalFaturas = (int)$pdo->query("SELECT COUNT(*) FROM faturas WHERE status IN ('pendente','vencido','atrasado') AND admin_id = $adminIdI")->fetchColumn();
-$totalRecebido = (float)$pdo->query("SELECT COALESCE(SUM(valor),0) FROM faturas WHERE status = 'pago' AND MONTH(data_pagamento) = MONTH(NOW()) AND YEAR(data_pagamento) = YEAR(NOW()) AND admin_id = $adminIdI")->fetchColumn();
+$totalRecebido = (float)$pdo->query("SELECT COALESCE(SUM(valor_final),0) FROM faturas WHERE status = 'pago' AND MONTH(data_pagamento) = MONTH(NOW()) AND YEAR(data_pagamento) = YEAR(NOW()) AND admin_id = $adminIdI")->fetchColumn();
 $totalPendente = (float)$pdo->query("SELECT COALESCE(SUM(valor_final),0) FROM faturas WHERE status IN ('pendente','vencido','atrasado') AND admin_id = $adminIdI")->fetchColumn();
 
 // Receita dos últimos 6 meses (Gráfico de Linha)

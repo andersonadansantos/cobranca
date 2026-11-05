@@ -548,6 +548,16 @@ function criarBoletoMercadoPagoSuper($descricao, $valor, $clienteNome, $clienteC
     return criarBoletoMercadoPago($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clienteEmail, $clienteCep, $clienteLogradouro, $clienteNumero, $clienteBairro, $clienteCidade, $clienteEstado, $config);
 }
 
+/**
+ * Base da API do Mercado Pago.
+ * O valor padrao e o endpoint real. A chave opcional `mp_api_base` existe para
+ * testes controlados apontarem para um servidor local, sem tocar em producao.
+ */
+function getMPApiBaseUrl() {
+    $base = trim((string)getConfig('mp_api_base', ''));
+    return $base !== '' ? rtrim($base, '/') : 'https://api.mercadopago.com';
+}
+
 function consultarPagamento($paymentId) {
     $config = getMPConfig();
     
@@ -557,7 +567,7 @@ function consultarPagamento($paymentId) {
     
     $ch = curl_init();
     curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.mercadopago.com/v1/payments/" . $paymentId,
+        CURLOPT_URL => getMPApiBaseUrl() . "/v1/payments/" . $paymentId,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
             "Authorization: Bearer " . $config['mp_access_token'],

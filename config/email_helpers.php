@@ -1060,7 +1060,7 @@ if (!function_exists('notificarPagamentoRecebidoAdmin')) {
         if (empty($paraEmail)) {
             $paraEmail = trim((string)($adm['email_comercial'] ?? ''));
         }
-        $paraNome = (string)($adm['nome_fantasia'] ?: ($adm['nome'] ?? 'Administrador'));
+        $paraNome = (string)(($adm['nome_fantasia'] ?? '') ?: ($adm['nome'] ?? 'Administrador'));
 
         if (empty($paraEmail)) {
             $pdo->prepare("UPDATE faturas SET admin_notificado_pagamento_em = NULL WHERE id = ?")->execute([$faturaId]);
@@ -1097,9 +1097,14 @@ if (!function_exists('notificarPagamentoRecebidoAdmin')) {
             $cliente = (string)($f['cliente_nome'] ?? 'Cliente não informado');
             $descricao = (string)($f['descricao'] ?? 'Serviço/Cobrança');
             $valorOriginal = (float)($f['valor'] ?? 0);
+            $valorFinal = (float)($f['valor_final'] ?? $valorOriginal);
+            $desconto = (float)($f['desconto'] ?? 0);
+            $multa = (float)($f['multa'] ?? 0);
+            $juros = (float)($f['juros'] ?? 0);
+            $acrescimos = $multa + $juros;
             $valorPago = isset($detalhesExtras['valor_pago']) && (float)$detalhesExtras['valor_pago'] > 0
                 ? (float)$detalhesExtras['valor_pago']
-                : (float)($f['valor_final'] ?? $f['valor']);
+                : $valorFinal;
 
             $tipoPgtoRaw = (string)($detalhesExtras['tipo_pagamento'] ?? ($f['api_pagamento'] ?? ''));
             $mapForma = [
@@ -1133,6 +1138,25 @@ if (!function_exists('notificarPagamentoRecebidoAdmin')) {
 
             // Assunto obrigatório do administrador
             $assunto = "PAGAMENTO RECEBIDO – FATURA Nº " . $numero;
+
+            // Linhas de desconto e acrescimo exibidas somente quando existem.
+            $linhasAjusteHtml = '';
+            if ($desconto > 0) {
+                $linhasAjusteHtml .= '<tr><td class="label">Desconto</td><td class="value">- R$ ' . number_format($desconto, 2, ',', '.') . '</td></tr>';
+            }
+            if ($acrescimos > 0) {
+                $rotuloAcrescimo = $multa > 0 && $juros > 0 ? 'Acréscimos (multa e juros)' : ($multa > 0 ? 'Multa' : 'Juros');
+                $linhasAjusteHtml .= '<tr><td class="label">' . $rotuloAcrescimo . '</td><td class="value">+ R$ ' . number_format($acrescimos, 2, ',', '.') . '</td></tr>';
+            }
+
+            $linhasAjusteTxt = '';
+            if ($desconto > 0) {
+                $linhasAjusteTxt .= "Desconto: - R$ " . number_format($desconto, 2, ',', '.') . "\n";
+            }
+            if ($acrescimos > 0) {
+                $rotuloAcrescimoTxt = $multa > 0 && $juros > 0 ? 'Acréscimos (multa e juros)' : ($multa > 0 ? 'Multa' : 'Juros');
+                $linhasAjusteTxt .= $rotuloAcrescimoTxt . ": + R$ " . number_format($acrescimos, 2, ',', '.') . "\n";
+            }
 
             // Template HTML moderno, responsivo e com identidade Fintech
             $html = '<!DOCTYPE html>
@@ -1195,6 +1219,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
                 <td class="label">Valor Original</td>
                 <td class="value">R$ ' . number_format($valorOriginal, 2, ',', '.') . '</td>
             </tr>
+            ' . $linhasAjusteHtml . '
+            <tr>
+                <td class="label">Valor Efetivamente Recebido</td>
+                <td class="value" style="color:#059669;">R$ ' . number_format($valorPago, 2, ',', '.') . '</td>
+            </tr>
             <tr>
                 <td class="label">Forma de Pagamento</td>
                 <td class="value">' . htmlspecialchars($formaPgto) . '</td>
@@ -1249,6 +1278,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 ";
             $txt .= "Valor Original: R$ " . number_format($valorOriginal, 2, ',', '.') . "
 ";
+            $txt .= $linhasAjusteTxt;
             $txt .= "Valor Recebido: R$ " . number_format($valorPago, 2, ',', '.') . "
 ";
             $txt .= "Forma de Pagamento: {$formaPgto}
@@ -1273,8 +1303,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
                     $detalhesErro = 'Falha no envio SMTP';
                 }
             } else {
-                $ok = true;
-                $detalhesErro = 'Simulação local (SMTP não configurado neste ambiente)';
+                // Sem SMTP nao ha envio. Manter como sucesso marcaria a fatura
+                // como notificada e impediria a nova tentativa quando o SMTP
+                // fosse configurado depois.
+                $ok = false;
+                $detalhesErro = 'SMTP não configurado para este administrador';
             }
         } catch (Throwable $e) {
             error_log('[NOTIFICAR_ADMIN_PAGAMENTO] ' . $e->getMessage());
@@ -1342,6 +1375,13 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
         $adminId = (int)($fatura['admin_id'] ?? 0);
         $jaEstavaPaga = (($fatura['status'] ?? '') === 'pago');
 
+        // Garante que SMTP/templates/links sejam resolvidos no tenant dono da
+        // fatura, mesmo quando o chamador nao preparou a sessao (callback, cron).
+        $tenantAnterior = $_SESSION['tenant_admin_id'] ?? null;
+        if ($adminId > 0) {
+            $_SESSION['tenant_admin_id'] = $adminId;
+        }
+
         $gateway = trim((string)($dados['gateway'] ?? ($fatura['api_pagamento'] ?? '')));
         $paymentId = trim((string)($dados['payment_id'] ?? ($dados['mp_payment_id'] ?? ($fatura['mp_payment_id'] ?? ($fatura['inter_codigo_solicitacao'] ?? '')))));
         $statusGateway = trim((string)($dados['status_gateway'] ?? ($dados['mp_status'] ?? 'approved')));
@@ -1379,6 +1419,12 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
 
             $stmtUp = $pdo->prepare($sqlUp);
             $stmtUp->execute($paramsUp);
+
+            // Idempotencia financeira: se outra execucao (webhook duplicado ou
+            // polling concorrente) baixou a fatura primeiro, nao repete log,
+            // recibo nem e-mail ao cliente. O e-mail ao admin segue abaixo e
+            // tem sua propria reserva atomica.
+            if ($stmtUp->rowCount() > 0) {
 
             // Registro no log de pagamentos
             try {
@@ -1432,6 +1478,9 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
             } catch (Throwable $eCli) {
                 error_log('[EMAIL_CLIENTE_ERRO] ' . $eCli->getMessage());
             }
+            } else {
+                $jaEstavaPaga = true;
+            }
         }
 
         // 2. ENVIO AUTOMÁTICO DE E-MAIL AO ADMINISTRADOR
@@ -1445,6 +1494,12 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
         ];
 
         $emailAdminEnviado = notificarPagamentoRecebidoAdmin($faturaId, $detalhesAdmin);
+
+        if ($tenantAnterior === null) {
+            unset($_SESSION['tenant_admin_id']);
+        } else {
+            $_SESSION['tenant_admin_id'] = $tenantAnterior;
+        }
 
         return [
             'sucesso' => true,
