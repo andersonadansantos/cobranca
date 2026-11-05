@@ -459,11 +459,12 @@ $nomeSistema = getNomeSistema();
     <?php if ($fatura['status'] !== 'pago'): ?>
     <script>
     var _faturaId = <?= $faturaId ?>;
+var _token = <?= json_encode($fatura['acesso_token'] ?? '') ?>;
     var _pollCount = 0;
     function verificarPagamento() {
         if (_pollCount >= 120) return;
         _pollCount++;
-        fetch('/cobranca/api/verificar_status.php?id=' + _faturaId)
+        fetch('/cobranca/api/verificar_status.php?id=' + _faturaId + '&token=' + encodeURIComponent(_token))
             .then(function(r) { return r.json(); })
             .then(function(d) {
                 if (d.status === 'pago') {
@@ -497,7 +498,7 @@ $nomeSistema = getNomeSistema();
     function verificarInterPix() {
         if (_interPollCount >= 60) return;
         _interPollCount++;
-        fetch('/cobranca/api/inter_status.php?id=' + _faturaId)
+        fetch('/cobranca/api/inter_status.php?id=' + _faturaId + '&token=' + encodeURIComponent(_token))
             .then(function(r) { return r.json(); })
             .then(function(d) {
                 if (d.status === 'pago') {

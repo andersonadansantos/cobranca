@@ -100,6 +100,19 @@ foreach ($pendentes as $fat) {
             $situacao = strtoupper($detalhe['situacaoBoleto']['codigoSituacaoBoleto'] ?? '');
             if (in_array($situacao, ['BAIXADO','PAGO','RECEBIDO'])) { $novoStatus = 'pago'; $dataPagamento = date('Y-m-d'); }
         }
+    } elseif ($apiAtiva === 'asaas' && !empty($fat['mp_payment_id'])) {
+        if (function_exists('consultarPagamentoAsaas')) {
+            $pagamento = consultarPagamentoAsaas($fat['mp_payment_id']);
+            if ($pagamento && !isset($pagamento['erro'])) {
+                $statusAsaas = strtoupper($pagamento['status'] ?? '');
+                if (in_array($statusAsaas, ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'], true)) {
+                    $novoStatus = 'pago';
+                    $dataPagamento = date('Y-m-d');
+                } elseif ($statusAsaas === 'OVERDUE') {
+                    $novoStatus = 'atrasado';
+                }
+            }
+        }
     } elseif ($apiAtiva === 'pagbank' && !empty($fat['mp_payment_id'])) {
         $detalhe = consultarPedidoPagBank($fat['mp_payment_id']);
         if ($detalhe) {
@@ -130,19 +143,23 @@ foreach ($pendentes as $fat) {
     }
 
         if ($novoStatus !== null && $novoStatus !== $fat['status']) {
-            $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
-            $stmt->execute([$novoStatus, $dataPagamento, $fat['id']]);
             if ($novoStatus === 'pago') {
-                $stmtLog = $pdo->prepare("INSERT INTO pagamentos_log (fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw) VALUES (?, ?, 'approved', 'Baixa automatica via cron', ?, ?, ?)");
-                $stmtLog->execute([$fat['id'], $fat['mp_payment_id'] ?? $fat['inter_codigo_solicitacao'] ?? '', $fat['valor_final'], $apiAtiva, json_encode(['source' => 'cron'])]);
-                if (!empty($fat['email'])) {
-                    $fat['data_pagamento'] = $dataPagamento;
-                    enviarEmailPagamento($fat);
-                }
-                notificarPagamentoRecebidoAdmin($fat['id']);
-                if (enviarWhatsAppFatura($fat, 'pagamento')) {
+                confirmarPagamentoEBaixarFatura($fat['id'], [
+                    'gateway' => $apiAtiva,
+                    'payment_id' => $fat['mp_payment_id'] ?? ($fat['inter_codigo_solicitacao'] ?? ''),
+                    'valor_pago' => (float)$fat['valor_final'],
+                    'tipo_pagamento' => $apiAtiva,
+                    'status_gateway' => 'approved',
+                    'status_detail' => 'Baixa automatica via cron',
+                    'data_pagamento' => $dataPagamento ?: date('Y-m-d'),
+                    'dados_raw' => ['source' => 'cron']
+                ]);
+                if (function_exists('enviarWhatsAppFatura') && enviarWhatsAppFatura($fat, 'pagamento')) {
                     $log[] = "[whatsapp_pagamento] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
                 }
+            } else {
+                $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ? AND status != 'pago'");
+                $stmt->execute([$novoStatus, $dataPagamento, $fat['id']]);
             }
         $log[] = "[baixa] {$fat['numero']} -> {$novoStatus}";
     }

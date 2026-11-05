@@ -484,12 +484,13 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php if ($fatura['status'] !== 'pago'): ?>
 <script>
 var _faturaId = <?= $faturaId ?>;
+var _token = <?= json_encode($fatura['acesso_token'] ?? '') ?>;
 var _pollCount = 0;
 var _pollMax = 120;
 function verificarPagamento() {
     if (_pollCount >= _pollMax) return;
     _pollCount++;
-    fetch('/cobranca/api/verificar_status.php?id=' + _faturaId)
+    fetch('/cobranca/api/verificar_status.php?id=' + _faturaId + '&token=' + encodeURIComponent(_token))
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.status === 'pago') {
@@ -539,7 +540,7 @@ var _interPollMax = 60;
 function verificarInterPix() {
     if (_interPollCount >= _interPollMax) return;
     _interPollCount++;
-    fetch('/cobranca/api/inter_status.php?id=' + _faturaId)
+    fetch('/cobranca/api/inter_status.php?id=' + _faturaId + '&token=' + encodeURIComponent(_token))
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.status === 'pago') {

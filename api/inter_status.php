@@ -1,16 +1,15 @@
 <?php
+// =====================================================
+// VERIFICAR STATUS DO BANCO INTER (POLLING PIX/BOLETO)
+// Realiza baixa automática imediata e notificação ao admin
+// =====================================================
+
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/mercadopago.php';
 require_once __DIR__ . '/../config/email_helpers.php';
-require_once __DIR__ . '/../includes/auth.php';
 
 header('Content-Type: application/json');
-
-if (!isLoggedInUser()) {
-    echo json_encode(['status' => 'erro', 'msg' => 'Não autenticado']);
-    exit;
-}
 
 $faturaId = intval($_GET['id'] ?? 0);
 if ($faturaId <= 0) {
@@ -19,47 +18,54 @@ if ($faturaId <= 0) {
 }
 
 $pdo = getConnection();
-$userId = $_SESSION['user_id'];
+if (!$pdo) {
+    echo json_encode(['status' => 'erro', 'msg' => 'Sem conexão com banco']);
+    exit;
+}
 
-$stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND cliente_id = ?");
-$stmt->execute([$faturaId, $userId]);
-$fatura = $stmt->fetch();
+$stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ? LIMIT 1");
+$stmt->execute([$faturaId]);
+$fatura = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$fatura) {
     echo json_encode(['status' => 'erro', 'msg' => 'Fatura não encontrada']);
     exit;
 }
 
-// Contexto de tenant para resolução de configurações (API, email etc.)
-if (!empty($fatura['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
-
-if ($fatura['status'] === 'pago') {
+// Se já está paga, retorna imediatamente
+if (($fatura['status'] ?? '') === 'pago') {
     echo json_encode(['status' => 'pago']);
     exit;
 }
 
 $codigo = $fatura['inter_codigo_solicitacao'] ?? '';
 if (empty($codigo)) {
-    echo json_encode(['status' => 'pendente', 'pix' => false]);
+    echo json_encode(['status' => $fatura['status']]);
     exit;
+}
+
+if (!empty($fatura['admin_id'])) {
+    $_SESSION['tenant_admin_id'] = (int)$fatura['admin_id'];
 }
 
 $detalhe = consultarCobrancaInter($codigo);
 if (!$detalhe || isset($detalhe['erro'])) {
-    echo json_encode(['status' => 'aguardando', 'pix' => false]);
+    echo json_encode(['status' => $fatura['status']]);
     exit;
 }
 
-$situacao = strtoupper($detalhe['situacao'] ?? $detalhe['cobranca']['situacao'] ?? '');
+$situacao = strtoupper((string)($detalhe['situacao'] ?? ($detalhe['cobranca']['situacao'] ?? '')));
+$statusAprovados = ['PAGA', 'PAGO', 'RECEBIDO', 'RECEBIDA', 'LIQUIDADO', 'LIQUIDADA', 'COMPENSADO', 'BAIXADO'];
 
-if ($situacao === 'PAGA' || $situacao === 'RECEBIDO') {
+if (in_array($situacao, $statusAprovados, true)) {
     confirmarPagamentoEBaixarFatura($faturaId, [
         'gateway' => 'inter',
         'payment_id' => $codigo,
-        'valor_pago' => $fatura['valor_final'],
+        'valor_pago' => (float)$fatura['valor_final'],
         'tipo_pagamento' => 'pix',
-        'status_gateway' => 'PAGA',
-        'status_detail' => 'Verificado via inter_status',
+        'status_gateway' => $situacao,
+        'status_detail' => 'Verificado em tempo real via inter_status',
+        'data_pagamento' => date('Y-m-d'),
         'dados_raw' => $detalhe
     ]);
 
@@ -67,31 +73,9 @@ if ($situacao === 'PAGA' || $situacao === 'RECEBIDO') {
     exit;
 }
 
-if ($situacao === 'VENCIDA') {
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'atrasado' WHERE id = ? AND status = 'pendente'");
-    $stmt->execute([$faturaId]);
+if (in_array($situacao, ['VENCIDA', 'ATRASADA'], true)) {
+    $stmt = $pdo->prepare("UPDATE faturas SET status = 'atrasado', inter_situacao = ? WHERE id = ? AND status != 'pago'");
+    $stmt->execute([$situacao, $faturaId]);
 }
 
-// Fatura nunca é cancelada sozinha: expiração/cancelamento no Inter volta
-// a fatura para o status do vencimento (atrasado/pendente).
-if ($situacao === 'EXPIRADA' || $situacao === 'CANCELADA') {
-    $novoStatusInter = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
-    $stmt = $pdo->prepare("UPDATE faturas SET status = ? WHERE id = ? AND status != 'pago'");
-    $stmt->execute([$novoStatusInter, $faturaId]);
-}
-
-$pix = $detalhe['pix'] ?? ($detalhe['cobranca']['pix'] ?? []);
-$pixCopiaECola = '';
-$qrCode = '';
-if (!empty($pix)) {
-    $pixCopiaECola = $pix['pixCopiaECola'] ?? '';
-    $qrCode = $pix['qrcode'] ?? '';
-}
-
-if ($pixCopiaECola) {
-    $stmt = $pdo->prepare("UPDATE faturas SET pix_copia_cola = ?, pix_qrcode = ? WHERE id = ? AND (pix_copia_cola IS NULL OR pix_copia_cola = '')");
-    $stmt->execute([$pixCopiaECola, $qrCode, $faturaId]);
-    echo json_encode(['status' => 'pronto', 'pix' => true, 'pix_copia_cola' => $pixCopiaECola, 'pix_qrcode' => $qrCode]);
-} else {
-    echo json_encode(['status' => 'aguardando', 'pix' => false]);
-}
+echo json_encode(['status' => $fatura['status']]);

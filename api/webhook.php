@@ -1,6 +1,8 @@
 <?php
 // =====================================================
 // WEBHOOK DO MERCADO PAGO - Notificações de Pagamento
+// Suporta POST (JSON v2 / IPN) e GET (IPN query string)
+// Baixa automática imediata com notificação ao admin
 // =====================================================
 
 require_once __DIR__ . '/../config/database.php';
@@ -9,124 +11,135 @@ require_once __DIR__ . '/../config/email_helpers.php';
 
 header('Content-Type: application/json');
 
-// Mercado Pago envia notificações via POST
-$method = $_SERVER['REQUEST_METHOD'];
-
-if ($method !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$rawInput = file_get_contents('php://input');
+$dados = json_decode($rawInput, true);
+if (!is_array($dados)) {
+    $dados = [];
 }
 
-$dados = json_decode(file_get_contents('php://input'), true);
-
-if (!$dados) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid data']);
-    exit;
-}
-
-$tipo = $dados['type'] ?? '';
+// 1. Extração flexível e resiliente do ID do pagamento
+$dataId = null;
+$tipo = $dados['type'] ?? ($_GET['type'] ?? ($_GET['topic'] ?? ($dados['topic'] ?? '')));
 $action = $dados['action'] ?? '';
-$dataId = $dados['data']['id'] ?? null;
 
-// Log da notificação
-$logEntry = date('Y-m-d H:i:s') . " | Tipo: {$tipo} | Action: {$action} | ID: {$dataId}\n";
-file_put_contents(__DIR__ . '/webhook_log.txt', $logEntry, FILE_APPEND | LOCK_EX);
+if (!empty($dados['data']['id'])) {
+    $dataId = (string)$dados['data']['id'];
+} elseif (!empty($_GET['data']['id'])) {
+    $dataId = (string)$_GET['data']['id'];
+} elseif (!empty($_GET['data_id'])) {
+    $dataId = (string)$_GET['data_id'];
+} elseif (!empty($_GET['id'])) {
+    $dataId = (string)$_GET['id'];
+} elseif (!empty($dados['id'])) {
+    $dataId = (string)$dados['id'];
+} elseif (!empty($dados['resource'])) {
+    if (preg_match('#/payments/(\d+)#', (string)$dados['resource'], $m)) {
+        $dataId = $m[1];
+    }
+} elseif (!empty($_GET['resource'])) {
+    if (preg_match('#/payments/(\d+)#', (string)$_GET['resource'], $m)) {
+        $dataId = $m[1];
+    }
+}
 
-if ($tipo === 'payment' && $dataId) {
-    $pdo = getConnection();
+// Registrar log para auditoria de webhooks recebidos
+$logEntry = date('Y-m-d H:i:s') . " | Method: {$method} | Tipo: {$tipo} | Action: {$action} | ID: {$dataId}\n";
+@file_put_contents(__DIR__ . '/webhook_log.txt', $logEntry, FILE_APPEND | LOCK_EX);
 
-    if ($pdo) {
-        // Buscar todas as faturas candidatas pelo payment_id.
-        // IDs de pagamento do Mercado Pago são por conta: duas contas podem ter
-        // o mesmo ID, então usamos a fatura certa de cada admin (tenant).
-        $stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ?");
-        $stmt->execute([$dataId]);
-        $candidatas = $stmt->fetchAll();
+// Se não houver ID de pagamento identificado, retorna 200 (pode ser verificação do MP)
+if (empty($dataId)) {
+    http_response_code(200);
+    echo json_encode(['status' => 'ok', 'msg' => 'Sem identificador de pagamento']);
+    exit;
+}
 
-        if ($candidatas) {
-            $fatura = null;
-            $pagamento = null;
+$pdo = getConnection();
+if (!$pdo) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Sem conexao']);
+    exit;
+}
 
-            foreach ($candidatas as $cand) {
-                // Contexto de tenant para resolver as credenciais do admin dono da fatura.
-                // A consulta só bate se o token deste admin reconhecer o pagamento,
-                // o que evita confirmar a fatura errada em caso de colisão de IDs.
-                if (!empty($cand['admin_id'])) $_SESSION['tenant_admin_id'] = (int)$cand['admin_id'];
-                $pgto = consultarPagamento($dataId);
-                // Só aceita a candidata se a consulta retornar o próprio pagamento
-                // (id bate). Erros de auth do MP retornam status HTTP (ex.: 401),
-                // então o id é a verificação confiável de que o token do admin é o dono.
-                if (is_array($pgto) && isset($pgto['id'], $pgto['status']) && (string)$pgto['id'] === (string)$dataId) {
-                    $fatura = $cand;
-                    $pagamento = $pgto;
-                    break;
-                }
-            }
+// 2. Localizar a fatura no sistema
+$fatura = null;
+$pagamento = null;
 
-            if ($fatura) {
-                $statusMP = $pagamento['status'] ?? '';
-                $statusDetail = $pagamento['status_detail'] ?? '';
-                $valorPago = $pagamento['transaction_amount'] ?? 0;
-                $tipoPgto = $pagamento['payment_type_id'] ?? '';
-                
-                // Atualizar status da fatura
-                $novoStatus = 'pendente';
-                $dataPagamento = null;
-                
-                switch ($statusMP) {
-                    case 'approved':
-                        $novoStatus = 'pago';
-                        $dataPagamento = date('Y-m-d');
-                        break;
-                    case 'pending':
-                        $novoStatus = 'pendente';
-                        break;
-                    case 'refunded':
-                        // Estorno também não cancela a fatura: ela volta a
-                        // ficar ativa ('atrasado' se vencida, senão 'pendente').
-                        $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
-                        break;
-                    case 'cancelled':
-                    case 'rejected':
-                        // PIX expirado/recusado: NÃO cancela a fatura. Mantém em
-                        // aberto ('atrasado' se vencida, senão 'pendente') e um novo
-                        // PIX é gerado automaticamente logo abaixo.
-                        $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
-                        break;
-                }
-                
-                if ($novoStatus === 'pago') {
-                    confirmarPagamentoEBaixarFatura($fatura['id'], [
-                        'gateway' => 'mercadopago',
-                        'payment_id' => $dataId,
-                        'valor_pago' => $valorPago,
-                        'tipo_pagamento' => $tipoPgto,
-                        'status_gateway' => $statusMP,
-                        'status_detail' => $statusDetail,
-                        'data_pagamento' => $dataPagamento,
-                        'dados_raw' => $pagamento
-                    ]);
-                } else {
-                    $stmt = $pdo->prepare("UPDATE faturas SET status = ?, data_pagamento = ? WHERE id = ?");
-                    $stmt->execute([$novoStatus, $dataPagamento, $fatura['id']]);
-                    
-                    // Registrar log de pagamento
-                    $stmt = $pdo->prepare("INSERT INTO pagamentos_log (admin_id, fatura_id, mp_payment_id, mp_status, mp_status_detail, valor_pago, tipo_pagamento, dados_raw, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-                    $stmt->execute([
-                        $fatura['admin_id'] ?? 0,
-                        $fatura['id'],
-                        $dataId,
-                        $statusMP,
-                        $statusDetail,
-                        $valorPago,
-                        $tipoPgto,
-                        json_encode($pagamento)
-                    ]);
-                }
-            }
+// Tentativa 1: busca direta por mp_payment_id
+$stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ? ORDER BY id DESC LIMIT 5");
+$stmt->execute([$dataId]);
+$candidatas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if (!empty($candidatas)) {
+    foreach ($candidatas as $cand) {
+        if (!empty($cand['admin_id'])) {
+            $_SESSION['tenant_admin_id'] = (int)$cand['admin_id'];
         }
+        $pgto = consultarPagamento($dataId);
+        if (is_array($pgto) && isset($pgto['id'], $pgto['status']) && (string)$pgto['id'] === (string)$dataId) {
+            $fatura = $cand;
+            $pagamento = $pgto;
+            break;
+        }
+    }
+    // Se a API não respondeu ou não confirmou com o token, mas a fatura já tem esse mp_payment_id
+    if (!$fatura && count($candidatas) === 1) {
+        $fatura = $candidatas[0];
+    }
+}
+
+// Tentativa 2: se não achou por mp_payment_id, consulta o pagamento no Mercado Pago e busca por external_reference
+if (!$fatura || !$pagamento) {
+    // Tenta consultar com os tokens dos administradores cadastrados
+    $stmtAdmins = $pdo->query("SELECT id FROM administradores WHERE ativo = 1 ORDER BY id ASC");
+    $admins = $stmtAdmins ? $stmtAdmins->fetchAll(PDO::FETCH_COLUMN) : [];
+    
+    foreach ($admins as $admId) {
+        $_SESSION['tenant_admin_id'] = (int)$admId;
+        $pgto = consultarPagamento($dataId);
+        if (is_array($pgto) && isset($pgto['id'], $pgto['status']) && (string)$pgto['id'] === (string)$dataId) {
+            $pagamento = $pgto;
+            $extRef = trim((string)($pgto['external_reference'] ?? ''));
+            if ($extRef !== '') {
+                // Tenta buscar por ID ou pelo número da fatura
+                if (is_numeric($extRef)) {
+                    $stRef = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
+                    $stRef->execute([(int)$extRef]);
+                    $fatura = $stRef->fetch(PDO::FETCH_ASSOC);
+                }
+                if (!$fatura) {
+                    $stRefNum = $pdo->prepare("SELECT * FROM faturas WHERE numero = ?");
+                    $stRefNum->execute([$extRef]);
+                    $fatura = $stRefNum->fetch(PDO::FETCH_ASSOC);
+                }
+            }
+            break;
+        }
+    }
+}
+
+// Se encontrou a fatura correspondente
+if ($fatura) {
+    $statusMP = $pagamento['status'] ?? 'approved';
+    $statusDetail = $pagamento['status_detail'] ?? 'Webhook Mercado Pago';
+    $valorPago = isset($pagamento['transaction_amount']) ? (float)$pagamento['transaction_amount'] : (float)$fatura['valor_final'];
+    $tipoPgto = $pagamento['payment_type_id'] ?? ($pagamento['payment_method_id'] ?? 'pix');
+    
+    if ($statusMP === 'approved') {
+        confirmarPagamentoEBaixarFatura($fatura['id'], [
+            'gateway' => 'mercadopago',
+            'payment_id' => $dataId,
+            'valor_pago' => $valorPago,
+            'tipo_pagamento' => $tipoPgto,
+            'status_gateway' => $statusMP,
+            'status_detail' => $statusDetail,
+            'data_pagamento' => date('Y-m-d'),
+            'dados_raw' => $pagamento
+        ]);
+    } elseif (in_array($statusMP, ['refunded', 'cancelled', 'rejected'], true)) {
+        $novoStatus = statusFaturaSemCancelar($fatura['data_vencimento'] ?? '');
+        $stmt = $pdo->prepare("UPDATE faturas SET status = ? WHERE id = ? AND status != 'pago'");
+        $stmt->execute([$novoStatus, $fatura['id']]);
     }
 }
 

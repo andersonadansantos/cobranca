@@ -175,6 +175,13 @@ function criarPagamentoMercadoPago($descricao, $valor, $clienteEmail, $clienteNo
     ];
     
     $webhookUrl = $config['mp_webhook_url'] ?? '';
+    if (empty($webhookUrl)) {
+        $protocolo = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        if (!empty($host) && strpos($host, 'localhost') === false && strpos($host, '127.0.0.1') === false) {
+            $webhookUrl = $protocolo . '://' . $host . (defined('APP_BASE') ? APP_BASE : '/cobranca') . '/api/webhook.php';
+        }
+    }
     if (!empty($webhookUrl) && strpos($webhookUrl, 'localhost') === false && strpos($webhookUrl, '127.0.0.1') === false) {
         $dados["notification_url"] = $webhookUrl;
     }

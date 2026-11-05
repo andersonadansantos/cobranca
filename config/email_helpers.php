@@ -1005,7 +1005,7 @@ if (!function_exists('notificarPagamentoRecebidoAdmin')) {
             }
 
             // Assunto obrigatório
-            $assunto = "PAGAMENTO RECEBIDO – FATURA Nº " . $numero;
+            $assunto = "PAGAMENTO CONFIRMADO – FATURA Nº " . $numero;
 
             // Template HTML moderno, responsivo e com identidade Fintech
             $html = '<!DOCTYPE html>
@@ -1102,7 +1102,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 </html>';
 
             // Versão em texto puro
-            $txt = "PAGAMENTO RECEBIDO – FATURA Nº {$numero}
+            $txt = "PAGAMENTO CONFIRMADO – FATURA Nº {$numero}
 
 ";
             $txt .= "Olá, {$paraNome}!
