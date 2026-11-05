@@ -28,6 +28,24 @@ if (isset($_GET['cancelar'])) {
     exit;
 }
 
+// Marcar fatura como paga (confirmação manual / PIX Manual)
+if (isset($_GET['marcar_pago'])) {
+    $id = intval($_GET['marcar_pago']);
+    $stVer = $pdo->prepare("SELECT id FROM faturas WHERE id = ? AND admin_id = ?");
+    $stVer->execute([$id, $adminIdF]);
+    if ($stVer->fetch()) {
+        require_once __DIR__ . '/../config/email_helpers.php';
+        confirmarPagamentoEBaixarFatura($id, [
+            'gateway' => 'pix_manual',
+            'tipo_pagamento' => 'pix_manual',
+            'status_gateway' => 'manual',
+            'status_detail' => 'Confirmação manual pelo administrador'
+        ]);
+    }
+    header('Location: faturas.php?msg=pago');
+    exit;
+}
+
 // Mensagens
 $mensagem = '';
 $tipo = '';
@@ -35,6 +53,7 @@ if (isset($_GET['msg'])) {
     $msgs = [
         'excluido' => ['Fatura excluída!', 'warning'],
         'cancelado' => ['Fatura cancelada!', 'info'],
+        'pago' => ['Fatura liquidada e baixa confirmada com sucesso!', 'success'],
         'gerada' => ['Fatura gerada com sucesso!', 'success'],
     ];
     if (isset($msgs[$_GET['msg']])) {
@@ -229,6 +248,9 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                         </a>
                                     <?php endif; ?>
                                     <?php if ($f['status'] !== 'pago'): ?>
+                                        <a href="?marcar_pago=<?= $f['id'] ?>" class="btn btn-sm btn-outline-success" title="Confirmar Pagamento / Baixar" onclick="return confirm('Deseja confirmar o recebimento e baixar a fatura <?= htmlspecialchars($f['numero']) ?>?');">
+                                            <i class="fas fa-check"></i>
+                                        </a>
                                         <a href="?cancelar=<?= $f['id'] ?>" class="btn btn-sm btn-outline-warning" title="<?= t('fat.cancelar') ?>" onclick="showConfirm(<?= htmlspecialchars(json_encode(t('fat.tit_cancelar')), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode(t('fat.confirm_cancelar', [$f['numero']])), ENT_QUOTES) ?>, '?cancelar=<?= $f['id'] ?>'); return false;">
                                             <i class="fas fa-ban"></i>
                                         </a>

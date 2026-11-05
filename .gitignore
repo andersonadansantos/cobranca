@@ -17,3 +17,4 @@ _initial_credentials.txt
 *.bak
 *.bak_*
 deploy_*.ps1
+scratch/
