@@ -1,11 +1,6 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $basePath = '/cobranca/admin';
-$templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';
-if ($templateAtivo === 'fintech') {
-    include __DIR__ . '/../includes_v2/sidebar_admin.php';
-    return;
-}
 $planoExpirado = function_exists('adminPlanoExpirado') ? adminPlanoExpirado() : false;
 $adminDesativado = function_exists('adminEstaAtivo') ? !adminEstaAtivo() : false;
 $acessoRestrito = $adminDesativado;

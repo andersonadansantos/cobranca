@@ -1,19 +1,5 @@
 <?php
 
-$templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';
-
-$isAdminArea = strpos($_SERVER['PHP_SELF'] ?? '', '/admin') !== false;
-
-$isUserArea = strpos($_SERVER['PHP_SELF'] ?? '', '/usuario') !== false;
-
-if ($templateAtivo === 'fintech' && ($isAdminArea || $isUserArea)) {
-
-    include __DIR__ . '/../includes_v2/footer.php';
-
-    return;
-
-}
-
 ?>
 
     <div id="sidebarOverlay" class="sidebar-overlay"></div>

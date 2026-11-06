@@ -141,7 +141,7 @@ function loginAdmin($usuario, $senha) {
             $_SESSION['admin_usuario'] = $admin['usuario'];
             $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($admin['avatar'] ?? null) : ($admin['avatar'] ?? null);
             $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
-            $_SESSION['admin_template'] = 'fintech';
+            $_SESSION['admin_template'] = 'classico';
             
             $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
             $stmt->execute([$admin['id']]);
@@ -228,7 +228,7 @@ function loginUser($cpfCnpj, $senha = '') {
         }
         session_regenerate_id(true);
         $_SESSION['user_id'] = $cliente['id'];
-        $_SESSION['admin_template'] = 'fintech';
+        $_SESSION['admin_template'] = 'classico';
         $_SESSION['user_nome'] = $cliente['nome_razao'];
         $_SESSION['user_cpf_cnpj'] = $cliente['cpf_cnpj'];
         $_SESSION['user_tipo'] = $cliente['tipo_pessoa'];
@@ -307,7 +307,7 @@ function loginAdminGoogle($googleId, $email, $nome) {
         $_SESSION['admin_usuario'] = $admin['usuario'];
         $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($admin['avatar'] ?? null) : ($admin['avatar'] ?? null);
         $_SESSION['admin_origem'] = $admin['origem'] ?? 'painel';
-            $_SESSION['admin_template'] = 'fintech';
+            $_SESSION['admin_template'] = 'classico';
         $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
         $stmt->execute([$admin['id']]);
         return true;
@@ -407,7 +407,7 @@ function loginAdminCertificado() {
     $_SESSION['admin_avatar'] = function_exists('getAdminAvatarUrl') ? getAdminAvatarUrl($certRecord['avatar'] ?? null) : ($certRecord['avatar'] ?? null);
     $_SESSION['admin_origem'] = $certRecord['origem'] ?? 'painel';
     $_SESSION['admin_login_via'] = 'certificado';
-    $_SESSION['admin_template'] = 'fintech';
+    $_SESSION['admin_template'] = 'classico';
 
     $stmt = $pdo->prepare("UPDATE administradores SET ultimo_login = NOW() WHERE id = ?");
     $stmt->execute([$certRecord['admin_id']]);

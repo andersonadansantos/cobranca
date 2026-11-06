@@ -824,24 +824,12 @@ function verificarLimitePlano($tipo, $adminId = null) {
 }
 
 // =====================================================
-// SELETOR DE TEMPLATES (Clássico vs Fintech Minimalist)
+// TEMPLATE DO PAINEL (somente Clássico)
 // =====================================================
+// O template Fintech Minimalist foi removido do sistema. A função é mantida
+// por compatibilidade e sempre retorna o template Clássico.
 function getAdminTemplate($adminId = null) {
-    if (isset($_GET['template']) && in_array($_GET['template'], ['classico', 'fintech'], true)) {
-        $_SESSION['admin_template'] = $_GET['template'];
-        if (function_exists('saveConfig') && isset($_SESSION['admin_id'])) {
-            saveConfig('template_admin', $_GET['template']);
-        }
-        return $_GET['template'];
-    }
-    if (isset($_SESSION['admin_template']) && in_array($_SESSION['admin_template'], ['classico', 'fintech'], true)) {
-        return $_SESSION['admin_template'];
-    }
-    $salvo = function_exists('getConfig') ? getConfig('template_admin', 'fintech') : 'fintech';
-    if (!in_array($salvo, ['classico', 'fintech'], true)) {
-        $salvo = 'classico';
-    }
-    $_SESSION['admin_template'] = $salvo;
-    return $salvo;
+    $_SESSION['admin_template'] = 'classico';
+    return 'classico';
 }
 

@@ -44,19 +44,11 @@ $pageTitle = isset($pageTitle) ? $pageTitle : $nomeSistema;
 
 $painelIdioma = painelIdiomaAtual();
 
-$templateAtivo = function_exists('getAdminTemplate') ? getAdminTemplate() : 'fintech';
-
-$isAdminArea = strpos($_SERVER['PHP_SELF'] ?? '', '/admin') !== false;
-
-$isUserArea = strpos($_SERVER['PHP_SELF'] ?? '', '/usuario') !== false;
-
-$isFintech = ($templateAtivo === 'fintech' && ($isAdminArea || $isUserArea));
-
 ?>
 
 <!DOCTYPE html>
 
-<html lang="<?= $painelIdioma ?>" class="<?= $isFintech ? 'fintech-theme' : '' ?>">
+<html lang="<?= $painelIdioma ?>">
 
 <head>
 
@@ -83,20 +75,6 @@ $isFintech = ($templateAtivo === 'fintech' && ($isAdminArea || $isUserArea));
     <link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">
 
     <link href="/cobranca/assets/css/style.css?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__)) . '/assets/css/style.css') ?>" rel="stylesheet">
-
-<?php if ($isFintech): ?>
-
-    <!-- Fintech Minimalist & Executive Precision -->
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <link href="/cobranca/assets/css/template_fintech.css?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__)) . '/assets/css/template_fintech.css') ?>" rel="stylesheet">
-
-<?php endif; ?>
 
     <script src="/cobranca/assets/vendor/chartjs/chart.umd.min.js"></script>
 
@@ -146,9 +124,7 @@ $isFintech = ($templateAtivo === 'fintech' && ($isAdminArea || $isUserArea));
 
 </head>
 
-<body class="<?= $isFintech ? 'fintech-theme' : '' ?>">
-
-<?php if ($isFintech): ?><div class="fintech-wrapper"><?php endif; ?>
+<body>
 
 <?php if (($_SESSION['admin_origem'] ?? '') === 'demo'): ?>
 
