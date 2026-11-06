@@ -18,3 +18,5 @@ _initial_credentials.txt
 *.bak_*
 deploy_*.ps1
 scratch/
+
+chaves_ssh/
