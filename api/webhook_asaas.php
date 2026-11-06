@@ -18,17 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Validação opcional por token (header asaas-access-token)
-$webhookToken = getConfig('asaas_webhook_token', '');
-if (!empty($webhookToken)) {
-    $recebido = $_SERVER['HTTP_ASAAS_ACCESS_TOKEN'] ?? ($_GET['token'] ?? '');
-    if (!hash_equals($webhookToken, (string) $recebido)) {
-        http_response_code(401);
-        echo json_encode(['error' => 'Unauthorized']);
-        exit;
-    }
-}
-
 $dados = json_decode(file_get_contents('php://input'), true);
 
 if (!$dados || empty($dados['event']) || empty($dados['payment']['id'])) {
@@ -40,6 +29,24 @@ if (!$dados || empty($dados['event']) || empty($dados['payment']['id'])) {
 $evento = $dados['event'];
 $payment = $dados['payment'];
 $paymentId = $payment['id'];
+
+// Quantos admins tem subdominio, a URL e dele e o initTenant ja definiu o
+// contexto. Nesse caso o token do proprio admin e validado antes da consulta.
+// Na URL compartilhada (raiz), o token e validado depois que a fatura revela
+// o admin dono — assim cada admin pode ter o seu token.
+$tenantAdminId = function_exists('getTenantAdminId') ? (int) getTenantAdminId() : 0;
+
+if ($tenantAdminId > 0) {
+    $webhookToken = getConfig('asaas_webhook_token', '');
+    if (!empty($webhookToken)) {
+        $recebido = $_SERVER['HTTP_ASAAS_ACCESS_TOKEN'] ?? ($_GET['token'] ?? '');
+        if (!hash_equals($webhookToken, (string) $recebido)) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Unauthorized']);
+            exit;
+        }
+    }
+}
 
 // Log da notificação
 $logEntry = date('Y-m-d H:i:s') . " | Evento: {$evento} | Payment: {$paymentId}\n";
@@ -64,9 +71,34 @@ if (isset($mapeamento[$evento])) {
 
     $pdo = getConnection();
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ? AND api_pagamento = 'asaas'");
-        $stmt->execute([$paymentId]);
+        $sqlFatura = "SELECT * FROM faturas WHERE mp_payment_id = ? AND api_pagamento = 'asaas'";
+        $paramsFatura = [$paymentId];
+        if ($tenantAdminId > 0) {
+            $sqlFatura .= " AND admin_id = ?";
+            $paramsFatura[] = $tenantAdminId;
+        }
+        $sqlFatura .= " ORDER BY id DESC LIMIT 1";
+        $stmt = $pdo->prepare($sqlFatura);
+        $stmt->execute($paramsFatura);
         $fatura = $stmt->fetch();
+
+        if ($fatura) {
+            $donoAdminId = (int) ($fatura['admin_id'] ?? 0);
+            // URL compartilhada: descobre o admin pela fatura e valida o token
+            // dele. Se ele nao tiver token, mantem o comportamento global.
+            if ($tenantAdminId <= 0 && $donoAdminId > 0) {
+                $_SESSION['tenant_admin_id'] = $donoAdminId;
+                $webhookToken = getConfig('asaas_webhook_token', '');
+                if (!empty($webhookToken)) {
+                    $recebido = $_SERVER['HTTP_ASAAS_ACCESS_TOKEN'] ?? ($_GET['token'] ?? '');
+                    if (!hash_equals($webhookToken, (string) $recebido)) {
+                        http_response_code(401);
+                        echo json_encode(['error' => 'Unauthorized']);
+                        exit;
+                    }
+                }
+            }
+        }
 
         if ($fatura && $fatura['status'] !== 'pago') {
             if ($novoStatus === '__semcancelar__') {

@@ -127,24 +127,55 @@ function getConfigGlobal($chave, $padrao = '') {
     return $row ? $row['valor'] : $padrao;
 }
 
-// URL pública do sistema, usada para montar as URLs de webhook
-// pré-configuradas nos paineis. Usa a config base_domain
+// Dominio base do sistema, sem protocolo. Usa a config global base_domain
 // (ex.: centraldefaturas.com.br) e cai para o dominio padrao quando vazia.
-function urlPublicaSistema() {
-    $dominio = trim((string) getConfig('base_domain', ''));
+function dominioBaseSistema() {
+    $dominio = trim((string) getConfigGlobal('base_domain', ''));
+    if ($dominio === '') {
+        $dominio = trim((string) getConfig('base_domain', ''));
+    }
     if ($dominio === '') {
         $dominio = 'centraldefaturas.com.br';
     }
     $dominio = preg_replace('#^https?://#i', '', $dominio);
-    $dominio = rtrim($dominio, '/');
-    return 'https://' . $dominio;
+    return rtrim($dominio, '/');
 }
 
-// Monta a URL padrao de um endpoint de webhook do sistema.
-// Ex.: webhookUrlPadrao('webhook_inter.php')
-//      => https://centraldefaturas.com.br/cobranca/api/webhook_inter.php
+// URL pública do sistema.
+function urlPublicaSistema() {
+    return 'https://' . dominioBaseSistema();
+}
+
+// Monta a URL padrao de um endpoint de webhook.
+//
+// Modelo hibrido: quando o admin tem subdominio, a URL e dele
+// (ex.: https://cliente.centraldefaturas.com.br/cobranca/api/webhook.php).
+// Assim o initTenant() identifica o admin pelo host e o webhook usa somente as
+// credenciais daquele tenant. Admins sem subdominio continuam usando a URL
+// compartilhada na raiz, que segue funcionando como fallback.
 function webhookUrlPadrao($arquivo) {
-    return urlPublicaSistema() . '/cobranca/api/' . ltrim((string) $arquivo, '/');
+    $arquivo = ltrim((string) $arquivo, '/');
+
+    $adminId = function_exists('getCurrentAdminId') ? (int) getCurrentAdminId() : 0;
+    if ($adminId <= 0 && function_exists('getTenantAdminId')) {
+        $adminId = (int) getTenantAdminId();
+    }
+
+    if ($adminId > 0) {
+        $pdo = getConnection();
+        if ($pdo) {
+            try {
+                $stmt = $pdo->prepare("SELECT subdominio FROM administradores WHERE id = ? AND ativo = 1");
+                $stmt->execute([$adminId]);
+                $subdominio = strtolower(trim((string) $stmt->fetchColumn()));
+                if ($subdominio !== '' && preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/', $subdominio)) {
+                    return 'https://' . $subdominio . '.' . dominioBaseSistema() . '/cobranca/api/' . $arquivo;
+                }
+            } catch (PDOException $e) {}
+        }
+    }
+
+    return urlPublicaSistema() . '/cobranca/api/' . $arquivo;
 }
 
 // Grava uma configuração global (admin_id NULL), independente da sessão.

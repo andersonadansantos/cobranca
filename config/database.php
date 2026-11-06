@@ -265,6 +265,44 @@ function getConnection() {
             }
         } catch (PDOException $e) {}
 
+        // === MIGRAÇÃO: URL de webhook por admin ===
+        // Admins com subdominio passam a usar a URL do proprio subdominio nos
+        // valores que ainda apontam para a URL compartilhada antiga. Uma URL
+        // personalizada pelo admin e preservada. A URL raiz continua valida
+        // como fallback para quem nao tem subdominio.
+        try {
+            $marcadorWebhook = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'webhook_url_por_admin'")->fetchColumn();
+            if ((int) $marcadorWebhook === 0) {
+                $dominioWebhook = trim((string) $pdo->query("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = 'base_domain'")->fetchColumn());
+                if ($dominioWebhook === '') {
+                    $dominioWebhook = 'centraldefaturas.com.br';
+                }
+                $dominioWebhook = rtrim(preg_replace('#^https?://#i', '', $dominioWebhook), '/');
+
+                $mapaWebhook = [
+                    'mp_webhook_url' => 'webhook.php',
+                    'inter_webhook_url' => 'webhook_inter.php',
+                    'asaas_webhook_url' => 'webhook_asaas.php',
+                    'pagbank_webhook_url' => 'webhook_pagbank.php',
+                ];
+
+                $adminsWebhook = $pdo->query("SELECT id, subdominio FROM administradores WHERE ativo = 1 AND subdominio IS NOT NULL AND subdominio <> ''");
+                foreach ($adminsWebhook->fetchAll(PDO::FETCH_ASSOC) as $admWebhook) {
+                    $subWebhook = strtolower(trim((string) $admWebhook['subdominio']));
+                    if ($subWebhook === '' || !preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/', $subWebhook)) {
+                        continue;
+                    }
+                    foreach ($mapaWebhook as $chaveWebhook => $arquivoWebhook) {
+                        $urlLegada = 'https://' . $dominioWebhook . '/cobranca/api/' . $arquivoWebhook;
+                        $urlAdmin = 'https://' . $subWebhook . '.' . $dominioWebhook . '/cobranca/api/' . $arquivoWebhook;
+                        $stUpWebhook = $pdo->prepare("UPDATE configuracoes SET valor = ? WHERE admin_id = ? AND chave = ? AND TRIM(TRAILING '/' FROM TRIM(valor)) = ?");
+                        $stUpWebhook->execute([$urlAdmin, (int) $admWebhook['id'], $chaveWebhook, rtrim($urlLegada, '/')]);
+                    }
+                }
+                try { $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('webhook_url_por_admin', '1')"); } catch (PDOException $e) {}
+            }
+        } catch (PDOException $e) {}
+
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `razao_social` VARCHAR(200) DEFAULT NULL AFTER `avatar`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `nome_fantasia` VARCHAR(200) DEFAULT NULL AFTER `razao_social`"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE `administradores` ADD COLUMN `cnpj` VARCHAR(20) DEFAULT NULL AFTER `nome_fantasia`"); } catch (PDOException $e) {}

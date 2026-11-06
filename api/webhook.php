@@ -65,9 +65,20 @@ if (!$pdo) {
 $fatura = null;
 $pagamento = null;
 
+// Quando o webhook chega pelo subdominio do admin, o initTenant ja definiu o
+// tenant. Nesse caso so as faturas/credenciais daquele admin sao usadas.
+$tenantAdminId = function_exists('getTenantAdminId') ? (int) getTenantAdminId() : 0;
+
 // Tentativa 1: busca direta por mp_payment_id
-$stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ? ORDER BY id DESC LIMIT 5");
-$stmt->execute([$dataId]);
+$sqlCandidatas = "SELECT * FROM faturas WHERE mp_payment_id = ?";
+$paramsCandidatas = [$dataId];
+if ($tenantAdminId > 0) {
+    $sqlCandidatas .= " AND admin_id = ?";
+    $paramsCandidatas[] = $tenantAdminId;
+}
+$sqlCandidatas .= " ORDER BY id DESC LIMIT 5";
+$stmt = $pdo->prepare($sqlCandidatas);
+$stmt->execute($paramsCandidatas);
 $candidatas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (!empty($candidatas)) {
@@ -90,9 +101,14 @@ if (!empty($candidatas)) {
 
 // Tentativa 2: se não achou por mp_payment_id, consulta o pagamento no Mercado Pago e busca por external_reference
 if (!$fatura || !$pagamento) {
-    // Tenta consultar com os tokens dos administradores cadastrados
-    $stmtAdmins = $pdo->query("SELECT id FROM administradores WHERE ativo = 1 ORDER BY id ASC");
-    $admins = $stmtAdmins ? $stmtAdmins->fetchAll(PDO::FETCH_COLUMN) : [];
+    // Com subdominio, usa apenas o token do admin do tenant. Na URL
+    // compartilhada (raiz), tenta os administradores ate achar o dono.
+    if ($tenantAdminId > 0) {
+        $admins = [$tenantAdminId];
+    } else {
+        $stmtAdmins = $pdo->query("SELECT id FROM administradores WHERE ativo = 1 ORDER BY id ASC");
+        $admins = $stmtAdmins ? $stmtAdmins->fetchAll(PDO::FETCH_COLUMN) : [];
+    }
     
     foreach ($admins as $admId) {
         $_SESSION['tenant_admin_id'] = (int)$admId;
@@ -101,21 +117,27 @@ if (!$fatura || !$pagamento) {
             $pagamento = $pgto;
             $extRef = trim((string)($pgto['external_reference'] ?? ''));
             if ($extRef !== '') {
-                // Tenta buscar por ID ou pelo número da fatura
+                // Busca sempre escopada ao admin dono do token, para nunca
+                // casar a fatura de outro tenant (numero e unico por admin).
                 if (is_numeric($extRef)) {
-                    $stRef = $pdo->prepare("SELECT * FROM faturas WHERE id = ?");
-                    $stRef->execute([(int)$extRef]);
+                    $stRef = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ?");
+                    $stRef->execute([(int)$extRef, (int)$admId]);
                     $fatura = $stRef->fetch(PDO::FETCH_ASSOC);
                 }
                 if (!$fatura) {
-                    $stRefNum = $pdo->prepare("SELECT * FROM faturas WHERE numero = ?");
-                    $stRefNum->execute([$extRef]);
+                    $stRefNum = $pdo->prepare("SELECT * FROM faturas WHERE admin_id = ? AND numero = ?");
+                    $stRefNum->execute([(int)$admId, $extRef]);
                     $fatura = $stRefNum->fetch(PDO::FETCH_ASSOC);
                 }
             }
             break;
         }
     }
+}
+
+// Garante que a notificacao e a baixa rodem no tenant dono da fatura.
+if ($fatura && !empty($fatura['admin_id'])) {
+    $_SESSION['tenant_admin_id'] = (int) $fatura['admin_id'];
 }
 
 // Se encontrou a fatura correspondente E a API confirmou o pagamento.

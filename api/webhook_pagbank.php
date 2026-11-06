@@ -47,8 +47,19 @@ if (!$pdo) {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT * FROM faturas WHERE mp_payment_id = ?");
-$stmt->execute([$orderPagBankId]);
+// Quando o webhook chega pelo subdominio do admin, o initTenant ja definiu o
+// tenant. Nesse caso somente faturas daquele admin podem ser baixadas.
+$tenantAdminId = function_exists('getTenantAdminId') ? (int) getTenantAdminId() : 0;
+
+$sqlFatura = "SELECT * FROM faturas WHERE mp_payment_id = ?";
+$paramsFatura = [$orderPagBankId];
+if ($tenantAdminId > 0) {
+    $sqlFatura .= " AND admin_id = ?";
+    $paramsFatura[] = $tenantAdminId;
+}
+$sqlFatura .= " ORDER BY id DESC LIMIT 1";
+$stmt = $pdo->prepare($sqlFatura);
+$stmt->execute($paramsFatura);
 $fatura = $stmt->fetch();
 
 if (!$fatura) {

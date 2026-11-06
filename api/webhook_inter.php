@@ -31,6 +31,9 @@ if (!$pdo) {
 }
 
 $fatura = null;
+// Subdominio do admin define o tenant; na URL compartilhada fica 0 e a
+// fatura e localizada pelos identificadores unicos do gateway.
+$tenantAdminId = function_exists('getTenantAdminId') ? (int) getTenantAdminId() : 0;
 $codigoSolicitacao = $dados['codigoSolicitacao'] ?? ($dados['cobranca']['codigoSolicitacao'] ?? '');
 $situacao = $dados['situacao'] ?? ($dados['cobranca']['situacao'] ?? '');
 $seuNumero = $dados['seuNumero'] ?? ($dados['cobranca']['seuNumero'] ?? '');
@@ -58,21 +61,50 @@ if (isset($dados['pix']) && is_array($dados['pix'])) {
 
 // Localizar a fatura no banco de dados
 if (!empty($codigoSolicitacao)) {
-    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE inter_codigo_solicitacao = ? LIMIT 1");
-    $stmt->execute([$codigoSolicitacao]);
+    $sqlCodigo = "SELECT * FROM faturas WHERE inter_codigo_solicitacao = ?";
+    $paramsCodigo = [$codigoSolicitacao];
+    if ($tenantAdminId > 0) {
+        $sqlCodigo .= " AND admin_id = ?";
+        $paramsCodigo[] = $tenantAdminId;
+    }
+    $sqlCodigo .= " LIMIT 1";
+    $stmt = $pdo->prepare($sqlCodigo);
+    $stmt->execute($paramsCodigo);
     $fatura = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
 if (!$fatura && !empty($txid)) {
-    $stmtTx = $pdo->prepare("SELECT * FROM faturas WHERE pix_inter_codigo = ? OR inter_codigo_solicitacao = ? OR pix_copia_cola LIKE ? LIMIT 1");
-    $stmtTx->execute([$txid, $txid, '%' . $txid . '%']);
+    $sqlTx = "SELECT * FROM faturas WHERE (pix_inter_codigo = ? OR inter_codigo_solicitacao = ? OR pix_copia_cola LIKE ?)";
+    $paramsTx = [$txid, $txid, '%' . $txid . '%'];
+    if ($tenantAdminId > 0) {
+        $sqlTx .= " AND admin_id = ?";
+        $paramsTx[] = $tenantAdminId;
+    }
+    $sqlTx .= " LIMIT 1";
+    $stmtTx = $pdo->prepare($sqlTx);
+    $stmtTx->execute($paramsTx);
     $fatura = $stmtTx->fetch(PDO::FETCH_ASSOC);
 }
 
 if (!$fatura && !empty($seuNumero)) {
-    $stmtNum = $pdo->prepare("SELECT * FROM faturas WHERE numero = ? LIMIT 1");
-    $stmtNum->execute([$seuNumero]);
-    $fatura = $stmtNum->fetch(PDO::FETCH_ASSOC);
+    $sqlNum = "SELECT * FROM faturas WHERE numero = ?";
+    $paramsNum = [$seuNumero];
+    if ($tenantAdminId > 0) {
+        $sqlNum .= " AND admin_id = ?";
+        $paramsNum[] = $tenantAdminId;
+    }
+    $stmtNum = $pdo->prepare($sqlNum);
+    $stmtNum->execute($paramsNum);
+    $candidatasNum = $stmtNum->fetchAll(PDO::FETCH_ASSOC);
+
+    if (count($candidatasNum) === 1) {
+        $fatura = $candidatasNum[0];
+    } elseif (count($candidatasNum) > 1) {
+        // Numero de fatura e unico por admin, nao globalmente. Na URL
+        // compartilhada, mais de um tenant com o mesmo numero e ambiguo:
+        // nao da baixa e registra para auditoria.
+        @file_put_contents(__DIR__ . '/webhook_inter_log.txt', date('Y-m-d H:i:s') . " | NUMERO AMBIGUO | seuNumero: {$seuNumero} | candidatas: " . count($candidatasNum) . "\n", FILE_APPEND | LOCK_EX);
+    }
 }
 
 if ($fatura) {
