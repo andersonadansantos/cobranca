@@ -48,7 +48,7 @@ $painelIdioma = painelIdiomaAtual();
 
 <!DOCTYPE html>
 
-<html lang="<?= $painelIdioma ?>">
+<html lang="<?= $painelIdioma ?>" class="fintech-theme">
 
 <head>
 
@@ -76,6 +76,16 @@ $painelIdioma = painelIdiomaAtual();
 
     <link href="/cobranca/assets/css/style.css?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__)) . '/assets/css/style.css') ?>" rel="stylesheet">
 
+    <!-- Identidade visual Fintech aplicada ao layout clássico -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link href="/cobranca/assets/css/template_fintech.css?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__)) . '/assets/css/template_fintech.css') ?>" rel="stylesheet">
+
     <script src="/cobranca/assets/vendor/chartjs/chart.umd.min.js"></script>
 
     <script>
@@ -102,7 +112,7 @@ $painelIdioma = painelIdiomaAtual();
 
         'LABELS' => painelIdiomas(),
 
-        'FLAGS' => array_map('painelBandeira', array_keys(painelIdiomas())),
+        'FLAGS' => array_combine(array_keys(painelIdiomas()), array_map('painelBandeira', array_keys(painelIdiomas()))),
 
     ], JSON_UNESCAPED_UNICODE) ?>;
 
@@ -124,7 +134,7 @@ $painelIdioma = painelIdiomaAtual();
 
 </head>
 
-<body>
+<body class="fintech-theme">
 
 <?php if (($_SESSION['admin_origem'] ?? '') === 'demo'): ?>
 
