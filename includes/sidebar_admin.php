@@ -53,7 +53,7 @@ $logoMaxWidth = 200;
         <a href="#" class="nav-link sidebar-toggle-config" onclick="var el=document.getElementById('configSubmenu');el.style.display=el.style.display==='none'?'block':'none';var icon=this.querySelector('.fa-chevron-down,.fa-chevron-up');if(icon){icon.classList.toggle('fa-chevron-down');icon.classList.toggle('fa-chevron-up');}return false;">
             <i class="fas fa-cog"></i> <?= t('nav.configuracoes') ?> <i class="fas fa-chevron-down ms-auto" style="font-size:0.65rem;"></i>
         </a>
-        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','template_email','template_whats','template_recibo','config_financeiro','whatsapp'])) ? 'block' : 'none' ?>;">
+        <div id="configSubmenu" style="display:<?= (in_array($currentPage, ['config_api','personalizacao','banners','envios','logs','template_email','template_whats','template_recibo','config_financeiro','whatsapp'])) ? 'block' : 'none' ?>;">
             <a href="<?= $basePath ?>/config_api.php" class="nav-link <?= $currentPage === 'config_api' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-key"></i> <?= t('nav.api_pagamento') ?>
             </a>
@@ -65,6 +65,9 @@ $logoMaxWidth = 200;
             </a>
             <a href="<?= $basePath ?>/envios.php" class="nav-link <?= $currentPage === 'envios' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-paper-plane"></i> <?= t('nav.config_envios') ?>
+            </a>
+            <a href="<?= $basePath ?>/logs.php" class="nav-link <?= $currentPage === 'logs' ? 'active' : '' ?>" style="padding-left:2rem;">
+                <i class="fas fa-clipboard-list"></i> <?= t('nav.logs') ?>
             </a>
             <a href="<?= $basePath ?>/template_email.php" class="nav-link <?= $currentPage === 'template_email' ? 'active' : '' ?>" style="padding-left:2rem;">
                 <i class="fas fa-envelope-open-text"></i> <?= t('nav.template_email') ?>

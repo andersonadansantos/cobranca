@@ -71,74 +71,157 @@ $descPadrao = trim($config['template_recibo_descricao_padrao'] ?? '') ?: 'refere
 $reciboNumeroGerado = '';
 $reciboHtml = '';
 
+$ctxRecibo = [
+    'template'         => getTemplateReciboHtml(),
+    'logo_abs'         => $logoAbs,
+    'emit_nome'        => $emitNome,
+    'emit_cnpj'        => $emitCnpj,
+    'emit_insc_mun'    => $emitInscMun,
+    'emit_end'         => $emitEnd,
+    'emit_cidade'      => $emitCidade,
+    'emit_estado'      => $emitEstado,
+    'emit_cep'         => $emitCep,
+    'emit_tel'         => $emitTel,
+    'emit_email'       => $emitEmail,
+    'exibir_assinatura'=> $exibirAssinatura,
+    'cidade_padrao'    => $cidadeEmissaoPadrao,
+    'desc_padrao'      => $descPadrao,
+];
+
+if (!function_exists('reciboAvulsoNormalizar')) {
+    // Normaliza os campos do formulario (POST ou dados de exemplo) em um
+    // array unico, usado tanto pela pre-visualizacao quanto pela geracao.
+    function reciboAvulsoNormalizar(array $src, array $ctx): array
+    {
+        $valorBruto = trim((string)($src['valor'] ?? '0'));
+        $valorBruto = str_replace('.', '', $valorBruto);
+        $valorBruto = str_replace(',', '.', $valorBruto);
+        $valorRec = max(0, (float)$valorBruto);
+
+        $dataEmissao = trim((string)($src['data_emissao'] ?? ''));
+        $tsEmissao = $dataEmissao !== '' ? strtotime($dataEmissao) : false;
+        $dataFmt = $tsEmissao ? date('d/m/Y', $tsEmissao) : date('d/m/Y');
+
+        $endereco = trim(
+            trim((string)($src['cliente_logradouro'] ?? '')) . ', ' .
+            trim((string)($src['cliente_numero'] ?? '')) . ' ' .
+            trim((string)($src['cliente_complemento'] ?? '')),
+            " ,"
+        );
+
+        return [
+            'nome'           => trim((string)($src['cliente_nome'] ?? '')),
+            'doc'            => reciboAvulsoDoc($src['cliente_doc'] ?? ''),
+            'endereco'       => $endereco,
+            'cidade'         => trim((string)($src['cliente_cidade'] ?? '')),
+            'estado'         => trim((string)($src['cliente_estado'] ?? '')),
+            'cep'            => reciboAvulsoCep($src['cliente_cep'] ?? ''),
+            'telefone'       => trim((string)($src['cliente_telefone'] ?? '')),
+            'email'          => trim((string)($src['cliente_email'] ?? '')),
+            'descricao'      => trim((string)($src['descricao_servico'] ?? '')) ?: $ctx['desc_padrao'],
+            'valor'          => $valorRec,
+            'valor_fmt'      => 'R$ ' . number_format($valorRec, 2, ',', '.'),
+            'valor_extenso'  => valorPorExtenso($valorRec),
+            'data_fmt'       => $dataFmt,
+            'cidade_emissao' => trim((string)($src['cidade_emissao'] ?? '')) ?: $ctx['cidade_padrao'],
+        ];
+    }
+}
+
+if (!function_exists('reciboAvulsoRender')) {
+    // Aplica o template configurado em Template Recibo aos dados informados.
+    function reciboAvulsoRender(array $d, array $ctx, string $numero): string
+    {
+        $assinaturaBloco = '';
+        if (!empty($ctx['exibir_assinatura'])) {
+            $assinaturaBloco = '<div style="text-align:center;margin-top:40px;">
+                <div style="width:250px;border-bottom:1px solid #1a1a2e;margin:0 auto 6px auto;">&nbsp;</div>
+                <div style="font-size:12px;font-weight:bold;">' . htmlspecialchars($ctx['emit_nome']) . '</div>
+            </div>';
+        }
+
+        $vars = [
+            '{{empresa_logo}}' => '<img src="' . htmlspecialchars($ctx['logo_abs']) . '" style="max-width:250px;">',
+            '{{empresa_nome}}' => htmlspecialchars($ctx['emit_nome']),
+            '{{empresa_cnpj}}' => htmlspecialchars($ctx['emit_cnpj']),
+            '{{empresa_inscricao_municipal}}' => htmlspecialchars($ctx['emit_insc_mun']),
+            '{{empresa_endereco}}' => htmlspecialchars($ctx['emit_end']),
+            '{{empresa_cidade}}' => htmlspecialchars($ctx['emit_cidade']),
+            '{{empresa_estado}}' => htmlspecialchars($ctx['emit_estado']),
+            '{{empresa_cep}}' => htmlspecialchars($ctx['emit_cep']),
+            '{{empresa_telefone}}' => htmlspecialchars($ctx['emit_tel']),
+            '{{empresa_email}}' => htmlspecialchars($ctx['emit_email']),
+            '{{cliente_nome}}' => htmlspecialchars($d['nome']),
+            '{{cliente_cnpj_cpf}}' => htmlspecialchars($d['doc']),
+            '{{cliente_endereco}}' => htmlspecialchars($d['endereco']),
+            '{{cliente_cidade}}' => htmlspecialchars($d['cidade']),
+            '{{cliente_estado}}' => htmlspecialchars($d['estado']),
+            '{{cliente_cep}}' => htmlspecialchars($d['cep']),
+            '{{cliente_telefone}}' => htmlspecialchars($d['telefone']),
+            '{{cliente_email}}' => htmlspecialchars($d['email']),
+            '{{fatura_numero}}' => '&#8212;',
+            '{{recibo_numero}}' => htmlspecialchars($numero),
+            '{{valor_recebido}}' => $d['valor_fmt'],
+            '{{valor_extenso}}' => $d['valor_extenso'],
+            '{{descricao_servico}}' => htmlspecialchars($d['descricao']),
+            '{{data_emissao}}' => $d['data_fmt'],
+            '{{cidade_emissao}}' => htmlspecialchars($d['cidade_emissao']),
+            '{{assinatura_bloco}}' => $assinaturaBloco,
+        ];
+
+        return strtr($ctx['template'], $vars);
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'preview') {
+    $htmlPreview = reciboAvulsoRender(
+        reciboAvulsoNormalizar($_POST, $ctxRecibo),
+        $ctxRecibo,
+        'PRÉVIA'
+    );
+    if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['html' => $htmlPreview], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $previewHtml = $htmlPreview;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'gerar') {
-    $clNome = htmlspecialchars(trim($_POST['cliente_nome'] ?? ''));
-    $clDoc = htmlspecialchars(reciboAvulsoDoc($_POST['cliente_doc'] ?? ''));
-    $clEnd = trim((trim($_POST['cliente_logradouro'] ?? '') . ', ' . trim($_POST['cliente_numero'] ?? '') . ' ' . trim($_POST['cliente_complemento'] ?? '')), " ,");
-    $clEnd = htmlspecialchars($clEnd);
-    $clCidade = htmlspecialchars(trim($_POST['cliente_cidade'] ?? ''));
-    $clEstado = htmlspecialchars(trim($_POST['cliente_estado'] ?? ''));
-    $clCep = htmlspecialchars(reciboAvulsoCep($_POST['cliente_cep'] ?? ''));
-    $clTel = htmlspecialchars(trim($_POST['cliente_telefone'] ?? ''));
-    $clEmail = htmlspecialchars(trim($_POST['cliente_email'] ?? ''));
-    $descServico = htmlspecialchars(trim($_POST['descricao_servico'] ?? '') ?: $descPadrao);
-
-    $dataEmissao = trim($_POST['data_emissao'] ?? '');
-    $dataEmissaoFmt = $dataEmissao !== '' ? date('d/m/Y', strtotime($dataEmissao)) : date('d/m/Y');
-    $cidadeEmissao = htmlspecialchars(trim($_POST['cidade_emissao'] ?? '') ?: $cidadeEmissaoPadrao);
-
-    $valorBruto = trim($_POST['valor'] ?? '0');
-    $valorBruto = str_replace('.', '', $valorBruto);
-    $valorBruto = str_replace(',', '.', $valorBruto);
-    $valorRec = max(0, (float)$valorBruto);
-    $valorFmt = 'R$ ' . number_format($valorRec, 2, ',', '.');
-    $valorExtenso = valorPorExtenso($valorRec);
+    $dadosRecibo = reciboAvulsoNormalizar($_POST, $ctxRecibo);
 
     $seq = (int)getConfig('recibo_avulso_seq', 0) + 1;
     saveConfig('recibo_avulso_seq', (string)$seq);
     $reciboNumero = 'AVU-' . date('Y') . '-' . str_pad($seq, 6, '0', STR_PAD_LEFT);
 
-    $assinaturaBloco = '';
-    if ($exibirAssinatura) {
-        $assinaturaBloco = '<div style="text-align:center;margin-top:40px;">
-            <div style="width:250px;border-bottom:1px solid #1a1a2e;margin:0 auto 6px auto;">&nbsp;</div>
-            <div style="font-size:12px;font-weight:bold;">' . htmlspecialchars($emitNome) . '</div>
-        </div>';
-    }
-
-    $vars = [
-        '{{empresa_logo}}' => '<img src="' . htmlspecialchars($logoAbs) . '" style="max-width:250px;">',
-        '{{empresa_nome}}' => htmlspecialchars($emitNome),
-        '{{empresa_cnpj}}' => htmlspecialchars($emitCnpj),
-        '{{empresa_inscricao_municipal}}' => htmlspecialchars($emitInscMun),
-        '{{empresa_endereco}}' => htmlspecialchars($emitEnd),
-        '{{empresa_cidade}}' => htmlspecialchars($emitCidade),
-        '{{empresa_estado}}' => htmlspecialchars($emitEstado),
-        '{{empresa_cep}}' => htmlspecialchars($emitCep),
-        '{{empresa_telefone}}' => htmlspecialchars($emitTel),
-        '{{empresa_email}}' => htmlspecialchars($emitEmail),
-        '{{cliente_nome}}' => $clNome,
-        '{{cliente_cnpj_cpf}}' => $clDoc,
-        '{{cliente_endereco}}' => $clEnd,
-        '{{cliente_cidade}}' => $clCidade,
-        '{{cliente_estado}}' => $clEstado,
-        '{{cliente_cep}}' => $clCep,
-        '{{cliente_telefone}}' => $clTel,
-        '{{cliente_email}}' => $clEmail,
-        '{{fatura_numero}}' => '&#8212;',
-        '{{recibo_numero}}' => htmlspecialchars($reciboNumero),
-        '{{valor_recebido}}' => $valorFmt,
-        '{{valor_extenso}}' => $valorExtenso,
-        '{{descricao_servico}}' => $descServico,
-        '{{data_emissao}}' => $dataEmissaoFmt,
-        '{{cidade_emissao}}' => $cidadeEmissao,
-        '{{assinatura_bloco}}' => $assinaturaBloco,
-    ];
-
-    $reciboHtml = strtr(getTemplateReciboHtml(), $vars);
+    $reciboHtml = reciboAvulsoRender($dadosRecibo, $ctxRecibo, $reciboNumero);
     $reciboNumeroGerado = $reciboNumero;
     $mensagem = 'Recibo ' . $reciboNumero . ' gerado com sucesso!';
     $tipo = 'success';
+}
+
+if (!isset($previewHtml) || $previewHtml === null) {
+    $dadosPreview = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : [
+        'cliente_nome'        => 'João da Silva',
+        'cliente_doc'         => '123.456.789-00',
+        'cliente_logradouro'  => 'Av. Cliente',
+        'cliente_numero'      => '456',
+        'cliente_complemento' => '',
+        'cliente_cidade'      => 'Rio de Janeiro',
+        'cliente_estado'      => 'RJ',
+        'cliente_cep'         => '22000-000',
+        'cliente_telefone'    => '(21) 0000-0000',
+        'cliente_email'       => 'cliente@email.com',
+        'descricao_servico'   => $descPadrao,
+        'valor'               => '1.500,00',
+        'data_emissao'        => date('Y-m-d'),
+        'cidade_emissao'      => $cidadeEmissaoPadrao,
+    ];
+    $previewHtml = reciboAvulsoRender(
+        reciboAvulsoNormalizar($dadosPreview, $ctxRecibo),
+        $ctxRecibo,
+        'PRÉVIA'
+    );
 }
 
 $pageTitle = 'Recibo Avulso';
@@ -300,6 +383,25 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 
             </div>
         </form>
+
+        <div class="form-card mt-4">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <h6 class="mb-0"><i class="fas fa-eye me-2"></i>Pré-visualização do Recibo (A4)</h6>
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="atualizarPreviewAvulso(this)">
+                    <i class="fas fa-sync me-1"></i> Atualizar pré-visualização
+                </button>
+            </div>
+            <div id="previewWrapperAvulso" style="border:1px solid #dee2e6;border-radius:8px;overflow:auto;background:#e9ecef;padding:20px;max-height:800px;">
+                <div id="previewAvulsoA4" style="width:794px;min-height:1123px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.15);margin:0 auto;">
+                    <?= $previewHtml ?>
+                </div>
+            </div>
+            <div class="text-muted mt-2" style="font-size:0.75rem;">
+                A pré-visualização usa o mesmo template configurado em
+                <a href="/cobranca/admin/template_recibo.php">Template Recibo</a>
+                e é atualizada com os dados preenchidos no formulário.
+            </div>
+        </div>
     </div>
 </div>
 
@@ -333,6 +435,43 @@ function mascaraMoedaAvulso(el) {
     var d = el.value.replace(/\D/g, '');
     while (d.length < 3) d = '0' + d;
     el.value = (parseInt(d.slice(0, -2), 10) || 0).toLocaleString('pt-BR') + ',' + d.slice(-2);
+}
+
+function atualizarPreviewAvulso(btn) {
+    var form = document.querySelector('form');
+    var alvo = document.getElementById('previewAvulsoA4');
+    if (!form || !alvo) return;
+
+    var rotuloOriginal = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Atualizando...';
+    }
+
+    var fd = new FormData(form);
+    fd.set('acao', 'preview');
+
+    fetch('/cobranca/admin/recibo_avulso.php', {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+        if (data && data.html) {
+            alvo.innerHTML = data.html;
+        }
+    })
+    .catch(function(err) {
+        console.error('Falha ao atualizar a pré-visualização:', err);
+        alert('Não foi possível atualizar a pré-visualização. Tente novamente.');
+    })
+    .finally(function() {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = rotuloOriginal;
+        }
+    });
 }
 
 function imprimirReciboAvulso() {
