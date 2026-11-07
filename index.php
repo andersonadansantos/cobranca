@@ -25,7 +25,7 @@ siteHeader();
             </h1>
             <p class="anim-entrada-d mt-6 text-lg text-slate-600 leading-relaxed max-w-xl"><?= siteT('hero_sub') ?></p>
             <div class="mt-8 flex flex-wrap items-center gap-3">
-                <a href="<?= siteAsset('/cadastro.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-base font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-xl shadow-brand-200 hover:-translate-y-0.5 transition">
+                <a href="<?= siteAsset('/cadastro.php') ?>" class="btn-hero-comecar inline-flex items-center gap-2 rounded-2xl px-7 py-4 text-base font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-xl shadow-brand-200 hover:-translate-y-0.5 transition">
                     <?= siteT('hero_btn1') ?>
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                 </a>
@@ -334,7 +334,7 @@ siteHeader();
             <h2 class="relative text-3xl sm:text-5xl font-black tracking-tight"><?= siteT('cta_titulo') ?></h2>
             <p class="relative mt-5 text-slate-200 max-w-xl mx-auto"><?= siteT('cta_sub') ?></p>
             <div class="relative mt-8 flex flex-wrap justify-center gap-3">
-                <a href="<?= siteAsset('/cadastro.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-8 py-4 font-bold text-brand-900 bg-white hover:bg-brand-50 shadow-xl transition"><?= siteT('cta_btn1') ?>
+                <a href="<?= siteAsset('/cadastro.php') ?>" class="btn-cta-criar inline-flex items-center gap-2 rounded-2xl px-8 py-4 font-bold text-brand-900 bg-white hover:bg-brand-50 shadow-xl transition"><?= siteT('cta_btn1') ?>
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                 </a>
                 <a href="<?= siteAsset('/demo.php') ?>" class="inline-flex items-center gap-2 rounded-2xl px-8 py-4 font-bold text-white border border-white/30 hover:bg-white/10 transition"><?= siteT('cta_btn2') ?></a>

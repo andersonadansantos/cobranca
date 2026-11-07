@@ -193,6 +193,7 @@ function siteTrad() {
         'nav_painel' => 'Abrir painel',
         'nav_login' => 'Login',
         'nav_criar' => 'Criar conta grátis',
+        'nav_criar_mobile' => 'Conta Grátis',
         // HERO
         'hero_badge' => 'Cobrança automática via WhatsApp e e-mail',
         'hero_t1' => 'Cobre e receba direto',
@@ -445,6 +446,7 @@ function siteTrad() {
         'nav_painel' => 'Abrir panel',
         'nav_login' => 'Login',
         'nav_criar' => 'Crear cuenta gratis',
+        'nav_criar_mobile' => 'Cuenta Gratis',
         // HERO
         'hero_badge' => 'Cobranza automática por WhatsApp y correo',
         'hero_t1' => 'Cobra y recibe directo',
@@ -1117,6 +1119,197 @@ function siteHeader($secao = '') {
             .anim-entrada, .anim-entrada-d, .anim-shimmer, .anim-flutua { animation: none; }
             .anim-entrada-d, .reveal-init { opacity: 1; transform: none; }
         }
+
+        /* ==========================================================================
+           BOTÕES "CRIAR CONTA GRÁTIS" - REGRAS EXCLUSIVAS PARA VERSÃO MOBILE
+           RESTRIÇÃO: A versão desktop (>= 768px) permanece 100% INALTERADA.
+           ========================================================================== */
+
+        /* Desktop (>= 768px): esconde ícones ou decorações específicas de mobile */
+        @media (min-width: 768px) {
+            .btn-criar-conta-nav-icone {
+                display: none !important;
+            }
+        }
+
+        /* Versão Mobile (< 768px): Design moderno, elegante, tátil e atrativo */
+        @media (max-width: 767.98px) {
+            /* 1. Botão "Criar conta grátis" no Header Superior Mobile */
+            .btn-criar-conta-nav {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 6px !important;
+                padding: 8px 14px !important;
+                min-height: 38px !important;
+                border-radius: 9999px !important;
+                font-size: 0.8125rem !important; /* 13px */
+                font-weight: 700 !important;
+                letter-spacing: -0.01em !important;
+                white-space: nowrap !important;
+                color: #ffffff !important;
+                text-decoration: none !important;
+                background: linear-gradient(135deg, #0057ec 0%, #0047c4 100%) !important;
+                border: 1px solid rgba(255, 255, 255, 0.28) !important;
+                box-shadow: 0 4px 14px -1px rgba(0, 87, 236, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+                transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease, filter 0.15s ease !important;
+                -webkit-tap-highlight-color: transparent !important;
+                touch-action: manipulation !important;
+                cursor: pointer !important;
+            }
+
+            .btn-criar-conta-nav:active {
+                transform: scale(0.96) !important;
+                box-shadow: 0 2px 6px -1px rgba(0, 87, 236, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+                filter: brightness(0.95) !important;
+            }
+
+            .btn-criar-conta-nav-icone {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 13px !important;
+                height: 13px !important;
+                color: #ffdd44 !important;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2)) !important;
+                animation: brilho-icone-mobile 2.8s infinite ease-in-out !important;
+            }
+
+            @keyframes brilho-icone-mobile {
+                0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.95; }
+                50%      { transform: scale(1.18) rotate(10deg); opacity: 1; }
+            }
+
+            /* 2. Botão "Criar conta grátis" no Menu Gaveta Mobile */
+            .btn-criar-conta-drawer {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 100% !important;
+                min-height: 52px !important;
+                margin-top: 14px !important;
+                margin-bottom: 4px !important;
+                padding: 13px 18px !important;
+                border-radius: 16px !important;
+                font-size: 0.9375rem !important; /* 15px */
+                font-weight: 800 !important;
+                letter-spacing: -0.01em !important;
+                color: #ffffff !important;
+                text-decoration: none !important;
+                background: linear-gradient(135deg, #0057ec 0%, #0043bf 55%, #003099 100%) !important;
+                border: 1px solid rgba(255, 255, 255, 0.22) !important;
+                box-shadow: 0 10px 24px -4px rgba(0, 87, 236, 0.45), 0 4px 10px -2px rgba(0, 87, 236, 0.25), inset 0 1px 1.5px rgba(255, 255, 255, 0.4) !important;
+                position: relative !important;
+                overflow: hidden !important;
+                transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease !important;
+                -webkit-tap-highlight-color: transparent !important;
+                touch-action: manipulation !important;
+            }
+
+            .btn-criar-conta-drawer:active {
+                transform: scale(0.985) !important;
+                filter: brightness(0.96) !important;
+                box-shadow: 0 6px 16px -3px rgba(0, 87, 236, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+            }
+
+            /* Efeito Shimmer moderno que percorre o botão do menu gaveta */
+            .btn-criar-conta-drawer::after {
+                content: '' !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: -100% !important;
+                width: 60% !important;
+                height: 100% !important;
+                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent) !important;
+                transform: skewX(-20deg) !important;
+                animation: shimmer-btn-drawer 4.5s infinite ease-in-out !important;
+                pointer-events: none !important;
+            }
+
+            @keyframes shimmer-btn-drawer {
+                0%   { left: -100%; }
+                25%  { left: 160%; }
+                100% { left: 160%; }
+            }
+
+            .btn-drawer-inner {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                width: 100% !important;
+                gap: 10px !important;
+                position: relative !important;
+                z-index: 1 !important;
+            }
+
+            .btn-drawer-icone {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 30px !important;
+                height: 30px !important;
+                border-radius: 10px !important;
+                background: rgba(255, 255, 255, 0.18) !important;
+                color: #ffdd44 !important;
+                flex-shrink: 0 !important;
+                box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
+            }
+
+            .btn-drawer-texto {
+                flex: 1 !important;
+                text-align: center !important;
+                font-size: 0.9375rem !important;
+                font-weight: 800 !important;
+                color: #ffffff !important;
+            }
+
+            .btn-drawer-badge {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 2px 7px !important;
+                font-size: 0.6875rem !important;
+                font-weight: 800 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.04em !important;
+                color: #00389a !important;
+                background: #ffffff !important;
+                border-radius: 9999px !important;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+            }
+
+            .btn-drawer-seta {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 28px !important;
+                height: 28px !important;
+                border-radius: 9px !important;
+                background: rgba(255, 255, 255, 0.15) !important;
+                color: #ffffff !important;
+                flex-shrink: 0 !important;
+            }
+
+            /* Ajuste harmônico fino para telas pequenas (< 380px, ex: iPhone SE) */
+            @media (max-width: 380px) {
+                .btn-criar-conta-nav {
+                    padding: 7px 11px !important;
+                    font-size: 0.75rem !important; /* 12px */
+                    gap: 4px !important;
+                }
+                .btn-criar-conta-nav-icone {
+                    width: 11px !important;
+                    height: 11px !important;
+                }
+            }
+
+            /* Resposta tátil ergonômica em botões de ação e conversão no mobile */
+            .btn-hero-comecar:active,
+            .btn-cta-criar:active {
+                transform: scale(0.97) !important;
+                transition: transform 0.15s ease !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-white text-slate-800 antialiased font-sans">
@@ -1186,7 +1379,13 @@ function siteHeader($secao = '') {
                 <?= siteT('nav_demo') ?>
             </a>
             <a href="<?= siteAsset('/admin') ?>" class="inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-brand-300 hover:text-brand-700 transition"><?= siteT('nav_login') ?></a>
-            <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="rounded-full px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-200 transition"><?= siteT('nav_criar') ?></a>
+            <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="btn-criar-conta-nav rounded-full px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-200 transition">
+                <svg class="btn-criar-conta-nav-icone" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                </svg>
+                <span class="hidden md:inline"><?= siteT('nav_criar') ?></span>
+                <span class="inline md:hidden"><?= siteT('nav_criar_mobile') ?></span>
+            </a>
             <button type="button" id="menu-mobile-btn" aria-label="Menu" aria-expanded="false"
                     class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-700 cursor-pointer">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -1200,7 +1399,21 @@ function siteHeader($secao = '') {
         <a href="<?= siteAsset('/#faq') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"><?= siteT('nav_duvidas') ?></a>
         <a href="<?= siteAsset('/demo.php') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-bold text-brand-700 hover:bg-brand-50"><?= siteT('nav_demo') ?></a>
         <a href="<?= siteAsset('/admin') ?>" class="menu-mobile-link block rounded-xl px-4 py-3 text-sm font-bold text-slate-700 border border-slate-200 hover:bg-slate-50"><?= siteT('nav_login') ?></a>
-        <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="mt-2 block rounded-xl px-4 py-3 text-center text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700"><?= siteT('nav_criar') ?></a>
+        <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="btn-criar-conta-drawer mt-2 block rounded-xl px-4 py-3 text-center text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700">
+            <span class="btn-drawer-inner">
+                <span class="btn-drawer-icone" aria-hidden="true">
+                    <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                    </svg>
+                </span>
+                <span class="btn-drawer-texto"><?= siteT('nav_criar_mobile') ?></span>
+                <span class="btn-drawer-seta" aria-hidden="true">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                </span>
+            </span>
+        </a>
     </div>
     <script>
     (function () {
