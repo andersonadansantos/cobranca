@@ -92,6 +92,13 @@ function getConnection() {
         $pdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         $pdo->exec("USE `" . DB_NAME . "`");
 
+        // Alinha o fuso do MySQL com o do PHP (APP_TIMEZONE). Sem isso o NOW()/
+        // CURDATE() usados no cron, nos logs de envio e no ultimo_envio ficavam
+        // 3h adiantados em relacao a Brasilia, quebrando a comparacao com as
+        // datas calculadas pelo PHP. O offset e fixo porque o Brasil nao tem
+        // mais horario de verao.
+        try { $pdo->exec("SET time_zone = '-03:00'"); } catch (PDOException $e) {}
+
         $tabelaTeste = $pdo->query("SHOW TABLES LIKE 'configuracoes'")->fetch();
         if (!$tabelaTeste) {
             criarTabelas($pdo);
@@ -789,6 +796,10 @@ function getConnection() {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+        // Esta e a conexao devolvida ao sistema (a anterior so criou/migrou o
+        // schema). Reaplica o fuso aqui para que NOW()/CURDATE() do painel,
+        // dos webhooks e do cron usem Brasilia, e nao o UTC do container.
+        try { $pdo->exec("SET time_zone = '-03:00'"); } catch (PDOException $e) {}
         $instancia = $pdo;
         return $instancia;
 

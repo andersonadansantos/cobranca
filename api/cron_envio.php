@@ -279,13 +279,18 @@ $regua3 = intval(getConfig('regua_3_dias_antes', '0'));
 $regua4 = (getConfig('regua_4_no_vencimento', '0') === '1');
 $regua5 = intval(getConfig('regua_5_dias_depois', '0'));
 
-function envioJaRealizadoNoCiclo($pdo, $faturaId, $tipo) {
-    try {
-        $st = $pdo->prepare("SELECT COUNT(*) FROM envios_log WHERE fatura_id = ? AND tipo = ? AND status = 'enviado'");
-        $st->execute([(int)$faturaId, $tipo]);
-        return ((int)$st->fetchColumn() > 0);
-    } catch (Throwable $e) {
-        return false;
+// A guarda function_exists evita erro fatal caso algum arquivo carregado antes
+// (ex.: uma versao antiga de config/database.php) ja tenha declarado a funcao.
+// Sem ela o cron inteiro morria em "Cannot redeclare envioJaRealizadoNoCiclo()".
+if (!function_exists('envioJaRealizadoNoCiclo')) {
+    function envioJaRealizadoNoCiclo($pdo, $faturaId, $tipo) {
+        try {
+            $st = $pdo->prepare("SELECT COUNT(*) FROM envios_log WHERE fatura_id = ? AND tipo = ? AND status = 'enviado'");
+            $st->execute([(int)$faturaId, $tipo]);
+            return ((int)$st->fetchColumn() > 0);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 }
 
@@ -349,8 +354,15 @@ foreach ($faturas as &$fat) {
     // Contexto de tenant (admin) da fatura — configurações específicas do admin
     cronTenantContext($fat['admin_id'] ?? 0);
 
-    // Envio automático ativo para este admin? (flag por tenant; cai para a global)
-    if (getConfig('cron_envio_ativo', $cronAtivoGlobal ?: '0') !== '1') continue;
+    // Envio automatico ativo para este admin? A chave vazia (admin novo, sem
+    // configuracao salva) herda o padrao global do Super Admin; um '0' explicito
+    // continua desligando o envio apenas para este tenant. Antes, a linha
+    // semeada como vazia/zero anulava o global para sempre.
+    $flagEnvioAdmin = getConfig('cron_envio_ativo', '');
+    if ($flagEnvioAdmin === '') {
+        $flagEnvioAdmin = $cronAtivoGlobal;
+    }
+    if ($flagEnvioAdmin !== '1') continue;
 
     // Fatura de um ciclo excluido pelo admin: nao cobra. A fatura ja foi
     // removida de faturas, mas se ela ainda estiver na lista (lida antes da
