@@ -835,7 +835,11 @@ if (!function_exists('enviarEmailFaturaComContexto')) {
         }
 
         $isAntes = in_array($tipo, ['antes', 'geracao', 'lembrete1', 'lembrete2', 'vencimento'], true);
-        $assunto = getConfig($isAntes ? 'template_email_assunto_antes' : 'template_email_assunto_depois', 'Fatura ' . $fatura['numero']);
+        $assunto = trim((string)getConfig($isAntes ? 'template_email_assunto_antes' : 'template_email_assunto_depois', ''));
+        // Assunto vazio salvo pelo admin não pode gerar e-mail sem assunto.
+        if ($assunto === '') {
+            $assunto = 'Fatura ' . $fatura['numero'];
+        }
         $assunto = str_replace(['{numero}', '{data_vencimento}', '{valor}'], [
             $fatura['numero'],
             date('d/m/Y', strtotime($fatura['data_vencimento'])),

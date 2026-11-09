@@ -344,7 +344,12 @@ function enviarEAtualizar($pdo, $fat, $tipo, $assunto, $html, $txt, $s, &$log) {
 
 function montarAssunto($antes, $fat) {
     $chave = $antes ? 'template_email_assunto_antes' : 'template_email_assunto_depois';
-    $assunto = getConfig($chave, 'Fatura ' . $fat['numero']);
+    $assunto = trim((string)getConfig($chave, ''));
+    // Assunto vazio salvo pelo admin (a linha existe, mas o valor está em
+    // branco) não pode gerar e-mail sem assunto; usa o padrão com o número.
+    if ($assunto === '') {
+        $assunto = 'Fatura ' . $fat['numero'];
+    }
     return str_replace(['{numero}', '{data_vencimento}', '{valor}'], [
         $fat['numero'], date('d/m/Y', strtotime($fat['data_vencimento'])), number_format($fat['valor_final'], 2, ',', '.')
     ], $assunto);
@@ -423,7 +428,10 @@ foreach ($faturas as &$fat) {
         $tipoEnviado = 'geracao';
     } elseif ($regua2 > 0 && $fat['data_vencimento'] === $dataAlvo2 && !in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) {
         $tipoEnviado = 'lembrete1';
-    } elseif ($regua3 > 0 && $fat['data_vencimento'] === $dataAlvo3 && !in_array($fat['ultimo_envio_tipo'], ['lembrete1','lembrete2','vencimento','atraso'])) {
+    // O 2º lembrete (3º envio) pode vir depois do 1º lembrete: são etapas
+    // distintas da régua. Antes o 'lembrete1' na lista de bloqueio impedia o
+    // 'lembrete2' de sair, então o 3º envio configurado nunca acontecia.
+    } elseif ($regua3 > 0 && $fat['data_vencimento'] === $dataAlvo3 && !in_array($fat['ultimo_envio_tipo'], ['lembrete2','vencimento','atraso'])) {
         $tipoEnviado = 'lembrete2';
     } elseif ($regua4 && $fat['data_vencimento'] === $hoje && !in_array($fat['ultimo_envio_tipo'], ['vencimento','atraso'])) {
         $tipoEnviado = 'vencimento';
