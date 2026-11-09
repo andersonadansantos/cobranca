@@ -41,7 +41,14 @@ error_reporting(E_ALL);
 
 // Contexto de admin usado para ler/gravar configurações por admin.
 // Painel admin -> admin logado. Demais contextos (portal, login, webhook) -> tenant do subdomínio.
+// Jobs em background (cron/webhooks) podem forçar o admin do registro que estão
+// processando via setConfigAdminOverride(). Isso tem prioridade sobre a sessão,
+// para que um cookie de admin presente na requisição não faça o job ler o SMTP,
+// os templates e a régua do admin errado.
 function getConfigAdminId() {
+    if (array_key_exists('_config_admin_override', $GLOBALS)) {
+        return (int)$GLOBALS['_config_admin_override'];
+    }
     if (isset($_SESSION['admin_id']) && (int)$_SESSION['admin_id'] > 0) {
         return (int)$_SESSION['admin_id'];
     }
@@ -52,6 +59,20 @@ function getConfigAdminId() {
 // grava em configuracoes, para nunca servir um valor ja alterado.
 function configCacheLimpar() {
     $GLOBALS['_config_cache'] = [];
+}
+
+// Força, nesta requisição, qual admin getConfig()/getAllConfig() devem usar.
+// Usado pelo cron e pelos envios automáticos para isolar o tenant do registro
+// processado (a fatura), independente da sessão/cookie do navegador.
+function setConfigAdminOverride($adminId) {
+    $GLOBALS['_config_admin_override'] = (int)$adminId;
+    configCacheLimpar();
+}
+
+// Remove o override, voltando a usar a sessão/tenant normal.
+function limparConfigAdminOverride() {
+    unset($GLOBALS['_config_admin_override']);
+    configCacheLimpar();
 }
 
 // Le a configuracao do admin em contexto (ou a global, se o admin nao
@@ -246,16 +267,37 @@ function getConfigForAdmin($adminId, $chave, $padrao = '') {
     $pdo = getConnection();
     if (!$pdo) return $padrao;
     $adminId = (int)$adminId;
+
+    // Mesmo cache por requisição de getConfig(), com a mesma chave
+    // (adminId|chave), para o cron poder ler por fatura sem multiplicar queries.
+    $usarCache = defined('CONFIG_CACHE_ATIVO') && CONFIG_CACHE_ATIVO;
+    if ($usarCache) {
+        if (!isset($GLOBALS['_config_cache']) || !is_array($GLOBALS['_config_cache'])) {
+            $GLOBALS['_config_cache'] = [];
+        }
+        $cacheKey = $adminId . '|' . $chave;
+        if (array_key_exists($cacheKey, $GLOBALS['_config_cache'])) {
+            return $GLOBALS['_config_cache'][$cacheKey];
+        }
+    }
+
+    $valor = $padrao;
+    $achou = false;
     if ($adminId > 0) {
         $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id = ? AND chave = ?");
         $stmt->execute([$adminId, $chave]);
         $row = $stmt->fetch();
-        if ($row) return $row['valor'];
+        if ($row) { $valor = $row['valor']; $achou = true; }
     }
-    $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
-    $stmt->execute([$chave]);
-    $row = $stmt->fetch();
-    return $row ? $row['valor'] : $padrao;
+    if (!$achou) {
+        $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE admin_id IS NULL AND chave = ?");
+        $stmt->execute([$chave]);
+        $row = $stmt->fetch();
+        if ($row) { $valor = $row['valor']; $achou = true; }
+    }
+
+    if ($usarCache) $GLOBALS['_config_cache'][$cacheKey] = $valor;
+    return $valor;
 }
 
 // Todas as configurações aplicáveis a um admin específico

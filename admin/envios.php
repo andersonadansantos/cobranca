@@ -11,9 +11,16 @@ $tipo = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = $_POST['acao'] ?? '';
-    $bloqueado = !planoPermiteEnvio('email') || !planoPermiteEnvio('whatsapp');
+    // O SMTP é exclusivo de e-mail: depende apenas do recurso de e-mail do
+    // plano. A régua é mista (e-mail e WhatsApp), então só fica bloqueada
+    // quando os dois canais estão desligados. Antes bastava não ter WhatsApp
+    // para a tela inteira recusar salvar/testar o SMTP.
+    $emailPermitido = planoPermiteEnvio('email');
+    $whatsappPermitido = planoPermiteEnvio('whatsapp');
+    $bloqueadoSmtp = !$emailPermitido;
+    $bloqueadoEnvio = !$emailPermitido && !$whatsappPermitido;
 
-    if ($acao === 'smtp' && !$bloqueado) {
+    if ($acao === 'smtp' && !$bloqueadoSmtp) {
         $campos = ['smtp_host', 'smtp_port', 'smtp_usuario', 'smtp_from_email', 'smtp_from_nome', 'smtp_ssl'];
         foreach ($campos as $campo) {
             saveConfig($campo, trim($_POST[$campo] ?? ''));
@@ -28,14 +35,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipo = 'success';
     }
 
-    if ($acao === 'testar_smtp' && !$bloqueado) {
-        $smtpHost = trim($_POST['smtp_host'] ?? '');
-        $smtpPort = intval($_POST['smtp_port'] ?? 587);
-        $smtpUser = trim($_POST['smtp_usuario'] ?? '');
-        $smtpFrom = trim($_POST['smtp_from_email'] ?? '');
-        $smtpNome = trim($_POST['smtp_from_nome'] ?? 'Sistema de Cobrança');
-        $smtpSsl  = $_POST['smtp_ssl'] ?? 'tls';
+    if ($acao === 'testar_smtp' && !$bloqueadoSmtp) {
+        // Os campos chegam por POST (o formulário principal é espelhado pelo JS
+        // nos hidden). Se algum vier vazio, usa o valor já salvo, para o teste
+        // funcionar mesmo sem JavaScript ou com o formulário recém-aberto.
+        $valorOuSalvo = function ($campo, $padrao = '') {
+            $v = trim((string)($_POST[$campo] ?? ''));
+            return $v !== '' ? $v : (string)getConfig($campo, $padrao);
+        };
+
+        $smtpHost = $valorOuSalvo('smtp_host');
+        $smtpPort = (int)$valorOuSalvo('smtp_port', '587');
+        if ($smtpPort <= 0) $smtpPort = 587;
+        $smtpUser = $valorOuSalvo('smtp_usuario');
+        $smtpFrom = $valorOuSalvo('smtp_from_email');
+        $smtpNome = $valorOuSalvo('smtp_from_nome', 'Sistema de Cobrança');
+        $smtpSsl  = $valorOuSalvo('smtp_ssl', 'tls');
+        if (!in_array($smtpSsl, ['tls', 'ssl', 'none'], true)) $smtpSsl = 'tls';
+
         $testEmail = trim($_POST['smtp_test_email'] ?? '');
+        if ($testEmail === '') {
+            $testEmail = $smtpFrom;
+        }
 
         $senhaPost = trim($_POST['smtp_senha'] ?? '');
         $smtpPass = $senhaPost !== '' ? $senhaPost : (string) (getConfig('smtp_senha') ?? '');
@@ -53,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($acao === 'envio' && !$bloqueado) {
+    if ($acao === 'envio' && !$bloqueadoEnvio) {
         $envioHora = trim($_POST['envio_hora'] ?? '08:00');
         $cronAtivo = isset($_POST['cron_envio_ativo']) ? '1' : '0';
 
@@ -77,10 +98,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Plano restrito (demo) -> e-mail e WhatsApp bloqueados
-$demoBloqueado = !planoPermiteEnvio('email') || !planoPermiteEnvio('whatsapp');
-if ($demoBloqueado) {
-    $mensagem = 'As configurações de e-mail e WhatsApp estão bloqueadas na conta de demonstração. Assine um plano para liberar.';
+// Plano restrito (demo): bloqueia apenas os canais não liberados. Não
+// sobrescreve a mensagem de sucesso/erro da ação que o usuário acabou de
+// executar (ex.: salvar o SMTP quando só o WhatsApp está bloqueado).
+$emailPermitido = planoPermiteEnvio('email');
+$whatsappPermitido = planoPermiteEnvio('whatsapp');
+if ($mensagem === '' && (!$emailPermitido || !$whatsappPermitido)) {
+    if (!$emailPermitido && !$whatsappPermitido) {
+        $mensagem = 'As configurações de e-mail e WhatsApp estão bloqueadas na conta de demonstração. Assine um plano para liberar.';
+    } elseif (!$emailPermitido) {
+        $mensagem = 'O envio de e-mail está bloqueado no seu plano, então o SMTP fica indisponível. O envio por WhatsApp continua liberado.';
+    } else {
+        $mensagem = 'O envio por WhatsApp está bloqueado no seu plano. O e-mail e o SMTP continuam disponíveis.';
+    }
     $tipo = 'warning';
 }
 
@@ -391,68 +421,3 @@ include __DIR__ . '/../includes/sidebar_admin.php';
     });
 })();
 </script>
-
-<?php
-function testarConexaoSmtp($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $testEmail) {
-    $connexion = null;
-    $ehloResponse = '';
-    $erroConexao = '';
-    list($connexion, $ehloResponse, $erroConexao) = smtpConectar($host, $port, $ssl);
-    if (!$connexion) {
-        return ['sucesso' => false, 'mensagem' => $erroConexao];
-    }
-
-    $erroAuth = '';
-    if (!smtpAutenticar($connexion, $ehloResponse, $user, $pass, $erroAuth)) {
-        @fclose($connexion);
-        return ['sucesso' => false, 'mensagem' => $erroAuth];
-    }
-
-
-    @fputs($connexion, "MAIL FROM:<{$fromEmail}>\r\n");
-    $response = @fgets($connexion, 512);
-
-    @fputs($connexion, "RCPT TO:<{$testEmail}>\r\n");
-    $response = @fgets($connexion, 512);
-    if (substr($response, 0, 3) !== '250') {
-        @fclose($connexion);
-        return ['sucesso' => false, 'mensagem' => "E-mail de destino inválido ou recusado."];
-    }
-
-    @fputs($connexion, "DATA\r\n");
-    $response = @fgets($connexion, 512);
-
-    $boundary = md5(uniqid(time()));
-    $msgDate = date('r');
-    $body  = "From: {$fromNome} <{$fromEmail}>\r\n";
-    $body .= "To: <{$testEmail}>\r\n";
-    $body .= "Date: {$msgDate}\r\n";
-    $body .= "Subject: =?UTF-8?B?" . base64_encode("Teste SMTP - " . getNomeSistema()) . "?=\r\n";
-    $body .= "MIME-Version: 1.0\r\n";
-    $body .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
-    $body .= "\r\n";
-    $body .= "--{$boundary}\r\n";
-    $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-    $body .= "Este é um e-mail de teste do Sistema de Cobrança.\r\nSe você recebeu esta mensagem, a configuração SMTP está funcionando corretamente.\r\n\r\n";
-    $body .= "--{$boundary}\r\n";
-    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-    $body .= '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:30px;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:500px;margin:0 auto;background:#fff;border-radius:8px;padding:30px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><h2 style="color:#198754;">✓ Teste SMTP</h2><p style="color:#555;">Este é um e-mail de teste do <strong>Sistema de Cobrança</strong>.</p><p style="color:#555;">Se você recebeu esta mensagem, a configuração SMTP está funcionando corretamente.</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0;"><small style="color:#999;">Enviado em ' . date('d/m/Y H:i:s') . '</small></div></body></html>';
-    $body .= "\r\n\r\n";
-    $body .= "--{$boundary}--\r\n";
-    $body .= ".\r\n";
-
-    @fputs($connexion, $body);
-    $response = @fgets($connexion, 512);
-
-    @fputs($connexion, "QUIT\r\n");
-    @fclose($connexion);
-
-    if (strpos($response, '250') !== false || strpos($response, '2') !== false) {
-        return ['sucesso' => true, 'mensagem' => "E-mail de teste enviado com sucesso para {$testEmail}! Verifique sua caixa de entrada."];
-    }
-
-    return ['sucesso' => true, 'mensagem' => "Conexão SMTP estabelecida e e-mail enviado para {$testEmail}. Verifique sua caixa de entrada (e spam)."];
-}
-?>

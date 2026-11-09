@@ -23,7 +23,7 @@ if ($isHttp) {
     // a carga cresce junto com a base de clientes (cada consulta e uma chamada
     // HTTP externa). 120s cortava o job no meio em carteiras maiores.
     set_time_limit(3600);
-    $tokenEsperado = getConfig('cron_token', '');
+    $tokenEsperado = getConfigGlobal('cron_token', '');
     $tokenRecebido = $_GET['token'] ?? '';
     if ($tokenEsperado === '' || !hash_equals($tokenEsperado, $tokenRecebido)) {
         http_response_code(403);
@@ -52,10 +52,18 @@ $apiAtivaGlobal = getApiAtiva();
 // admin_id herdaria o SMTP, o horario e os templates do admin processado na
 // fatura anterior, e sairia com o e-mail em nome do tenant errado.
 function cronTenantContext($adminId) {
+    $adminId = !empty($adminId) ? (int)$adminId : 0;
     if (function_exists('getTenantAdminId')) {
-        $_SESSION['tenant_admin_id'] = !empty($adminId) ? (int)$adminId : 0;
+        $_SESSION['tenant_admin_id'] = $adminId;
     }
-    return $adminId ?: 0;
+    // O override tem prioridade sobre $_SESSION['admin_id'] em getConfigAdminId().
+    // Sem ele, uma requisição HTTP do cron que chegue com cookie de admin faria
+    // o job ler SMTP/templates/régua do admin logado no navegador, e não do
+    // admin dono da fatura. Também limpa o cache de config desta fatura.
+    if (function_exists('setConfigAdminOverride')) {
+        setConfigAdminOverride($adminId);
+    }
+    return $adminId;
 }
 
 foreach ($pendentes as $fat) {
@@ -378,6 +386,19 @@ foreach ($faturas as &$fat) {
     $smtpFrom = getConfig('smtp_from_email', '');
     $smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobranca');
     $smtpSsl  = getConfig('smtp_ssl', 'tls');
+
+    // Admin sem SMTP próprio (campo vazio, inclusive os semeados em branco no
+    // cadastro) usa o SMTP global. Antes a régua ficava sem e-mail para sempre.
+    if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) {
+        $smtpHost = getConfigGlobal('smtp_host', '');
+        $smtpPort = getConfigGlobal('smtp_port', '587');
+        $smtpUser = getConfigGlobal('smtp_usuario', '');
+        $smtpPass = getConfigGlobal('smtp_senha', '');
+        $smtpFrom = getConfigGlobal('smtp_from_email', '');
+        $smtpNome = getConfigGlobal('smtp_from_nome', 'Sistema de Cobranca');
+        $smtpSsl  = getConfigGlobal('smtp_ssl', 'tls');
+    }
+
     $smtpOk = !(empty($smtpHost) || empty($smtpUser) || empty($smtpFrom));
     $s = ['host'=>$smtpHost,'port'=>$smtpPort,'user'=>$smtpUser,'pass'=>$smtpPass,'from'=>$smtpFrom,'nome'=>$smtpNome,'ssl'=>$smtpSsl];
 

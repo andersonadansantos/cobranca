@@ -502,6 +502,104 @@ if (!function_exists('smtpAutenticar')) {
     }
 }
 
+if (!function_exists('testarConexaoSmtp')) {
+    /**
+     * Testa conexão, autenticação e ENTREGA de uma mensagem de teste.
+     *
+     * Diferente da versão antiga, só retorna sucesso quando o servidor confirma
+     * o fim do DATA com 250. Antes qualquer resposta contendo "2" (e até uma
+     * resposta de erro) era tratada como sucesso, o que escondia credenciais e
+     * remetentes recusados pelo provedor.
+     *
+     * @return array{sucesso: bool, mensagem: string}
+     */
+    function testarConexaoSmtp($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $testEmail) {
+        $conexao = null;
+        $ehlo = '';
+        $erro = '';
+        list($conexao, $ehlo, $erro) = smtpConectar($host, $port, $ssl);
+        if (!$conexao) {
+            return ['sucesso' => false, 'mensagem' => $erro];
+        }
+
+        $erroAuth = '';
+        if (!smtpAutenticar($conexao, $ehlo, $user, $pass, $erroAuth)) {
+            @fclose($conexao);
+            return ['sucesso' => false, 'mensagem' => $erroAuth];
+        }
+
+        // Fecha a conexão sempre pelo mesmo caminho, inclusive nas falhas.
+        $falhar = function ($mensagem) use (&$conexao) {
+            if ($conexao) {
+                @fputs($conexao, "QUIT\r\n");
+                @fclose($conexao);
+                $conexao = null;
+            }
+            return ['sucesso' => false, 'mensagem' => $mensagem];
+        };
+
+        @fputs($conexao, "MAIL FROM:<{$fromEmail}>\r\n");
+        $resposta = smtpLerLinha($conexao);
+        if (substr($resposta, 0, 3) !== '250') {
+            return $falhar("O servidor recusou o remetente {$fromEmail}: " . trim($resposta));
+        }
+
+        @fputs($conexao, "RCPT TO:<{$testEmail}>\r\n");
+        $resposta = smtpLerLinha($conexao);
+        if (substr($resposta, 0, 3) !== '250') {
+            return $falhar("O servidor recusou o destinatário {$testEmail}: " . trim($resposta));
+        }
+
+        @fputs($conexao, "DATA\r\n");
+        $resposta = smtpLerLinha($conexao);
+        if (substr($resposta, 0, 3) !== '354') {
+            return $falhar("O servidor recusou iniciar a mensagem: " . trim($resposta));
+        }
+
+        $nomeSistema = function_exists('getNomeSistema') ? getNomeSistema() : 'Sistema de Cobrança';
+        $boundary = md5(uniqid(time()));
+        $msgDate = date('r');
+        $body  = "From: =?UTF-8?B?" . base64_encode($fromNome) . "?= <{$fromEmail}>\r\n";
+        $body .= "To: <{$testEmail}>\r\n";
+        $body .= "Date: {$msgDate}\r\n";
+        $body .= "Subject: =?UTF-8?B?" . base64_encode("Teste SMTP - " . $nomeSistema) . "?=\r\n";
+        $body .= "MIME-Version: 1.0\r\n";
+        $body .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
+        $body .= "\r\n";
+        $body .= "--{$boundary}\r\n";
+        $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+        $body .= "Este e um e-mail de teste do Sistema de Cobranca.\r\nSe voce recebeu esta mensagem, a configuracao SMTP esta funcionando corretamente.\r\n\r\n";
+        $body .= "--{$boundary}\r\n";
+        $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+        $body .= '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:30px;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:500px;margin:0 auto;background:#fff;border-radius:8px;padding:30px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><h2 style="color:#198754;">Teste SMTP</h2><p style="color:#555;">Este e um e-mail de teste do <strong>Sistema de Cobranca</strong>.</p><p style="color:#555;">Se voce recebeu esta mensagem, a configuracao SMTP esta funcionando corretamente.</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0;"><small style="color:#999;">Enviado em ' . date('d/m/Y H:i:s') . '</small></div></body></html>';
+        $body .= "\r\n\r\n";
+        $body .= "--{$boundary}--\r\n";
+        $body .= ".\r\n";
+
+        @fputs($conexao, $body);
+        $resposta = smtpLerLinha($conexao);
+        $codigo = substr(trim($resposta), 0, 3);
+
+        @fputs($conexao, "QUIT\r\n");
+        @fclose($conexao);
+        $conexao = null;
+
+        if ($codigo === '250') {
+            return [
+                'sucesso' => true,
+                'mensagem' => "E-mail de teste enviado com sucesso para {$testEmail}! Verifique a caixa de entrada e o spam."
+            ];
+        }
+
+        return [
+            'sucesso' => false,
+            'mensagem' => "O servidor SMTP nao confirmou o envio (resposta: " . trim($resposta) . ")."
+        ];
+    }
+}
+
 if (!function_exists('enviarEmail')) {
     function enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt) {
         $connexion = null;
@@ -646,9 +744,48 @@ if (!function_exists('enviarEmailComAnexo')) {
 
 if (!function_exists('enviarEmailFatura')) {
     function enviarEmailFatura($fatura, $tipo = 'antes') {
-        if (!planoPermiteEnvio('email', (int)($fatura['admin_id'] ?? 0))) {
+        $adminId = (int)($fatura['admin_id'] ?? 0);
+        if (!planoPermiteEnvio('email', $adminId)) {
             return false;
         }
+
+        // Fixa o contexto do admin DONO da fatura durante todo o envio. Assim o
+        // SMTP, os templates, o remetente e a logo saem sempre com as
+        // configurações desse admin, mesmo que a requisição tenha sessão de
+        // outro admin (ex.: cron/teste com cookie) ou nenhuma sessão.
+        $overrideAntesDefinido = array_key_exists('_config_admin_override', $GLOBALS);
+        $overrideAntes = $GLOBALS['_config_admin_override'] ?? null;
+        $tenantAntes = $_SESSION['tenant_admin_id'] ?? null;
+        if ($adminId > 0) {
+            if (function_exists('setConfigAdminOverride')) {
+                setConfigAdminOverride($adminId);
+            }
+            if (function_exists('getTenantAdminId')) {
+                $_SESSION['tenant_admin_id'] = $adminId;
+            }
+        }
+
+        try {
+            return enviarEmailFaturaComContexto($fatura, $tipo);
+        } finally {
+            if (function_exists('setConfigAdminOverride')) {
+                if ($overrideAntesDefinido) {
+                    setConfigAdminOverride($overrideAntes);
+                } else {
+                    limparConfigAdminOverride();
+                }
+            }
+            if ($tenantAntes === null) {
+                unset($_SESSION['tenant_admin_id']);
+            } else {
+                $_SESSION['tenant_admin_id'] = $tenantAntes;
+            }
+        }
+    }
+}
+
+if (!function_exists('enviarEmailFaturaComContexto')) {
+    function enviarEmailFaturaComContexto($fatura, $tipo = 'antes') {
         $smtpHost = getConfig('smtp_host', '');
         $smtpPort = getConfig('smtp_port', '587');
         $smtpUser = getConfig('smtp_usuario', '');
@@ -656,6 +793,21 @@ if (!function_exists('enviarEmailFatura')) {
         $smtpFrom = getConfig('smtp_from_email', '');
         $smtpNome = getConfig('smtp_from_nome', 'Sistema de Cobrança');
         $smtpSsl  = getConfig('smtp_ssl', 'tls');
+
+        // Admin sem SMTP próprio (campos vazios, inclusive os semeados em
+        // branco no cadastro) usa o SMTP global, igual aos e-mails de
+        // pagamento. Antes a fatura simplesmente não saía nesse caso.
+        if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom)) {
+            if (function_exists('getConfigGlobal')) {
+                $smtpHost = getConfigGlobal('smtp_host', '');
+                $smtpPort = getConfigGlobal('smtp_port', '587');
+                $smtpUser = getConfigGlobal('smtp_usuario', '');
+                $smtpPass = getConfigGlobal('smtp_senha', '');
+                $smtpFrom = getConfigGlobal('smtp_from_email', '');
+                $smtpNome = getConfigGlobal('smtp_from_nome', 'Sistema de Cobrança');
+                $smtpSsl  = getConfigGlobal('smtp_ssl', 'tls');
+            }
+        }
 
         if (empty($smtpHost) || empty($smtpUser) || empty($smtpFrom) || empty($fatura['email'])) {
             return false;
@@ -921,8 +1073,15 @@ if (!function_exists('enviarEmailPagamento')) {
 
         $adminId = (int)($fatura['admin_id'] ?? 0);
         $tenantAnterior = $_SESSION['tenant_admin_id'] ?? null;
+        $overrideAntesDefinido = array_key_exists('_config_admin_override', $GLOBALS);
+        $overrideAntes = $GLOBALS['_config_admin_override'] ?? null;
         if ($adminId > 0) {
             $_SESSION['tenant_admin_id'] = $adminId;
+            // Garante SMTP/remetente/templates do admin dono da fatura, mesmo
+            // que a requisição tenha sessão de outro admin (webhook/cron/painel).
+            if (function_exists('setConfigAdminOverride')) {
+                setConfigAdminOverride($adminId);
+            }
         }
 
         $ok = false;
@@ -999,6 +1158,13 @@ if (!function_exists('enviarEmailPagamento')) {
             } else {
                 $_SESSION['tenant_admin_id'] = $tenantAnterior;
             }
+            if (function_exists('setConfigAdminOverride')) {
+                if ($overrideAntesDefinido) {
+                    setConfigAdminOverride($overrideAntes);
+                } else {
+                    limparConfigAdminOverride();
+                }
+            }
         }
 
         // Registrar no log de envios
@@ -1068,7 +1234,12 @@ if (!function_exists('notificarPagamentoRecebidoAdmin')) {
         }
 
         $tenantAnterior = $_SESSION['tenant_admin_id'] ?? null;
+        $overrideAntesDefinido = array_key_exists('_config_admin_override', $GLOBALS);
+        $overrideAntes = $GLOBALS['_config_admin_override'] ?? null;
         $_SESSION['tenant_admin_id'] = $adminId;
+        if (function_exists('setConfigAdminOverride')) {
+            setConfigAdminOverride($adminId);
+        }
 
         $ok = false;
         $detalhesErro = '';
@@ -1319,6 +1490,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
             } else {
                 $_SESSION['tenant_admin_id'] = $tenantAnterior;
             }
+            if (function_exists('setConfigAdminOverride')) {
+                if ($overrideAntesDefinido) {
+                    setConfigAdminOverride($overrideAntes);
+                } else {
+                    limparConfigAdminOverride();
+                }
+            }
         }
 
         try {
@@ -1378,9 +1556,16 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
         // Garante que SMTP/templates/links sejam resolvidos no tenant dono da
         // fatura, mesmo quando o chamador nao preparou a sessao (callback, cron).
         $tenantAnterior = $_SESSION['tenant_admin_id'] ?? null;
+        $overrideAntesDefinido = array_key_exists('_config_admin_override', $GLOBALS);
+        $overrideAntes = $GLOBALS['_config_admin_override'] ?? null;
         if ($adminId > 0) {
             $_SESSION['tenant_admin_id'] = $adminId;
+            if (function_exists('setConfigAdminOverride')) {
+                setConfigAdminOverride($adminId);
+            }
         }
+
+        try {
 
         $gateway = trim((string)($dados['gateway'] ?? ($fatura['api_pagamento'] ?? '')));
         $paymentId = trim((string)($dados['payment_id'] ?? ($dados['mp_payment_id'] ?? ($fatura['mp_payment_id'] ?? ($fatura['inter_codigo_solicitacao'] ?? '')))));
@@ -1495,12 +1680,6 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
 
         $emailAdminEnviado = notificarPagamentoRecebidoAdmin($faturaId, $detalhesAdmin);
 
-        if ($tenantAnterior === null) {
-            unset($_SESSION['tenant_admin_id']);
-        } else {
-            $_SESSION['tenant_admin_id'] = $tenantAnterior;
-        }
-
         return [
             'sucesso' => true,
             'ja_estava_paga' => $jaEstavaPaga,
@@ -1510,6 +1689,20 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
             'email_cliente_enviado' => $emailClienteEnviado,
             'email_admin_enviado' => $emailAdminEnviado
         ];
+        } finally {
+            if ($tenantAnterior === null) {
+                unset($_SESSION['tenant_admin_id']);
+            } else {
+                $_SESSION['tenant_admin_id'] = $tenantAnterior;
+            }
+            if (function_exists('setConfigAdminOverride')) {
+                if ($overrideAntesDefinido) {
+                    setConfigAdminOverride($overrideAntes);
+                } else {
+                    limparConfigAdminOverride();
+                }
+            }
+        }
     }
 }
 

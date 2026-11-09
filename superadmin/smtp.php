@@ -5,70 +5,6 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/email_helpers.php';
 
-if (!function_exists('testarConexaoSmtp')) {
-function testarConexaoSmtp($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $testEmail) {
-    $connexion = null;
-    $ehloResponse = '';
-    $erroConexao = '';
-    list($connexion, $ehloResponse, $erroConexao) = smtpConectar($host, $port, $ssl);
-    if (!$connexion) {
-        return ['sucesso' => false, 'mensagem' => $erroConexao];
-    }
-
-    $erroAuth = '';
-    if (!smtpAutenticar($connexion, $ehloResponse, $user, $pass, $erroAuth)) {
-        @fclose($connexion);
-        return ['sucesso' => false, 'mensagem' => $erroAuth];
-    }
-
-    @fputs($connexion, "MAIL FROM:<{$fromEmail}>\r\n");
-    @fgets($connexion, 512);
-
-    @fputs($connexion, "RCPT TO:<{$testEmail}>\r\n");
-    $response = @fgets($connexion, 512);
-    if (substr($response, 0, 3) !== '250') {
-        @fclose($connexion);
-        return ['sucesso' => false, 'mensagem' => "E-mail de destino inválido ou recusado."];
-    }
-
-    @fputs($connexion, "DATA\r\n");
-    @fgets($connexion, 512);
-
-    $boundary = md5(uniqid(time()));
-    $msgDate = date('r');
-    $body  = "From: {$fromNome} <{$fromEmail}>\r\n";
-    $body .= "To: <{$testEmail}>\r\n";
-    $body .= "Date: {$msgDate}\r\n";
-    $body .= "Subject: =?UTF-8?B?" . base64_encode("Teste SMTP - " . getNomeSistema()) . "?=\r\n";
-    $body .= "MIME-Version: 1.0\r\n";
-    $body .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
-    $body .= "\r\n";
-    $body .= "--{$boundary}\r\n";
-    $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-    $body .= "Este é um e-mail de teste do Sistema de Cobrança.\r\nSe você recebeu esta mensagem, a configuração SMTP está funcionando corretamente.\r\n\r\n";
-    $body .= "--{$boundary}\r\n";
-    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-    $body .= '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:30px;background:#f4f6f9;font-family:Arial,sans-serif;"><div style="max-width:500px;margin:0 auto;background:#fff;border-radius:8px;padding:30px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08);"><h2 style="color:#198754;">✓ Teste SMTP</h2><p style="color:#555;">Este é um e-mail de teste do <strong>Sistema de Cobrança</strong>.</p><p style="color:#555;">Se você recebeu esta mensagem, a configuração SMTP está funcionando corretamente.</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0;"><small style="color:#999;">Enviado em ' . date('d/m/Y H:i:s') . '</small></div></body></html>';
-    $body .= "\r\n\r\n";
-    $body .= "--{$boundary}--\r\n";
-    $body .= ".\r\n";
-
-    @fputs($connexion, $body);
-    $response = @fgets($connexion, 512);
-
-    @fputs($connexion, "QUIT\r\n");
-    @fclose($connexion);
-
-    if (strpos($response, '250') !== false || strpos($response, '2') !== false) {
-        return ['sucesso' => true, 'mensagem' => "E-mail de teste enviado com sucesso para {$testEmail}! Verifique sua caixa de entrada."];
-    }
-
-    return ['sucesso' => true, 'mensagem' => "Conexão SMTP estabelecida e e-mail enviado para {$testEmail}. Verifique sua caixa de entrada (e spam)."];
-}
-}
-
 $mensagem = '';
 $tipo = '';
 
@@ -93,13 +29,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($acao === 'testar_smtp') {
-        $smtpHost = trim($_POST['smtp_host'] ?? '');
-        $smtpPort = intval($_POST['smtp_port'] ?? 587);
-        $smtpUser = trim($_POST['smtp_usuario'] ?? '');
-        $smtpFrom = trim($_POST['smtp_from_email'] ?? '');
-        $smtpNome = trim($_POST['smtp_from_nome'] ?? 'Sistema de Cobrança');
-        $smtpSsl  = $_POST['smtp_ssl'] ?? 'tls';
+        // Espelha o formulário principal via JS, mas se algum campo vier vazio
+        // usa o valor global já salvo (funciona sem JS e logo após abrir a tela).
+        $valorOuSalvo = function ($campo, $padrao = '') {
+            $v = trim((string)($_POST[$campo] ?? ''));
+            return $v !== '' ? $v : (string)getConfigGlobal($campo, $padrao);
+        };
+
+        $smtpHost = $valorOuSalvo('smtp_host');
+        $smtpPort = (int)$valorOuSalvo('smtp_port', '587');
+        if ($smtpPort <= 0) $smtpPort = 587;
+        $smtpUser = $valorOuSalvo('smtp_usuario');
+        $smtpFrom = $valorOuSalvo('smtp_from_email');
+        $smtpNome = $valorOuSalvo('smtp_from_nome', 'Sistema de Cobrança');
+        $smtpSsl  = $valorOuSalvo('smtp_ssl', 'tls');
+        if (!in_array($smtpSsl, ['tls', 'ssl', 'none'], true)) $smtpSsl = 'tls';
+
         $testEmail = trim($_POST['smtp_test_email'] ?? '');
+        if ($testEmail === '') {
+            $testEmail = $smtpFrom;
+        }
 
         $senhaPost = trim((string)($_POST['smtp_senha'] ?? ''));
         $smtpPass = $senhaPost !== '' ? $senhaPost : (string) getConfigGlobal('smtp_senha', '');
