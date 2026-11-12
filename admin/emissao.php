@@ -231,6 +231,7 @@ if (isset($_GET['fatura_boleto'])) {
         if ($apiAgora === 'inter' || $apiAgora === 'bb') {
             $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, inter_codigo_solicitacao = ? WHERE id = ? AND admin_id = ?");
             $stmt->execute([$result['boleto_url'], $result['payment_id'], $id, $adminIdE]);
+            sincronizarNumeroFaturaBanco($id, $result['payment_id'] ?? '', $pdo);
         } elseif (!empty($fat['mp_payment_id'])) {
             $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ? WHERE id = ? AND admin_id = ?");
             $stmt->execute([$result['boleto_url'], $id, $adminIdE]);
@@ -318,6 +319,7 @@ if (isset($_GET['fatura_pix'])) {
             if ($apiUsada === 'inter' || $apiUsada === 'bb') {
                 $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?");
                 $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', null, $result['payment_id'] ?? '', $apiUsada, $id, $adminIdE]);
+                sincronizarNumeroFaturaBanco($id, $result['payment_id'] ?? '', $pdo);
             } else {
                 $stmtUp = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?");
                 $stmtUp->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'] ?? '', $apiUsada, $id, $adminIdE]);
@@ -564,6 +566,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $resBol['api'] ?? $apiAgora,
                                     $fid, $adminIdE,
                                 ]);
+                                if (in_array($apiAgora, ['inter', 'bb'], true)) {
+                                    sincronizarNumeroFaturaBanco($fid, $resBol['payment_id'] ?? '', $pdo);
+                                }
                                 $boletosOk++;
                                 $temBoleto = true;
                             }
@@ -702,6 +707,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $resBol['api'] ?? $apiAgora,
                         $fid1, $adminIdE,
                     ]);
+                if (in_array($apiAgora, ['inter', 'bb'], true)) {
+                    sincronizarNumeroFaturaBanco($fid1, $resBol['payment_id'] ?? '', $pdo);
+                }
                 $temBoleto = true;
             }
 
@@ -761,7 +769,7 @@ $sql = "
     SELECT base.* FROM (
         SELECT fr.*, c.nome_razao, c.cpf_cnpj, c.celular, c.telefone,
         (SELECT f.link_pagamento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_link,
-        (SELECT f.numero FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_numero,
+        (SELECT COALESCE(NULLIF(TRIM(f.inter_codigo_solicitacao), ''), f.numero) FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_numero,
         (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_status,
         (SELECT f.data_vencimento FROM faturas f WHERE f.fatura_recorrente_id = fr.id AND f.status IN ('pendente','vencido','atrasado') ORDER BY f.data_vencimento ASC, f.id ASC LIMIT 1) AS proximo_vencimento,
         (SELECT f.data_vencimento FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_vencimento
@@ -824,7 +832,7 @@ $frIds = array_column($faturasRecorrentes, 'id');
 $faturasPorRecorrencia = [];
 if ($frIds) {
     $phIds = implode(',', array_fill(0, count($frIds), '?'));
-    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, valor_final, data_emissao, data_vencimento, status, pix_copia_cola, parcela_atual, total_parcelas FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY parcela_atual ASC, data_vencimento ASC, numero DESC");
+    $stmtFatsFr = $pdo->prepare("SELECT id, fatura_recorrente_id, numero, inter_codigo_solicitacao, valor_final, data_emissao, data_vencimento, status, pix_copia_cola, parcela_atual, total_parcelas FROM faturas WHERE admin_id = ? AND fatura_recorrente_id IN ($phIds) ORDER BY parcela_atual ASC, data_vencimento ASC, numero DESC");
     $stmtFatsFr->execute(array_merge([$adminIdE], $frIds));
     foreach ($stmtFatsFr->fetchAll() as $ffr) {
         $faturasPorRecorrencia[$ffr['fatura_recorrente_id']][] = $ffr;
@@ -1068,7 +1076,7 @@ if (($fr['status'] ?? 'ativa') !== 'cancelado'
                                         <tbody>
                                             <?php foreach ($faturasFr as $fh): ?>
                                             <tr class="<?= in_array($fh['status'], ['pendente','vencido','atrasado']) && $fh['data_vencimento'] < date('Y-m-d') ? 'table-danger' : '' ?>">
-                                                <td><strong><?= htmlspecialchars($fh['numero']) ?></strong><?php if (!empty($fh['total_parcelas'])): ?><small class="d-block text-muted">Parcela <?= (int)$fh['parcela_atual'] ?>/<?= (int)$fh['total_parcelas'] ?></small><?php endif; ?></td>
+                                                <td><strong><?= htmlspecialchars(faturaCodigoBanco($fh) ?: $fh['numero']) ?></strong><?php if (!empty($fh['total_parcelas'])): ?><small class="d-block text-muted">Parcela <?= (int)$fh['parcela_atual'] ?>/<?= (int)$fh['total_parcelas'] ?></small><?php endif; ?></td>
                                                 <td><?= date('d/m/Y', strtotime($fh['data_emissao'])) ?></td>
                                                 <td><?= date('d/m/Y', strtotime($fh['data_vencimento'])) ?></td>
                                                 <td>R$ <?= number_format($fh['valor_final'], 2, ',', '.') ?></td>

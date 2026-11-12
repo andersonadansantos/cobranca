@@ -255,6 +255,7 @@ function regenerarPixFatura($pdo, $fatura) {
             if ($apiAtual === 'inter') {
                 $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
                 $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);
+                sincronizarNumeroFaturaBanco($fatura['id'], $result['payment_id'] ?? '', $pdo);
             } else {
                 $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
                 $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);

@@ -827,6 +827,7 @@ if (!function_exists('enviarEmailFaturaComContexto')) {
                 if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
                     $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
                     $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], null, $resultado['payment_id'], $apiAtiva, $fatura['id']]);
+                    sincronizarNumeroFaturaBanco($fatura['id'], $resultado['payment_id'] ?? '', $pdo);
                 } else {
                     $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
                     $stmt->execute([$fatura['pix_qrcode'], $fatura['pix_copia_cola'], $fatura['link_pagamento'], $resultado['payment_id'], $apiAtiva, $fatura['id']]);
@@ -1608,6 +1609,9 @@ if (!function_exists('confirmarPagamentoEBaixarFatura')) {
 
             $stmtUp = $pdo->prepare($sqlUp);
             $stmtUp->execute($paramsUp);
+            if ($gateway === 'inter' && $paymentId !== '') {
+                sincronizarNumeroFaturaBanco($faturaId, $paymentId, $pdo);
+            }
 
             // Idempotencia financeira: se outra execucao (webhook duplicado ou
             // polling concorrente) baixou a fatura primeiro, nao repete log,

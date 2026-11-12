@@ -253,6 +253,7 @@ $resultadoMotor = motorProcessar($pdo, [
             if ($apiAtiva === 'inter' || $apiAtiva === 'bb') {
                 $pdo->prepare("UPDATE faturas SET pix_qrcode=?, pix_copia_cola=?, link_pagamento=?, mp_payment_id=?, inter_codigo_solicitacao=?, api_pagamento=? WHERE id=?")
                     ->execute([$pixQr, $qr, $link, null, $resultado['payment_id'] ?? null, $apiAtiva, $fid]);
+                sincronizarNumeroFaturaBanco($fid, $resultado['payment_id'] ?? '', $pdo);
             } else {
                 $pdo->prepare("UPDATE faturas SET pix_qrcode=?, pix_copia_cola=?, link_pagamento=?, mp_payment_id=?, api_pagamento=? WHERE id=?")
                     ->execute([$pixQr, $qr, $link, $resultado['payment_id'] ?? '', $apiAtiva, $fid]);
@@ -465,6 +466,7 @@ foreach ($faturas as &$fat) {
                 if ($apiPag === 'inter' || $apiPag === 'bb') {
                     $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?")
                         ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], null, $resultadoPix['payment_id'], $apiPag, $fat['id']]);
+                    sincronizarNumeroFaturaBanco($fat['id'], $resultadoPix['payment_id'] ?? '', $pdo);
                 } else {
                     $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?")
                         ->execute([$fat['pix_qrcode'], $fat['pix_copia_cola'], $fat['link_pagamento'], $resultadoPix['payment_id'] ?? '', $apiPag, $fat['id']]);

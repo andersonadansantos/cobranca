@@ -240,6 +240,55 @@ function getConnection() {
             }
         } catch (PDOException $e) {}
 
+        // === MIGRAÇÃO: número da fatura passa a ser o código do banco emissor ===
+        // A tela de Emissão de Faturas (Recorrentes Ativas), os e-mails, os PDFs
+        // e os links usam `numero`. O identificador útil para o cliente é o
+        // código da cobrança gerado pelo banco (Inter/BB), guardado em
+        // inter_codigo_solicitacao. Aqui o campo é ampliado (o código tem 36
+        // caracteres; antes o limite era 20) e as faturas já emitidas são
+        // convertidas. Faturas sem código de banco (ex.: PIX manual) mantêm o
+        // FAT-... como fallback. Idempotente via marcador em configuracoes.
+        // Fica depois das migrações de isolamento/multitenant porque usa admin_id.
+        try {
+            $marcadorNumero = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'numero_codigo_banco'")->fetchColumn();
+            if ((int) $marcadorNumero === 0) {
+                $numeroOk = true;
+                try {
+                    $pdo->exec("ALTER TABLE `faturas` MODIFY COLUMN `numero` VARCHAR(100) NOT NULL");
+                } catch (PDOException $e) {
+                    $numeroOk = false;
+                    error_log('[MIGRACAO][numero_codigo_banco] falha ao ampliar faturas.numero: ' . $e->getMessage());
+                }
+                // A lápide guarda o número da fatura excluída; precisa caber o código.
+                try { $pdo->exec("ALTER TABLE `faturas_excluidas` MODIFY COLUMN `numero` VARCHAR(100) DEFAULT NULL"); } catch (PDOException $e) {}
+                if ($numeroOk) {
+                    try {
+                        // Codigo repetido no mesmo admin e deixado como FAT-... para
+                        // nao violar a chave unica uq_admin_numero.
+                        $stCodigos = $pdo->query("SELECT id, admin_id, TRIM(inter_codigo_solicitacao) AS codigo FROM faturas WHERE inter_codigo_solicitacao IS NOT NULL AND TRIM(inter_codigo_solicitacao) <> ''");
+                        $codigos = $stCodigos->fetchAll();
+                        $contagem = [];
+                        foreach ($codigos as $c) {
+                            $chave = (string) ($c['admin_id'] ?? '') . '|' . $c['codigo'];
+                            $contagem[$chave] = ($contagem[$chave] ?? 0) + 1;
+                        }
+                        $stConflito = $pdo->prepare("SELECT id FROM faturas WHERE admin_id <=> ? AND numero = ? AND id <> ? LIMIT 1");
+                        $upNumero = $pdo->prepare("UPDATE faturas SET numero = ? WHERE id = ? AND numero <> ?");
+                        foreach ($codigos as $c) {
+                            $chave = (string) ($c['admin_id'] ?? '') . '|' . $c['codigo'];
+                            if (($contagem[$chave] ?? 0) > 1) continue;
+                            $stConflito->execute([$c['admin_id'] ?? null, $c['codigo'], $c['id']]);
+                            if ($stConflito->fetchColumn()) continue;
+                            $upNumero->execute([$c['codigo'], $c['id'], $c['codigo']]);
+                        }
+                    } catch (PDOException $e) {
+                        error_log('[MIGRACAO][numero_codigo_banco] falha no backfill: ' . $e->getMessage());
+                    }
+                    try { $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('numero_codigo_banco', '1')"); } catch (PDOException $e) {}
+                }
+            }
+        } catch (PDOException $e) {}
+
         try {
             $pdo->exec("CREATE TABLE IF NOT EXISTS `usuarios_admin` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -1101,5 +1150,65 @@ function criarTabelas($pdo) {
         $hash = password_hash('Wd#142536#', PASSWORD_BCRYPT);
         $stmt = $pdo->prepare("INSERT INTO `superadmin` (`usuario`, `senha`, `nome`, `email`) VALUES (?, ?, 'Super Administrador', NULL)");
         $stmt->execute(['super', $hash]);
+    }
+}
+
+// =====================================================
+// CÓDIGO DO BANCO EMISSOR NO NÚMERO DA FATURA
+// =====================================================
+// O número exibido em Emissão de Faturas (Recorrentes Ativas), nos e-mails,
+// nos PDFs e nos links é o código da cobrança no banco emissor (Inter/BB),
+// guardado em inter_codigo_solicitacao. Sem código de banco (PIX manual,
+// Mercado Pago etc.) a fatura mantém o número FAT-... como fallback.
+
+/** Devolve o código do banco emissor de uma fatura (array) ou de um valor. */
+function faturaCodigoBanco($fatura) {
+    $codigo = is_array($fatura) ? ($fatura['inter_codigo_solicitacao'] ?? '') : $fatura;
+    return trim((string) $codigo);
+}
+
+/**
+ * Copia o código do banco para faturas.numero logo após a cobrança ser criada
+ * ou renovada no gateway. Best-effort: nunca interrompe o fluxo de cobrança e
+ * não sobrescreve um número que já pertença a outra fatura do mesmo admin.
+ */
+function sincronizarNumeroFaturaBanco($faturaId, $codigo = null, $pdo = null) {
+    $faturaId = (int) $faturaId;
+    $codigo = trim((string) $codigo);
+    if ($faturaId <= 0 || $codigo === '') {
+        return false;
+    }
+    if (strlen($codigo) > 100) {
+        $codigo = substr($codigo, 0, 100);
+    }
+    if (!$pdo instanceof PDO) {
+        $pdo = getConnection();
+    }
+    if (!$pdo instanceof PDO) {
+        return false;
+    }
+
+    try {
+        $stAtual = $pdo->prepare("SELECT admin_id, numero FROM faturas WHERE id = ?");
+        $stAtual->execute([$faturaId]);
+        $atual = $stAtual->fetch(PDO::FETCH_ASSOC);
+        if (!$atual) {
+            return false;
+        }
+        if ((string) $atual['numero'] === $codigo) {
+            return true;
+        }
+        // uq_admin_numero impede repetir o mesmo número no mesmo admin.
+        $stConflito = $pdo->prepare("SELECT id FROM faturas WHERE admin_id <=> ? AND numero = ? AND id <> ? LIMIT 1");
+        $stConflito->execute([$atual['admin_id'], $codigo, $faturaId]);
+        if ($stConflito->fetchColumn()) {
+            return false;
+        }
+        $upd = $pdo->prepare("UPDATE faturas SET numero = ? WHERE id = ?");
+        $upd->execute([$codigo, $faturaId]);
+        return true;
+    } catch (Throwable $e) {
+        error_log('[FATURA_NUMERO_BANCO] Fatura ' . $faturaId . ': ' . $e->getMessage());
+        return false;
     }
 }
