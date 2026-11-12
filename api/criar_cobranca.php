@@ -85,7 +85,7 @@ if (isset($resultado['sucesso']) && $resultado['sucesso']) {
             $apiUsada,
             $faturaId
         ]);
-        sincronizarNumeroFaturaBanco($faturaId, $resultado['payment_id'] ?? '', $pdo);
+        sincronizarNumeroFaturaBanco($faturaId, $resultado['payment_id'] ?? '', $pdo, $resultado['numero_documento'] ?? '');
     } elseif ($apiUsada === 'pagbank') {
         $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
         $stmt->execute([

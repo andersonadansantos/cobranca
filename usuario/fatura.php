@@ -80,7 +80,7 @@ if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
         if ($apiUsada === 'inter' || $apiUsada === 'bb') {
             $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
             $stmt->execute([$result['boleto_url'], null, $result['payment_id'], $apiUsada, $faturaId]);
-            sincronizarNumeroFaturaBanco($faturaId, $result['payment_id'] ?? '', $pdo);
+            sincronizarNumeroFaturaBanco($faturaId, $result['payment_id'] ?? '', $pdo, $result['numero_documento'] ?? '');
         } else {
             $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
             $stmt->execute([$result['boleto_url'], $result['payment_id'], $apiUsada, $faturaId]);
@@ -108,7 +108,7 @@ if (!$jaTemCobranca && !$fatura['link_pagamento'] && !$fatura['pix_copia_cola'] 
         if ($apiUsada === 'inter' || $apiUsada === 'bb') {
             $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ?");
             $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], null, $result['payment_id'], $apiUsada, $faturaId]);
-            sincronizarNumeroFaturaBanco($faturaId, $result['payment_id'] ?? '', $pdo);
+            sincronizarNumeroFaturaBanco($faturaId, $result['payment_id'] ?? '', $pdo, $result['numero_documento'] ?? '');
         } else {
             $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ?");
             $stmt->execute([$result['qr_code'], $result['qr_code_copia_cola'], $result['link_pagamento'], $result['payment_id'], $apiUsada, $faturaId]);

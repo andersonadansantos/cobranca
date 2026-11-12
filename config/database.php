@@ -134,6 +134,10 @@ function getConnection() {
         // codigo de solicitacao no Inter). O codigo do PIX fica separado para
         // nao sobrescrever o do boleto, usado pela consulta de situacao/DDA.
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `pix_inter_codigo` VARCHAR(100) DEFAULT NULL AFTER `inter_data_situacao`"); } catch (PDOException $e) {}
+        // "N° do Documento" impresso no boleto do Inter: e o seuNumero enviado na
+        // criacao da cobranca (ex.: BOL261104854). O codigoSolicitacao (UUID) e
+        // apenas o identificador interno da API e nao aparece no boleto.
+        try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `inter_seu_numero` VARCHAR(30) DEFAULT NULL AFTER `inter_codigo_solicitacao`"); } catch (PDOException $e) {}
         // ENUM da frequência passa a aceitar 'lote'. Mantém 'bimestral' por
         // compatibilidade com migração anterior.
         try { $pdo->exec("ALTER TABLE `faturas` ADD COLUMN `carne_id` INT DEFAULT NULL AFTER `fatura_recorrente_id`"); } catch (PDOException $e) {}
@@ -286,6 +290,39 @@ function getConnection() {
                     }
                     try { $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('numero_codigo_banco', '1')"); } catch (PDOException $e) {}
                 }
+            }
+        } catch (PDOException $e) {}
+
+        // === MIGRAÇÃO: "N° do Documento" do boleto passa a ser o numero da fatura ===
+        // O codigoSolicitacao (UUID) serviu de numero na migracao anterior, mas o
+        // campo impresso como "N° do Documento" no boleto do Inter e o seuNumero
+        // (ex.: BOL261104854), guardado em inter_seu_numero. Aqui o numero e
+        // realinhado para ele. Quem nao tem o dado continua com o valor atual
+        // (UUID ou FAT-...) como fallback. Idempotente via marcador.
+        try {
+            $marcadorDoc = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE chave = 'numero_documento_banco'")->fetchColumn();
+            if ((int) $marcadorDoc === 0) {
+                try {
+                    $stDoc = $pdo->query("SELECT id, admin_id, TRIM(inter_seu_numero) AS doc FROM faturas WHERE inter_seu_numero IS NOT NULL AND TRIM(inter_seu_numero) <> ''");
+                    $docs = $stDoc->fetchAll();
+                    $contagemDoc = [];
+                    foreach ($docs as $d) {
+                        $chaveDoc = (string) ($d['admin_id'] ?? '') . '|' . $d['doc'];
+                        $contagemDoc[$chaveDoc] = ($contagemDoc[$chaveDoc] ?? 0) + 1;
+                    }
+                    $stConflitoDoc = $pdo->prepare("SELECT id FROM faturas WHERE admin_id <=> ? AND numero = ? AND id <> ? LIMIT 1");
+                    $upDoc = $pdo->prepare("UPDATE faturas SET numero = ? WHERE id = ? AND numero <> ?");
+                    foreach ($docs as $d) {
+                        $chaveDoc = (string) ($d['admin_id'] ?? '') . '|' . $d['doc'];
+                        if (($contagemDoc[$chaveDoc] ?? 0) > 1) continue;
+                        $stConflitoDoc->execute([$d['admin_id'] ?? null, $d['doc'], $d['id']]);
+                        if ($stConflitoDoc->fetchColumn()) continue;
+                        $upDoc->execute([$d['doc'], $d['id'], $d['doc']]);
+                    }
+                } catch (PDOException $e) {
+                    error_log('[MIGRACAO][numero_documento_banco] falha no backfill: ' . $e->getMessage());
+                }
+                try { $pdo->exec("INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('numero_documento_banco', '1')"); } catch (PDOException $e) {}
             }
         } catch (PDOException $e) {}
 
@@ -964,6 +1001,7 @@ function criarTabelas($pdo) {
         `boleto_linha_digitavel` VARCHAR(100),
         `mp_payment_id` VARCHAR(100),
         `inter_codigo_solicitacao` VARCHAR(100),
+        `inter_seu_numero` VARCHAR(30),
         `inter_situacao` VARCHAR(30),
         `inter_data_situacao` DATETIME,
         `pix_inter_codigo` VARCHAR(100),
@@ -1157,25 +1195,45 @@ function criarTabelas($pdo) {
 // CÓDIGO DO BANCO EMISSOR NO NÚMERO DA FATURA
 // =====================================================
 // O número exibido em Emissão de Faturas (Recorrentes Ativas), nos e-mails,
-// nos PDFs e nos links é o código da cobrança no banco emissor (Inter/BB),
-// guardado em inter_codigo_solicitacao. Sem código de banco (PIX manual,
-// Mercado Pago etc.) a fatura mantém o número FAT-... como fallback.
+// nos PDFs e nos links é o "N° do Documento" do banco emissor (Inter/BB),
+// guardado em inter_seu_numero. O inter_codigo_solicitacao (UUID da API) e o
+// numero FAT-... ficam como fallback para faturas sem esse dado (PIX manual,
+// Mercado Pago etc.).
 
-/** Devolve o código do banco emissor de uma fatura (array) ou de um valor. */
+/** Devolve o "N° do Documento" do banco emissor de uma fatura (array) ou de um valor. */
 function faturaCodigoBanco($fatura) {
-    $codigo = is_array($fatura) ? ($fatura['inter_codigo_solicitacao'] ?? '') : $fatura;
-    return trim((string) $codigo);
+    if (!is_array($fatura)) {
+        return trim((string) $fatura);
+    }
+    $doc = trim((string) ($fatura['inter_seu_numero'] ?? ''));
+    if ($doc !== '') {
+        return $doc;
+    }
+    $codigo = trim((string) ($fatura['inter_codigo_solicitacao'] ?? ''));
+    if ($codigo !== '') {
+        return $codigo;
+    }
+    return trim((string) ($fatura['numero'] ?? ''));
 }
 
 /**
- * Copia o código do banco para faturas.numero logo após a cobrança ser criada
- * ou renovada no gateway. Best-effort: nunca interrompe o fluxo de cobrança e
- * não sobrescreve um número que já pertença a outra fatura do mesmo admin.
+ * Copia o "N° do Documento" do banco para faturas.numero logo após a cobrança
+ * ser criada ou renovada no gateway. Best-effort: nunca interrompe o fluxo de
+ * cobrança e não sobrescreve um número que já pertença a outra fatura do mesmo
+ * admin.
+ *
+ * $numeroDocumento é o seuNumero devolvido pelo gateway. Quando ele não é
+ * informado (webhook, reenvio de e-mail), o documento já gravado na fatura é
+ * preservado; sem documento conhecido, usa-se o código da cobrança.
  */
-function sincronizarNumeroFaturaBanco($faturaId, $codigo = null, $pdo = null) {
+function sincronizarNumeroFaturaBanco($faturaId, $codigo = null, $pdo = null, $numeroDocumento = '') {
     $faturaId = (int) $faturaId;
     $codigo = trim((string) $codigo);
-    if ($faturaId <= 0 || $codigo === '') {
+    $numeroDocumento = trim((string) $numeroDocumento);
+    if ($numeroDocumento !== '' && strlen($numeroDocumento) > 30) {
+        $numeroDocumento = substr($numeroDocumento, 0, 30);
+    }
+    if ($faturaId <= 0 || ($codigo === '' && $numeroDocumento === '')) {
         return false;
     }
     if (strlen($codigo) > 100) {
@@ -1189,23 +1247,32 @@ function sincronizarNumeroFaturaBanco($faturaId, $codigo = null, $pdo = null) {
     }
 
     try {
-        $stAtual = $pdo->prepare("SELECT admin_id, numero FROM faturas WHERE id = ?");
+        $stAtual = $pdo->prepare("SELECT admin_id, numero, inter_seu_numero FROM faturas WHERE id = ?");
         $stAtual->execute([$faturaId]);
         $atual = $stAtual->fetch(PDO::FETCH_ASSOC);
         if (!$atual) {
             return false;
         }
-        if ((string) $atual['numero'] === $codigo) {
-            return true;
+        $docAtual = trim((string) ($atual['inter_seu_numero'] ?? ''));
+        $novoDoc = $numeroDocumento !== '' ? $numeroDocumento : $docAtual;
+        $alvo = $novoDoc !== '' ? $novoDoc : $codigo;
+        if ($alvo === '') {
+            return false;
         }
         // uq_admin_numero impede repetir o mesmo número no mesmo admin.
         $stConflito = $pdo->prepare("SELECT id FROM faturas WHERE admin_id <=> ? AND numero = ? AND id <> ? LIMIT 1");
-        $stConflito->execute([$atual['admin_id'], $codigo, $faturaId]);
+        $stConflito->execute([$atual['admin_id'], $alvo, $faturaId]);
         if ($stConflito->fetchColumn()) {
             return false;
         }
-        $upd = $pdo->prepare("UPDATE faturas SET numero = ? WHERE id = ?");
-        $upd->execute([$codigo, $faturaId]);
+        if ($novoDoc !== '' && $novoDoc !== $docAtual) {
+            $updDoc = $pdo->prepare("UPDATE faturas SET inter_seu_numero = ? WHERE id = ?");
+            $updDoc->execute([$novoDoc, $faturaId]);
+        }
+        if ((string) $atual['numero'] !== $alvo) {
+            $upd = $pdo->prepare("UPDATE faturas SET numero = ? WHERE id = ?");
+            $upd->execute([$alvo, $faturaId]);
+        }
         return true;
     } catch (Throwable $e) {
         error_log('[FATURA_NUMERO_BANCO] Fatura ' . $faturaId . ': ' . $e->getMessage());

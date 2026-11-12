@@ -255,7 +255,7 @@ function regenerarPixFatura($pdo, $fatura) {
             if ($apiAtual === 'inter') {
                 $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
                 $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);
-                sincronizarNumeroFaturaBanco($fatura['id'], $result['payment_id'] ?? '', $pdo);
+                sincronizarNumeroFaturaBanco($fatura['id'], $result['payment_id'] ?? '', $pdo, $result['numero_documento'] ?? '');
             } else {
                 $stmt = $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, mp_payment_id = ?, api_pagamento = ? WHERE id = ? AND status != 'pago'");
                 $stmt->execute([$result['qr_code'] ?? '', $result['qr_code_copia_cola'] ?? '', $result['link_pagamento'] ?? '', $result['payment_id'], $apiAtual, $fatura['id']]);
@@ -1086,6 +1086,8 @@ function criarPagamentoInter($descricao, $valor, $clienteEmail, $clienteNome, $d
             return [
                 'sucesso' => true,
                 'payment_id' => $codigo,
+                // "N° do Documento" impresso no boleto = seuNumero da cobranca.
+                'numero_documento' => (string) ($detalhe['cobranca']['seuNumero'] ?? $dados['seuNumero'] ?? ''),
                 'qr_code' => $qrCode,
                 'qr_code_copia_cola' => $pixCopiaECola,
                 'link_pagamento' => '',
@@ -1214,6 +1216,8 @@ function criarBoletoInter($descricao, $valor, $clienteNome, $clienteCpfCnpj, $cl
             return [
                 'sucesso' => true,
                 'payment_id' => $codigo,
+                // "N° do Documento" impresso no boleto = seuNumero da cobranca.
+                'numero_documento' => (string) ($detalhe['cobranca']['seuNumero'] ?? $dados['seuNumero'] ?? ''),
                 'boleto_url' => $pdfUrl,
                 'boleto_codigo_barras' => $linhaDigitavel,
                 'boleto_linha_digitavel' => $linhaDigitavel,
@@ -1798,6 +1802,8 @@ function criarBoletoBB($descricao, $valor, $clienteNome, $clienteCpfCnpj, $clien
             return [
                 'sucesso' => true,
                 'payment_id' => $nossoNumero,
+                // "N° do Documento" do boleto do BB.
+                'numero_documento' => (string) ($resp['numeroDocumento'] ?? $resp['seuNumero'] ?? $seuNumero),
                 'boleto_url' => $pdfUrl,
                 'boleto_codigo_barras' => $codigoBarras,
                 'boleto_linha_digitavel' => $linhaDigitavel,
