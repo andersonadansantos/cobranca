@@ -20,6 +20,9 @@ $logoMaxWidth = 200;
             <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: <?= $logoMaxWidth ?>px; max-height: 70px;">
         <?php endif; ?>
         <h4><i class="fas fa-shield-halved me-2"></i><?= t('layout.admin_area') ?></h4>
+        <button type="button" class="sidebar-collapse-btn" aria-label="Recolher menu" aria-expanded="true" title="Recolher menu">
+            <i class="fas fa-angles-left"></i>
+        </button>
     </div>
     <nav class="sidebar-nav">
         <?php if (!$acessoRestrito): ?>

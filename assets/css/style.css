@@ -261,6 +261,104 @@ body {
     margin-bottom: 8px;
 }
 
+/* Botao recolher/expandir o menu lateral */
+.sidebar-header { position: relative; }
+.sidebar-collapse-btn {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    color: var(--app-sidebar-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.78rem;
+    line-height: 1;
+    z-index: 5;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.3s ease;
+}
+.sidebar-collapse-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.fintech-theme .sidebar-collapse-btn {
+    border-color: var(--fintech-border) !important;
+    background: var(--fintech-bg) !important;
+    color: var(--fintech-text-secondary) !important;
+}
+.fintech-theme .sidebar-collapse-btn:hover { color: var(--fintech-primary) !important; }
+
+/* Menu recolhido: somente icones, com tooltip. Aplica-se apenas ao desktop;
+   no mobile o menu continua funcionando como gaveta lateral. */
+@media (min-width: 769px) {
+    .main-content { transition: margin-left 0.28s ease; }
+
+    html body.sidebar-collapsed .sidebar {
+        width: 78px !important;
+        overflow-x: hidden;
+    }
+    html body.sidebar-collapsed .main-content {
+        margin-left: 78px !important;
+    }
+    html body.sidebar-collapsed .sidebar-header {
+        min-height: 56px;
+        padding: 14px 8px;
+    }
+    html body.sidebar-collapsed .sidebar-header img,
+    html body.sidebar-collapsed .sidebar-header h4 {
+        display: none !important;
+    }
+    html body.sidebar-collapsed .sidebar-collapse-btn {
+        position: static;
+        margin: 0 auto;
+    }
+    html body.sidebar-collapsed .sidebar-nav {
+        padding: 10px 8px;
+    }
+    /* Caixas de aviso (plano/conta) nao cabem no modo recolhido. */
+    html body.sidebar-collapsed .sidebar-nav > div:not(.nav-section) {
+        display: none !important;
+    }
+    html body.sidebar-collapsed .sidebar-nav .nav-section {
+        height: 1px;
+        min-height: 0;
+        margin: 10px 14px;
+        padding: 0 !important;
+        font-size: 0 !important;
+        letter-spacing: 0 !important;
+        background: rgba(255,255,255,0.12);
+        overflow: hidden;
+    }
+    html body.fintech-theme.sidebar-collapsed .sidebar-nav .nav-section {
+        background: var(--fintech-border) !important;
+    }
+    html body.sidebar-collapsed .sidebar-nav .nav-link {
+        position: relative;
+        justify-content: center;
+        padding: 11px 0 !important;
+        gap: 0 !important;
+        font-size: 0 !important;
+    }
+    html body.sidebar-collapsed .sidebar-nav .nav-link i {
+        width: auto !important;
+        margin: 0 !important;
+        font-size: 1.05rem !important;
+    }
+    html body.fintech-theme.sidebar-collapsed .sidebar-nav .nav-link i {
+        font-size: 16px !important;
+    }
+    html body.sidebar-collapsed .sidebar-nav .nav-link .badge {
+        position: absolute;
+        top: 3px;
+        right: 6px;
+        margin: 0 !important;
+        font-size: 0.58rem !important;
+        padding: 2px 4px;
+    }
+}
+
 .sidebar-nav {
     padding: 12px 0;
 }
@@ -639,6 +737,8 @@ body {
         width: var(--sidebar-width);
         box-shadow: 4px 0 20px rgba(0,0,0,0.3);
     }
+    /* No mobile o menu e gaveta lateral; recolher para icones nao se aplica. */
+    .sidebar-collapse-btn { display: none !important; }
     .main-content {
         margin-left: 0;
     }
@@ -1562,8 +1662,17 @@ body {
    MOBILE APP STYLE — User Panel
    ============================================= */
 @media (max-width: 768px) {
-    .sidebar { display: none !important; }
-    .sidebar.show { display: none !important; }
+    .sidebar {
+        display: block !important;
+        width: 0 !important;
+        overflow: hidden !important;
+        transition: width 0.25s ease !important;
+    }
+    .sidebar.show {
+        display: block !important;
+        width: var(--sidebar-width, 260px) !important;
+        box-shadow: 6px 0 28px rgba(15, 23, 42, 0.18) !important;
+    }
     .main-content { margin-left: 0 !important; }
     .content-area { padding: 12px !important; padding-bottom: 80px !important; }
 

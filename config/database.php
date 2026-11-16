@@ -482,6 +482,317 @@ function getConnection() {
             ) ENGINE=InnoDB");
         } catch (PDOException $e) {}
 
+        // === MODULO MARKETING (Super Admin) ===
+        // Contatos comerciais coletados por pesquisa publica + IA. Os indices
+        // UNIQUE em whatsapp_norm/email_norm sao a ultima barreira contra
+        // duplicidade (a checagem tambem e feita em PHP antes de inserir).
+        // Colunas NULL sao permitidas e nao colidem no MySQL/MariaDB.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_contatos` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `empresa` VARCHAR(200) NOT NULL,
+                `nome_contato` VARCHAR(160) DEFAULT NULL,
+                `nicho` VARCHAR(120) DEFAULT NULL,
+                `descricao_nicho` VARCHAR(255) DEFAULT NULL,
+                `cidade` VARCHAR(120) DEFAULT NULL,
+                `estado` CHAR(2) DEFAULT NULL,
+                `regiao` VARCHAR(120) DEFAULT NULL,
+                `whatsapp` VARCHAR(30) DEFAULT NULL,
+                `whatsapp_norm` VARCHAR(20) DEFAULT NULL,
+                `email` VARCHAR(180) DEFAULT NULL,
+                `email_norm` VARCHAR(180) DEFAULT NULL,
+                `site` VARCHAR(255) DEFAULT NULL,
+                `origem` VARCHAR(500) DEFAULT NULL,
+                `origem_tipo` VARCHAR(30) DEFAULT 'busca',
+                `base_legal` VARCHAR(60) DEFAULT 'legitimo_interesse',
+                `opt_out` TINYINT(1) DEFAULT 0,
+                `status` VARCHAR(30) DEFAULT 'coletado',
+                `observacoes` TEXT DEFAULT NULL,
+                `data_coleta` DATE DEFAULT NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_mkt_whatsapp` (`whatsapp_norm`),
+                UNIQUE KEY `uq_mkt_email` (`email_norm`),
+                KEY `idx_mkt_contato_nicho` (`nicho`),
+                KEY `idx_mkt_contato_data` (`data_coleta`)
+            ) ENGINE=InnoDB");
+            // Instalacoes criadas antes da coluna nome_contato.
+            try { $pdo->exec("ALTER TABLE `marketing_contatos` ADD COLUMN `nome_contato` VARCHAR(160) DEFAULT NULL AFTER `empresa`"); } catch (PDOException $e) {}
+        } catch (PDOException $e) {}
+
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_templates` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `canal` VARCHAR(20) NOT NULL,
+                `remetente_nome` VARCHAR(120) DEFAULT NULL,
+                `remetente_email` VARCHAR(180) DEFAULT NULL,
+                `assunto` VARCHAR(200) DEFAULT NULL,
+                `conteudo` LONGTEXT DEFAULT NULL,
+                `html` TINYINT(1) DEFAULT 0,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_mkt_template_canal` (`canal`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // Imagens dos templates de WhatsApp/e-mail. O arquivo fica FORA da area
+        // publica (config/marketing_uploads, bloqueado por .htaccess) e so e
+        // servido pelo endpoint autenticado do Super Admin. "modo" define se a
+        // imagem entra no corpo do e-mail (inline/cid) ou como anexo.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_template_arquivos` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `canal` VARCHAR(20) NOT NULL,
+                `nome_original` VARCHAR(180) NOT NULL,
+                `arquivo` VARCHAR(180) NOT NULL,
+                `mime` VARCHAR(60) NOT NULL,
+                `tamanho` INT NOT NULL DEFAULT 0,
+                `modo` VARCHAR(20) NOT NULL DEFAULT 'inline',
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_mkt_arquivo` (`arquivo`),
+                KEY `idx_mkt_arquivo_canal` (`canal`),
+                CONSTRAINT `chk_mkt_arquivo_canal` CHECK (`canal` IN ('whatsapp','email')),
+                CONSTRAINT `chk_mkt_arquivo_modo` CHECK (`modo` IN ('inline','anexo'))
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {
+            // MariaDB antigo sem CHECK: cria a tabela sem as constraints.
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_template_arquivos` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `canal` VARCHAR(20) NOT NULL,
+                    `nome_original` VARCHAR(180) NOT NULL,
+                    `arquivo` VARCHAR(180) NOT NULL,
+                    `mime` VARCHAR(60) NOT NULL,
+                    `tamanho` INT NOT NULL DEFAULT 0,
+                    `modo` VARCHAR(20) NOT NULL DEFAULT 'inline',
+                    `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uq_mkt_arquivo` (`arquivo`),
+                    KEY `idx_mkt_arquivo_canal` (`canal`)
+                ) ENGINE=InnoDB");
+            } catch (PDOException $e2) {}
+        }
+
+        // =====================================================
+        // ENVIOS MANUAIS (listas importadas e campanhas proprias)
+        // =====================================================
+        // Lista de contatos importada pelo Super Admin. Os contatos em si ficam
+        // em marketing_contatos (base unica); a lista apenas aponta para eles.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_listas` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `nome` VARCHAR(160) NOT NULL,
+                `descricao` VARCHAR(255) DEFAULT NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_mkt_lista_nome` (`nome`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_lista_contatos` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `lista_id` INT NOT NULL,
+                `contato_id` INT NOT NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_mkt_lista_contato` (`lista_id`,`contato_id`),
+                KEY `idx_mkt_lista_contato_contato` (`contato_id`),
+                CONSTRAINT `fk_mkt_lista_contato_lista` FOREIGN KEY (`lista_id`) REFERENCES `marketing_listas` (`id`) ON DELETE CASCADE,
+                CONSTRAINT `fk_mkt_lista_contato_contato` FOREIGN KEY (`contato_id`) REFERENCES `marketing_contatos` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // Campanha manual: usa SEMPRE os templates principais da aba
+        // "Marketing Disparo" e respeita os limites diarios exclusivos do
+        // canal manual (20 WhatsApp / 150 e-mails por padrao).
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_campanhas` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `nome` VARCHAR(160) NOT NULL,
+                `descricao` VARCHAR(500) DEFAULT NULL,
+                `lista_id` INT NOT NULL,
+                `canais` VARCHAR(20) NOT NULL DEFAULT 'ambos',
+                `data_inicio` DATE NOT NULL,
+                `hora_inicio` TIME NOT NULL,
+                `status` VARCHAR(20) NOT NULL DEFAULT 'rascunho',
+                `ativa` TINYINT(1) NOT NULL DEFAULT 0,
+                `iniciada_em` DATETIME DEFAULT NULL,
+                `pausada_em` DATETIME DEFAULT NULL,
+                `cancelada_em` DATETIME DEFAULT NULL,
+                `concluida_em` DATETIME DEFAULT NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY `idx_mkt_campanha_status` (`status`),
+                KEY `idx_mkt_campanha_lista` (`lista_id`),
+                CONSTRAINT `fk_mkt_campanha_lista` FOREIGN KEY (`lista_id`) REFERENCES `marketing_listas` (`id`),
+                CONSTRAINT `chk_mkt_campanha_canais` CHECK (`canais` IN ('whatsapp','email','ambos')),
+                CONSTRAINT `chk_mkt_campanha_status` CHECK (`status` IN ('rascunho','agendada','em_andamento','pausada','concluida','cancelada'))
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_campanhas` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `nome` VARCHAR(160) NOT NULL,
+                    `descricao` VARCHAR(500) DEFAULT NULL,
+                    `lista_id` INT NOT NULL,
+                    `canais` VARCHAR(20) NOT NULL DEFAULT 'ambos',
+                    `data_inicio` DATE NOT NULL,
+                    `hora_inicio` TIME NOT NULL,
+                    `status` VARCHAR(20) NOT NULL DEFAULT 'rascunho',
+                    `ativa` TINYINT(1) NOT NULL DEFAULT 0,
+                    `iniciada_em` DATETIME DEFAULT NULL,
+                    `pausada_em` DATETIME DEFAULT NULL,
+                    `cancelada_em` DATETIME DEFAULT NULL,
+                    `concluida_em` DATETIME DEFAULT NULL,
+                    `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY `idx_mkt_campanha_status` (`status`),
+                    KEY `idx_mkt_campanha_lista` (`lista_id`)
+                ) ENGINE=InnoDB");
+            } catch (PDOException $e2) {}
+        }
+
+        // Fila/log por campanha. UNIQUE(campanha,contato,canal) impede envio
+        // duplicado do mesmo contato na mesma campanha e canal.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_campanha_envios` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `campanha_id` INT NOT NULL,
+                `contato_id` INT NOT NULL,
+                `canal` VARCHAR(20) NOT NULL,
+                `status` VARCHAR(20) NOT NULL DEFAULT 'aguardando',
+                `tentativas` INT NOT NULL DEFAULT 0,
+                `resposta_api` TEXT DEFAULT NULL,
+                `erro` TEXT DEFAULT NULL,
+                `enviado_em` DATETIME DEFAULT NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_mkt_camp_envio` (`campanha_id`,`contato_id`,`canal`),
+                KEY `idx_mkt_camp_envio_status` (`status`),
+                KEY `idx_mkt_camp_envio_envio` (`enviado_em`),
+                KEY `idx_mkt_camp_envio_campanha` (`campanha_id`),
+                CONSTRAINT `fk_mkt_camp_envio_campanha` FOREIGN KEY (`campanha_id`) REFERENCES `marketing_campanhas` (`id`) ON DELETE CASCADE,
+                CONSTRAINT `fk_mkt_camp_envio_contato` FOREIGN KEY (`contato_id`) REFERENCES `marketing_contatos` (`id`) ON DELETE CASCADE,
+                CONSTRAINT `chk_mkt_camp_envio_canal` CHECK (`canal` IN ('whatsapp','email')),
+                CONSTRAINT `chk_mkt_camp_envio_status` CHECK (`status` IN ('aguardando','enviando','enviado','falha','cancelado'))
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_campanha_envios` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `campanha_id` INT NOT NULL,
+                    `contato_id` INT NOT NULL,
+                    `canal` VARCHAR(20) NOT NULL,
+                    `status` VARCHAR(20) NOT NULL DEFAULT 'aguardando',
+                    `tentativas` INT NOT NULL DEFAULT 0,
+                    `resposta_api` TEXT DEFAULT NULL,
+                    `erro` TEXT DEFAULT NULL,
+                    `enviado_em` DATETIME DEFAULT NULL,
+                    `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uq_mkt_camp_envio` (`campanha_id`,`contato_id`,`canal`),
+                    KEY `idx_mkt_camp_envio_status` (`status`),
+                    KEY `idx_mkt_camp_envio_envio` (`enviado_em`),
+                    KEY `idx_mkt_camp_envio_campanha` (`campanha_id`)
+                ) ENGINE=InnoDB");
+            } catch (PDOException $e2) {}
+        }
+
+        // Controles independentes por canal (WhatsApp / e-mail). Cada canal tem
+        // a propria fila, o proprio contador e pode ser pausado/retomado sem
+        // interferir no outro. As colunas sao criadas de forma idempotente para
+        // instalacoes que ja possuem a tabela. O DEFAULT 1 ativa os dois canais
+        // nas campanhas existentes; o estado individual e preservado nas
+        // conexoes seguintes (nao ha reset global).
+        try { $pdo->exec("ALTER TABLE `marketing_campanhas` ADD COLUMN `wa_ativa` TINYINT(1) NOT NULL DEFAULT 1 AFTER `ativa`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `marketing_campanhas` ADD COLUMN `em_ativa` TINYINT(1) NOT NULL DEFAULT 1 AFTER `wa_ativa`"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE `marketing_campanha_envios` ADD KEY `idx_mkt_camp_envio_canal_status` (`campanha_id`,`canal`,`status`)"); } catch (PDOException $e) {}
+
+        // Fila e historico de disparos. UNIQUE(contato_id,canal) impede que o
+        // mesmo contato entre duas vezes na mesma fila/canal, mesmo que a rotina
+        // de coleta rode novamente.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_envios` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `contato_id` INT NOT NULL,
+                `canal` VARCHAR(20) NOT NULL,
+                `template_id` INT DEFAULT NULL,
+                `empresa` VARCHAR(200) DEFAULT NULL,
+                `whatsapp` VARCHAR(30) DEFAULT NULL,
+                `email` VARCHAR(180) DEFAULT NULL,
+                `nicho` VARCHAR(120) DEFAULT NULL,
+                `assunto` VARCHAR(200) DEFAULT NULL,
+                `mensagem` LONGTEXT DEFAULT NULL,
+                `status` VARCHAR(30) NOT NULL DEFAULT 'aguardando',
+                `tentativas` INT NOT NULL DEFAULT 0,
+                `resposta_api` TEXT DEFAULT NULL,
+                `erro` TEXT DEFAULT NULL,
+                `agendado_para` DATETIME DEFAULT NULL,
+                `enviado_em` DATETIME DEFAULT NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `atualizado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_mkt_envio_contato` (`contato_id`, `canal`),
+                KEY `idx_mkt_envio_status` (`status`, `canal`),
+                KEY `idx_mkt_envio_criado` (`criado_em`),
+                KEY `idx_mkt_envio_nicho` (`nicho`),
+                FOREIGN KEY (`contato_id`) REFERENCES `marketing_contatos`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // Historico de descartes: duplicidade, valor que nao confere com a fonte
+        // publica, contato invalido. Prova de que a coleta nao repetiu contatos.
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_descartes` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `empresa` VARCHAR(200) DEFAULT NULL,
+                `whatsapp` VARCHAR(30) DEFAULT NULL,
+                `email` VARCHAR(180) DEFAULT NULL,
+                `nicho` VARCHAR(120) DEFAULT NULL,
+                `motivo` VARCHAR(60) NOT NULL,
+                `detalhe` VARCHAR(255) DEFAULT NULL,
+                `origem` VARCHAR(500) DEFAULT NULL,
+                `criado_em` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                KEY `idx_mkt_descarte_data` (`criado_em`),
+                KEY `idx_mkt_descarte_motivo` (`motivo`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // Uma linha por execucao (cron ou manual). chave_diaria so e preenchida
+        // no cron: o UNIQUE garante uma unica execucao automatica por dia mesmo
+        // que a VPS chame o endpoint varias vezes. Manual usa NULL (nao colide).
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketing_execucoes` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `execucao_id` VARCHAR(40) NOT NULL,
+                `origem` VARCHAR(20) NOT NULL DEFAULT 'cron',
+                `chave_diaria` VARCHAR(20) DEFAULT NULL,
+                `iniciado_em` DATETIME NOT NULL,
+                `finalizado_em` DATETIME DEFAULT NULL,
+                `status` VARCHAR(30) NOT NULL DEFAULT 'em_andamento',
+                `whatsapp_novos` INT NOT NULL DEFAULT 0,
+                `emails_novos` INT NOT NULL DEFAULT 0,
+                `duplicados` INT NOT NULL DEFAULT 0,
+                `invalidos` INT NOT NULL DEFAULT 0,
+                `whatsapp_enviados` INT NOT NULL DEFAULT 0,
+                `emails_enviados` INT NOT NULL DEFAULT 0,
+                `falhas` INT NOT NULL DEFAULT 0,
+                `mensagem` TEXT DEFAULT NULL,
+                UNIQUE KEY `uq_mkt_execucao` (`execucao_id`),
+                UNIQUE KEY `uq_mkt_chave_diaria` (`chave_diaria`),
+                KEY `idx_mkt_exec_inicio` (`iniciado_em`)
+            ) ENGINE=InnoDB");
+        } catch (PDOException $e) {}
+
+        // O antigo gerenciador de Cron Job do Super Admin foi removido, mas o
+        // token global continua sendo a credencial dos endpoints externos
+        // (/api/cron_envio.php e /api/marketing_cron.php). Garante que ele
+        // exista mesmo em instalacoes novas.
+        try {
+            $temTokenCron = $pdo->query("SELECT COUNT(*) FROM configuracoes WHERE admin_id IS NULL AND chave = 'cron_token'")->fetchColumn();
+            if ((int) $temTokenCron === 0) {
+                $pdo->prepare("INSERT INTO configuracoes (admin_id, chave, valor) VALUES (NULL, 'cron_token', ?)")
+                    ->execute([bin2hex(random_bytes(16))]);
+            }
+        } catch (PDOException $e) {}
+
         try {
             $pdo->exec("CREATE TABLE IF NOT EXISTS `planos` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,

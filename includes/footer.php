@@ -66,6 +66,8 @@
 
     <script src="/cobranca/assets/js/main.js?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__)) . '/assets/js/main.js') ?>"></script>
 
+    <script src="/cobranca/assets/js/sidebar.js?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__)) . '/assets/js/sidebar.js') ?>"></script>
+
     <script>
 
     (function () {

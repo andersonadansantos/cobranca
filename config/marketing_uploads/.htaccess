@@ -1,0 +1,10 @@
+# Bloqueia o acesso direto aos arquivos enviados pelo modulo Marketing.
+# As imagens so podem ser obtidas pelo endpoint autenticado do Super Admin:
+# /cobranca/superadmin/api/marketing_arquivo.php?id=ID
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

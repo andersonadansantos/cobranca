@@ -742,6 +742,150 @@ if (!function_exists('enviarEmailComAnexo')) {
     }
 }
 
+if (!function_exists('enviarEmailMarketing')) {
+    // Envia e-mail com imagens no corpo (multipart/related + CID) e/ou anexadas
+    // (multipart/mixed). Cada imagem e um array com:
+    //   caminho (obrigatorio), nome, mime, cid (apenas inline), tamanho.
+    // Mantem enviarEmail/enviarEmailComAnexo intactos para os demais fluxos.
+    function enviarEmailMarketing($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt, $imagensInline = [], $imagensAnexo = []) {
+        $normalizar = function ($lista) {
+            $out = [];
+            foreach ((array) $lista as $img) {
+                $caminho = (string) ($img['caminho'] ?? '');
+                if ($caminho === '' || !is_file($caminho)) continue;
+                $mime = (string) ($img['mime'] ?? 'application/octet-stream');
+                if (!preg_match('#^[a-z0-9.+-]+/[a-z0-9.+-]+$#i', $mime)) $mime = 'application/octet-stream';
+                $nome = (string) ($img['nome'] ?? basename($caminho));
+                // Nome seguro para os cabecalhos MIME (sem CR/LF, aspas ou acentos).
+                $nome = preg_replace('/[\x00-\x1F\x7F"\\\\]+/', '', $nome);
+                $nome = basename(str_replace('\\', '/', $nome));
+                if ($nome === '') $nome = 'imagem';
+                $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $nome);
+                if ($ascii !== false && $ascii !== '') $nome = $ascii;
+                $nome = preg_replace('/[^A-Za-z0-9._-]+/', '_', $nome);
+                if ($nome === '' || $nome === '.') $nome = 'imagem';
+                $out[] = [
+                    'caminho' => $caminho,
+                    'nome'    => $nome,
+                    'mime'    => strtolower($mime),
+                    'cid'     => (string) ($img['cid'] ?? ''),
+                ];
+            }
+            return $out;
+        };
+
+        $inline = $normalizar($imagensInline);
+        $anexos = $normalizar($imagensAnexo);
+        if (!$inline && !$anexos) {
+            return enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt);
+        }
+
+        $connexion = null;
+        $ehloResponse = '';
+        $erro = '';
+        list($connexion, $ehloResponse, $erro) = smtpConectar($host, $port, $ssl);
+        if (!$connexion) {
+            error_log('[SMTP] ' . $erro);
+            return false;
+        }
+
+        $erroAuth = '';
+        if (!smtpAutenticar($connexion, $ehloResponse, $user, $pass, $erroAuth)) {
+            error_log('[SMTP] ' . $erroAuth);
+            @fclose($connexion);
+            return false;
+        }
+
+        @fputs($connexion, "MAIL FROM:<{$fromEmail}>\r\n");
+        @fgets($connexion, 512);
+        @fputs($connexion, "RCPT TO:<{$paraEmail}>\r\n");
+        $r = @fgets($connexion, 512);
+        if (substr($r, 0, 3) !== '250') {
+            @fclose($connexion);
+            return false;
+        }
+
+        @fputs($connexion, "DATA\r\n");
+        @fgets($connexion, 512);
+
+        $base = md5(uniqid('', true));
+        $boundaryAlt = 'alt_' . $base;
+        $boundaryRel = 'rel_' . $base;
+        $boundaryMix = 'mix_' . $base;
+
+        $htmlPart = "--{$boundaryAlt}\r\n"
+            . "Content-Type: text/plain; charset=UTF-8\r\n"
+            . "Content-Transfer-Encoding: base64\r\n\r\n"
+            . chunk_split(base64_encode((string) $mensagemTxt)) . "\r\n"
+            . "--{$boundaryAlt}\r\n"
+            . "Content-Type: text/html; charset=UTF-8\r\n"
+            . "Content-Transfer-Encoding: base64\r\n\r\n"
+            . chunk_split(base64_encode((string) $mensagemHtml)) . "\r\n"
+            . "--{$boundaryAlt}--\r\n";
+
+        $body = "From: =?UTF-8?B?" . base64_encode($fromNome) . "?= <{$fromEmail}>\r\n";
+        $body .= "Reply-To: {$fromEmail}\r\n";
+        $body .= "Date: " . date('r') . "\r\n";
+        $body .= "To: =?UTF-8?B?" . base64_encode($paraNome) . "?= <{$paraEmail}>\r\n";
+        $body .= "Subject: =?UTF-8?B?" . base64_encode($assunto) . "?=\r\n";
+        $body .= "MIME-Version: 1.0\r\n";
+
+        // Monta o bloco relacionado (alternative + imagens inline) quando houver.
+        $relPart = '';
+        if ($inline) {
+            $relPart = "--{$boundaryRel}\r\n"
+                . "Content-Type: multipart/alternative; boundary=\"{$boundaryAlt}\"\r\n\r\n"
+                . $htmlPart;
+            foreach ($inline as $img) {
+                $binario = @file_get_contents($img['caminho']);
+                if ($binario === false) continue;
+                $cid = $img['cid'] !== '' ? $img['cid'] : ('img-' . md5($img['caminho']));
+                $relPart .= "--{$boundaryRel}\r\n"
+                    . "Content-Type: {$img['mime']}; name=\"{$img['nome']}\"\r\n"
+                    . "Content-ID: <{$cid}>\r\n"
+                    . "Content-Disposition: inline; filename=\"{$img['nome']}\"\r\n"
+                    . "Content-Transfer-Encoding: base64\r\n\r\n"
+                    . chunk_split(base64_encode($binario)) . "\r\n";
+            }
+            $relPart .= "--{$boundaryRel}--\r\n";
+        }
+
+        if ($anexos) {
+            $body .= "Content-Type: multipart/mixed; boundary=\"{$boundaryMix}\"\r\n\r\n";
+            $body .= "--{$boundaryMix}\r\n";
+            if ($relPart !== '') {
+                $body .= "Content-Type: multipart/related; boundary=\"{$boundaryRel}\"; type=\"multipart/alternative\"\r\n\r\n" . $relPart;
+            } else {
+                $body .= "Content-Type: multipart/alternative; boundary=\"{$boundaryAlt}\"\r\n\r\n" . $htmlPart;
+            }
+            foreach ($anexos as $img) {
+                $binario = @file_get_contents($img['caminho']);
+                if ($binario === false) continue;
+                $body .= "--{$boundaryMix}\r\n"
+                    . "Content-Type: {$img['mime']}; name=\"{$img['nome']}\"\r\n"
+                    . "Content-Disposition: attachment; filename=\"{$img['nome']}\"\r\n"
+                    . "Content-Transfer-Encoding: base64\r\n\r\n"
+                    . chunk_split(base64_encode($binario)) . "\r\n";
+            }
+            $body .= "--{$boundaryMix}--\r\n";
+        } elseif ($relPart !== '') {
+            $body .= "Content-Type: multipart/related; boundary=\"{$boundaryRel}\"; type=\"multipart/alternative\"\r\n\r\n" . $relPart;
+        } else {
+            $body .= "Content-Type: multipart/alternative; boundary=\"{$boundaryAlt}\"\r\n\r\n" . $htmlPart;
+        }
+
+        $body .= ".\r\n";
+
+        @fputs($connexion, $body);
+        $r = @fgets($connexion, 512);
+        @fputs($connexion, "QUIT\r\n");
+        @fclose($connexion);
+
+        // Só é envio concluído se o servidor aceitou a mensagem (250 após o DATA).
+        return substr((string) $r, 0, 3) === '250';
+    }
+}
+
 if (!function_exists('enviarEmailFatura')) {
     function enviarEmailFatura($fatura, $tipo = 'antes') {
         $adminId = (int)($fatura['admin_id'] ?? 0);

@@ -1,5 +1,6 @@
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
     <script src="/cobranca/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="/cobranca/assets/js/sidebar.js?v=<?= filemtime(APP_ROOT . '/assets/js/sidebar.js') ?>"></script>
     <script>
     (function () {
         // Seletor de idioma (bandeiras) injetado na topbar

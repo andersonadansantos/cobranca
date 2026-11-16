@@ -9,6 +9,9 @@ $logo = function_exists('getLogoPainelUsuario') ? getLogoPainelUsuario() : ($log
             <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 150px;">
         <?php endif; ?>
         <h4><i class="fas fa-user me-2"></i><?= t('layout.area_cliente') ?></h4>
+        <button type="button" class="sidebar-collapse-btn" aria-label="Recolher menu" aria-expanded="true" title="Recolher menu">
+            <i class="fas fa-angles-left"></i>
+        </button>
     </div>
     <nav class="sidebar-nav">
         <div class="nav-section"><?= t('layout.menu') ?></div>

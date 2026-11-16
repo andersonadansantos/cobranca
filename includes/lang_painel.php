@@ -98,6 +98,8 @@ $GLOBALS['painel_pt'] = [
     'nav.faturas' => 'Faturas',
     'nav.tutoriais' => 'Tutoriais',
     'nav.cron_job' => 'Cron Job',
+    'nav.marketing' => 'Marketing',
+    'nav.api_evolution' => 'API Evolution',
 
     // Topbar comum
     'tb.suporte' => 'Suporte',
@@ -372,6 +374,8 @@ $GLOBALS['painel_es'] = [
     'nav.faturas' => 'Facturas',
     'nav.tutoriais' => 'Tutoriales',
     'nav.cron_job' => 'Cron Job',
+    'nav.marketing' => 'Marketing',
+    'nav.api_evolution' => 'API Evolution',
 
     // Topbar comum
     'tb.suporte' => 'Soporte',

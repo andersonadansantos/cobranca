@@ -5,7 +5,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     initTooltips();
     initMask();
-    initSidebar();
 });
 
 // Inicializar Bootstrap Tooltips
@@ -70,26 +69,6 @@ function initMask() {
             e.target.value = 'R$ ' + v;
         });
     });
-}
-
-// Sidebar toggle
-function initSidebar() {
-    var toggler = document.getElementById('sidebarToggle');
-    var sidebar = document.querySelector('.sidebar');
-    if (toggler && sidebar) {
-        toggler.addEventListener('click', function() {
-            sidebar.classList.toggle('show');
-            var overlay = document.getElementById('sidebarOverlay');
-            if (overlay) overlay.classList.toggle('show');
-        });
-        var overlay = document.getElementById('sidebarOverlay');
-        if (overlay) {
-            overlay.addEventListener('click', function() {
-                sidebar.classList.remove('show');
-                overlay.classList.remove('show');
-            });
-        }
-    }
 }
 
 // Formatar valor para moeda

@@ -20,3 +20,16 @@ deploy_*.ps1
 scratch/
 
 chaves_ssh/
+
+# Chave de criptografia das credenciais do modulo Marketing
+config/.marketing_key
+
+# Imagens dos templates do Marketing (enviadas pelo Super Admin)
+config/marketing_uploads/*
+!config/marketing_uploads/.htaccess
+!config/marketing_uploads/.gitignore
+
+# Arquivos temporarios de importacao manual (CSV/XLSX)
+config/marketing_imports/*
+!config/marketing_imports/.htaccess
+!config/marketing_imports/.gitignore

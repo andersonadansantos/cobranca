@@ -8,6 +8,9 @@ $basePath = '/cobranca/superadmin';
             <img src="<?= htmlspecialchars($logo) ?>" alt="Logo" style="max-width: 200px; width: auto; max-height: 105px;">
         <?php endif; ?>
         <h4><i class="fas fa-crown me-2"></i><?= t('layout.super_admin') ?></h4>
+        <button type="button" class="sidebar-collapse-btn" aria-label="Recolher menu" aria-expanded="true" title="Recolher menu">
+            <i class="fas fa-angles-left"></i>
+        </button>
     </div>
     <nav class="sidebar-nav">
         <div class="nav-section"><?= t('layout.menu_label') ?></div>
@@ -34,6 +37,12 @@ $basePath = '/cobranca/superadmin';
         </a>
         <a href="<?= $basePath ?>/personalizacao.php" class="nav-link <?= $currentPage === 'personalizacao' ? 'active' : '' ?>">
             <i class="fas fa-image"></i> <?= t('nav.personalizacao') ?>
+        </a>
+        <a href="<?= $basePath ?>/evolution.php" class="nav-link <?= $currentPage === 'evolution' ? 'active' : '' ?>">
+            <i class="fab fa-whatsapp" style="color:#25D366;"></i> API Evolution
+        </a>
+        <a href="<?= $basePath ?>/marketing.php" class="nav-link <?= $currentPage === 'marketing' ? 'active' : '' ?>">
+            <i class="fas fa-bullhorn"></i> Marketing
         </a>
         <a href="<?= $basePath ?>/cron.php" class="nav-link <?= $currentPage === 'cron' ? 'active' : '' ?>">
             <i class="fas fa-clock"></i> <?= t('nav.cron_job') ?>
