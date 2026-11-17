@@ -77,65 +77,94 @@ $nomeSistema = getNomeSistema();
     <link href="/cobranca/assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
     <link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">
     <link href="/cobranca/assets/css/style.css" rel="stylesheet">
+    <link href="/cobranca/assets/css/login_fintech.css?v=20261117-2" rel="stylesheet">
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
-<body>
-    <div class="login-page">
-        <div class="login-split">
-            <div class="login-left">
-                <?php if ($logo): ?>
-                    <div class="logo"><img src="<?= htmlspecialchars($logo) ?>" alt="Logo"></div>
-                <?php else: ?>
-                    <i class="fas fa-file-invoice-dollar fa-3x mb-3"></i>
-                <?php endif; ?>
-                <h3>Acesse sua conta no painel <?= htmlspecialchars($nomeSistema) ?></h3>
-                <p>Entre com suas credenciais e acesse seu painel <?= htmlspecialchars($nomeSistema) ?>.</p>
-            </div>
-            <div class="login-right">
-                <div class="login-form">
-                    <div class="mb-3 text-center">
-                        <h2 class="mb-0"><?= htmlspecialchars($nomeSistema) ?></h2>
+<body class="fintech-login">
+    <main class="fin-shell">
+        <section class="fin-card" aria-labelledby="finTituloCliente">
+            <aside class="fin-brand">
+                <div class="fin-brand-top">
+                    <div class="fin-logo">
+                        <?php if ($logo): ?>
+                            <img src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars($nomeSistema) ?>">
+                        <?php else: ?>
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        <?php endif; ?>
+                    </div>
+                    <span class="fin-env-badge"><i class="fas fa-user"></i> Área do Cliente</span>
+                </div>
+
+                <div class="fin-brand-copy">
+                    <h1>Acesse sua conta no painel <?= htmlspecialchars($nomeSistema) ?></h1>
+                    <p>Entre com suas credenciais e acompanhe suas faturas, pagamentos e histórico em um só lugar.</p>
+                </div>
+
+                <ul class="fin-features">
+                    <li><i class="fas fa-file-invoice-dollar"></i><span>Faturas e pagamentos</span></li>
+                    <li><i class="fas fa-clock-rotate-left"></i><span>Histórico organizado</span></li>
+                    <li><i class="fas fa-headset"></i><span>Atendimento direto</span></li>
+                </ul>
+
+                <div class="fin-brand-footer">
+                    <i class="fas fa-shield-halved"></i>
+                    <span>Ambiente seguro para acompanhar suas faturas.</span>
+                </div>
+            </aside>
+
+            <div class="fin-form-panel">
+                <div class="fin-form-wrap">
+                    <div class="fin-form-head">
+                        <span class="fin-env-pill"><i class="fas fa-user"></i> Acesso do cliente</span>
+                        <h2 id="finTituloCliente">Acesse sua conta</h2>
+                        <p>Consulte faturas, pagamentos e mantenha seus dados em dia.</p>
                     </div>
 
                     <?php if ($erro): ?>
-                        <div class="alert alert-danger py-2">
-                            <i class="fas fa-exclamation-circle me-1"></i> <?= $erro ?>
+                        <div class="fin-alert" role="alert">
+                            <i class="fas fa-circle-exclamation"></i>
+                            <span><?= htmlspecialchars($erro) ?></span>
                         </div>
                     <?php endif; ?>
 
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label class="form-label">CPF ou CNPJ</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fas fa-id-card"></i></span>
-                                <input type="text" name="cpf_cnpj" class="form-control" placeholder="Digite seu CPF ou CNPJ" required autofocus value="<?= htmlspecialchars($_POST['cpf_cnpj'] ?? '') ?>" inputmode="numeric" pattern="[0-9.\-\/]*">
+                    <form method="POST" class="fin-form">
+                        <div class="fin-field">
+                            <label for="loginCpfCnpj">CPF ou CNPJ</label>
+                            <div class="fin-input">
+                                <i class="fas fa-id-card"></i>
+                                <input type="text" id="loginCpfCnpj" name="cpf_cnpj" placeholder="Digite seu CPF ou CNPJ" required autofocus value="<?= htmlspecialchars($_POST['cpf_cnpj'] ?? '') ?>" inputmode="numeric" pattern="[0-9.\-\/]*" autocomplete="username">
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Senha</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                <input type="password" name="senha" id="senhaUser" class="form-control" placeholder="Digite sua senha" required minlength="6">
-                                <button type="button" class="btn btn-outline-secondary" onclick="alternarSenha('senhaUser', this)" tabindex="-1" title="Mostrar ou ocultar senha" aria-label="Mostrar ou ocultar senha"><i class="fas fa-eye"></i></button>
+                        <div class="fin-field">
+                            <label for="senhaUser">Senha</label>
+                            <div class="fin-input">
+                                <i class="fas fa-lock"></i>
+                                <input type="password" id="senhaUser" name="senha" placeholder="Digite sua senha" required minlength="6" autocomplete="current-password">
+                                <button type="button" class="fin-eye" onclick="alternarSenha('senhaUser', this)" tabindex="-1" title="Mostrar ou ocultar senha" aria-label="Mostrar ou ocultar senha"><i class="fas fa-eye"></i></button>
                             </div>
                         </div>
-                        <div class="mb-3">
+                        <div class="fin-turnstile">
                             <div class="cf-turnstile" data-sitekey="0x4AAAAAAExttofBsCkR1InN" data-theme="light"></div>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 mb-2">
-                            <i class="fas fa-sign-in-alt me-1"></i> Entrar
+                        <button type="submit" class="fin-submit">
+                            <i class="fas fa-arrow-right-to-bracket"></i> Entrar
                         </button>
-                        <div class="text-center mb-2">
-                            <a href="/cobranca/usuario/recuperar_senha.php" class="text-decoration-none">
-                                <small><i class="fas fa-key me-1"></i> Esqueceu sua senha?</small>
-                            </a>
-                        </div>
-                        <div class="text-center"><small class="text-muted" style="font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span></div>
                     </form>
+
+                    <div class="fin-links">
+                        <a href="/cobranca/usuario/recuperar_senha.php">
+                            <i class="fas fa-key"></i> Esqueceu sua senha?
+                        </a>
+                    </div>
+
+                    <div class="fin-form-footer">
+                        <span>Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</span>
+                        <span>Versão 1.0</span>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 <script>
 function alternarSenha(id, btn) {
     var campo = document.getElementById(id);

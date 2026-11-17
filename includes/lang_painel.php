@@ -141,6 +141,16 @@ $GLOBALS['painel_pt'] = [
     'login.erro_falha' => 'Falha na verificação. Tente novamente.',
     'login.erro_vazio' => 'Preencha todos os campos.',
     'login.erro_invalido' => 'Usuário ou senha inválidos.',
+    'login.badge_admin' => 'Administrador',
+    'login.pill_admin' => 'Acesso administrativo',
+    'login.head_admin' => 'Acesse o painel',
+    'login.desc_admin' => 'Entre com suas credenciais para gerenciar faturas, clientes e envios.',
+    'login.feat_seguro' => 'Conexão protegida',
+    'login.feat_controle' => 'Controle total',
+    'login.feat_envios' => 'Envios integrados',
+    'login.rodape_seguranca' => 'Ambiente administrativo protegido e monitorado.',
+    'login.direitos' => 'Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026',
+    'login.versao' => 'Versão 1.0',
 
     // Dashboard (admin)
     'dash.titulo' => 'Painel Geral',
@@ -417,6 +427,16 @@ $GLOBALS['painel_es'] = [
     'login.erro_falha' => 'Fallo en la verificación. Inténtalo de nuevo.',
     'login.erro_vazio' => 'Completa todos los campos.',
     'login.erro_invalido' => 'Usuario o contraseña inválidos.',
+    'login.badge_admin' => 'Administrador',
+    'login.pill_admin' => 'Acceso administrativo',
+    'login.head_admin' => 'Accede al panel',
+    'login.desc_admin' => 'Ingresa con tus credenciales para gestionar facturas, clientes y envíos.',
+    'login.feat_seguro' => 'Conexión protegida',
+    'login.feat_controle' => 'Control total',
+    'login.feat_envios' => 'Envíos integrados',
+    'login.rodape_seguranca' => 'Entorno administrativo protegido y monitoreado.',
+    'login.direitos' => 'Todos los Derechos Reservados - WD Soluções Digitais LTDA - 2010 - 2026',
+    'login.versao' => 'Versión 1.0',
 
     // Dashboard (admin)
     'dash.titulo' => 'Panel General',

@@ -65,65 +65,94 @@ $nomeSistema = getNomeSistema();
     <link href="/cobranca/assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
     <link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">
     <link href="/cobranca/assets/css/style.css" rel="stylesheet">
+    <link href="/cobranca/assets/css/login_fintech.css?v=20261117-2" rel="stylesheet">
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
-<body>
-    <div class="login-page">
-        <div class="login-split">
-            <div class="login-left">
-                <?php if ($logo): ?>
-                    <div class="logo"><img src="<?= htmlspecialchars($logo) ?>" alt="Logo"></div>
-                <?php else: ?>
-                    <i class="fas fa-crown fa-3x mb-3"></i>
-                <?php endif; ?>
-                <h3>Acesso restrito - Super Admin</h3>
-                <p>Gerencie os administradores, APIs de WhatsApp e planos do sistema <?= htmlspecialchars($nomeSistema) ?>.</p>
-            </div>
-            <div class="login-right">
-                <div class="login-form">
-                    <div class="mb-3 text-center">
-                        <h2 class="mb-0">Super Admin</h2>
+<body class="fintech-login">
+    <main class="fin-shell">
+        <section class="fin-card" aria-labelledby="finTituloSuper">
+            <aside class="fin-brand">
+                <div class="fin-brand-top">
+                    <div class="fin-logo">
+                        <?php if ($logo): ?>
+                            <img src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars($nomeSistema) ?>">
+                        <?php else: ?>
+                            <i class="fas fa-crown"></i>
+                        <?php endif; ?>
+                    </div>
+                    <span class="fin-env-badge"><i class="fas fa-crown"></i> Super Admin</span>
+                </div>
+
+                <div class="fin-brand-copy">
+                    <h1>Acesso restrito &mdash; Super Admin</h1>
+                    <p>Gerencie os administradores, APIs de WhatsApp e planos do sistema <?= htmlspecialchars($nomeSistema) ?>.</p>
+                </div>
+
+                <ul class="fin-features">
+                    <li><i class="fas fa-users-gear"></i><span>Gestão de administradores</span></li>
+                    <li><i class="fas fa-comment-dots"></i><span>APIs de WhatsApp</span></li>
+                    <li><i class="fas fa-layer-group"></i><span>Planos e assinaturas</span></li>
+                </ul>
+
+                <div class="fin-brand-footer">
+                    <i class="fas fa-shield-halved"></i>
+                    <span>Acesso restrito à gestão geral da plataforma.</span>
+                </div>
+            </aside>
+
+            <div class="fin-form-panel">
+                <div class="fin-form-wrap">
+                    <div class="fin-form-head">
+                        <span class="fin-env-pill"><i class="fas fa-crown"></i> Gestão da plataforma</span>
+                        <h2 id="finTituloSuper">Acesso restrito</h2>
+                        <p>Entre com suas credenciais de Super Admin para gerenciar a plataforma.</p>
                     </div>
 
                     <?php if ($erro): ?>
-                        <div class="alert alert-danger py-2">
-                            <i class="fas fa-exclamation-circle me-1"></i> <?= $erro ?>
+                        <div class="fin-alert" role="alert">
+                            <i class="fas fa-circle-exclamation"></i>
+                            <span><?= htmlspecialchars($erro) ?></span>
                         </div>
                     <?php endif; ?>
 
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label class="form-label">Usuário</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fas fa-user"></i></span>
-                                <input type="text" name="usuario" class="form-control" placeholder="Digite seu usuário" required autofocus value="<?= htmlspecialchars($_POST['usuario'] ?? '') ?>">
+                    <form method="POST" class="fin-form">
+                        <div class="fin-field">
+                            <label for="loginUsuarioSuper">Usuário</label>
+                            <div class="fin-input">
+                                <i class="fas fa-user"></i>
+                                <input type="text" id="loginUsuarioSuper" name="usuario" placeholder="Digite seu usuário" required autofocus autocomplete="username" value="<?= htmlspecialchars($_POST['usuario'] ?? '') ?>">
                             </div>
                         </div>
-                        <div class="mb-4">
-                            <label class="form-label">Senha</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                <input type="password" name="senha" id="senhaSuper" class="form-control" placeholder="Digite sua senha" required>
-                                <button type="button" class="btn btn-outline-secondary" onclick="alternarSenha('senhaSuper', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                        <div class="fin-field">
+                            <label for="senhaSuper">Senha</label>
+                            <div class="fin-input">
+                                <i class="fas fa-lock"></i>
+                                <input type="password" id="senhaSuper" name="senha" placeholder="Digite sua senha" required autocomplete="current-password">
+                                <button type="button" class="fin-eye" onclick="alternarSenha('senhaSuper', this)" tabindex="-1" title="Mostrar ou ocultar senha" aria-label="Mostrar ou ocultar senha"><i class="fas fa-eye"></i></button>
                             </div>
                         </div>
-                        <div class="mb-4">
+                        <div class="fin-turnstile">
                             <div class="cf-turnstile" data-sitekey="0x4AAAAAAExttofBsCkR1InN" data-theme="light"></div>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 mb-2">
-                            <i class="fas fa-sign-in-alt me-1"></i> Entrar
+                        <button type="submit" class="fin-submit">
+                            <i class="fas fa-arrow-right-to-bracket"></i> Entrar
                         </button>
                     </form>
 
-                    <div class="text-center mt-3">
-                        <a href="/cobranca/admin/login.php" class="text-decoration-none">
-                            <small><i class="fas fa-arrow-left me-1"></i> Voltar para Login Admin</small>
+                    <div class="fin-form-footer">
+                        <span>Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</span>
+                        <span>Versão 1.0</span>
+                    </div>
+
+                    <div class="fin-switch">
+                        <a href="/cobranca/admin/login.php">
+                            <i class="fas fa-arrow-left"></i> Voltar para Login Admin
                         </a>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 <script>
 function alternarSenha(id, btn) {
     var campo = document.getElementById(id);
