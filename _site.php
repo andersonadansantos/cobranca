@@ -865,17 +865,18 @@ function siteGateways() {
 }
 
 function siteCorHex($cor) {
+    // Paleta do Template Fintech (mesma do painel administrativo)
     $mapa = [
         'bronze' => '#b87333',
         'secondary' => '#64748b',
         'warning' => '#f59e0b',
-        'primary' => '#0d6efd',
-        'success' => '#0f7b5c',
-        'info' => '#0891b2',
+        'primary' => '#0f172a',
+        'success' => '#059669',
+        'info' => '#06b6d4',
         'danger' => '#dc2626',
-        'dark' => '#1f2937',
+        'dark' => '#0f172a',
     ];
-    return $mapa[strtolower(trim((string)$cor))] ?? '#0057EC';
+    return $mapa[strtolower(trim((string)$cor))] ?? '#0f172a';
 }
 
 // Classe Tailwind (valor arbitrário) a partir da cor do plano
@@ -904,7 +905,7 @@ function siteHeader($secao = '') {
     <meta name="keywords" content="<?= siteT('seo_keys') ?>">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="<?= SITE_NOME ?>">
-    <meta name="theme-color" content="#0057EC">
+    <meta name="theme-color" content="#0f172a">
     <meta name="geo.region" content="BR">
     <link rel="icon" type="image/png" href="<?= siteAsset('/assets/img/favicon.png') ?>?v=20261020">
     <link rel="apple-touch-icon" href="<?= siteAsset('/assets/img/favicon.png') ?>?v=20261020">
@@ -1063,19 +1064,39 @@ function siteHeader($secao = '') {
     <?php endif; ?>
 
     <link href="/cobranca/assets/vendor/fonts/fonts.css" rel="stylesheet">
+
+    <!-- Identidade visual Fintech reutilizada do painel: variáveis de cor e tipografia -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="/cobranca/assets/css/template_fintech.css?v=<?= filemtime((defined('APP_ROOT') ? APP_ROOT : __DIR__) . '/assets/css/template_fintech.css') ?>" rel="stylesheet">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    fontFamily: { sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'] },
+                    fontWeight: { black: '800' },
                     colors: {
                         brand: {
-                            50: '#eef4ff', 100: '#dbe7ff', 200: '#b8d1ff', 300: '#8ab6ff',
-                            400: '#5b96f9', 500: '#2f74f4', 600: '#0057EC', 700: '#0047c4',
-                            800: '#00389a', 900: '#062e6f',
+                            50: '#f8f9ff', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1',
+                            400: '#94a3b8', 500: '#64748b', 600: '#0f172a', 700: '#1e293b',
+                            800: '#334155', 900: '#0f172a',
                         }
-                    }
+                    },
+                    borderRadius: {
+                        xl: '10px', '2xl': '12px', '3xl': '14px',
+                    },
+                    boxShadow: {
+                        sm: '0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02)',
+                        DEFAULT: '0 2px 6px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.02)',
+                        lg: '0 2px 6px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.02)',
+                        xl: '0 8px 18px rgba(15, 23, 42, 0.06)',
+                        '2xl': '0 12px 28px rgba(15, 23, 42, 0.08), 0 4px 10px rgba(15, 23, 42, 0.04)',
+                    },
+                    boxShadowColor: {
+                        brand: { 200: 'rgba(15, 23, 42, 0.10)' },
+                    },
                 }
             }
         }
@@ -1093,7 +1114,7 @@ function siteHeader($secao = '') {
             100% { background-position: 220% 50%; }
         }
         .anim-shimmer {
-            background: linear-gradient(90deg, #0057EC 0%, #3b82f6 25%, #f59e0b 50%, #3b82f6 75%, #0057EC 100%);
+            background: linear-gradient(90deg, var(--fintech-primary) 0%, var(--fintech-primary-active) 25%, var(--fintech-warning-dot) 50%, var(--fintech-primary-active) 75%, var(--fintech-primary) 100%);
             background-size: 220% auto;
             -webkit-background-clip: text;
                     background-clip: text;
@@ -1120,12 +1141,24 @@ function siteHeader($secao = '') {
             .anim-entrada-d, .reveal-init { opacity: 1; transform: none; }
         }
 
+        /* Tablet (768px a 1023px): mantém a navegação na gaveta para não comprimir
+           o cabeçalho. Nenhum link é removido — todos continuam no menu. */
+        @media (min-width: 768px) and (max-width: 1023.98px) {
+            header nav { gap: 12px !important; padding-left: 16px !important; padding-right: 16px !important; }
+            header nav > a:first-child img { max-width: 120px !important; }
+            header nav > div.hidden { display: none !important; }
+            .header-acoes { gap: 8px !important; }
+            .header-acoes > a { padding-left: 12px !important; padding-right: 12px !important; }
+            #menu-mobile-btn { display: inline-flex !important; }
+            #menu-mobile:not(.hidden) { display: block !important; }
+        }
+
         /* ==========================================================================
            BOTÕES "CRIAR CONTA GRÁTIS" - REGRAS EXCLUSIVAS PARA VERSÃO MOBILE
-           RESTRIÇÃO: A versão desktop (>= 768px) permanece 100% INALTERADA.
+           RESTRIÇÃO: A versão desktop (>= 1024px) permanece 100% INALTERADA.
            ========================================================================== */
 
-        /* Desktop (>= 768px): esconde ícones ou decorações específicas de mobile */
+        /* Desktop (>= 1024px): esconde ícones ou decorações específicas de mobile */
         @media (min-width: 768px) {
             .btn-criar-conta-nav-icone {
                 display: none !important;
@@ -1134,13 +1167,21 @@ function siteHeader($secao = '') {
 
         /* Versão Mobile (< 768px): Design moderno, elegante, tátil e atrativo */
         @media (max-width: 767.98px) {
+            /* Cabeçalho compacto: evita rolagem horizontal sem esconder ações */
+            header nav { gap: 6px !important; }
+            header nav > a > img { max-width: 76px !important; }
+            .header-acoes { gap: 4px !important; }
+            #idioma-btn { padding: 8px !important; }
+            .btn-login-nav { padding: 8px 10px !important; }
+            #menu-mobile-btn { width: 36px !important; height: 36px !important; }
+
             /* 1. Botão "Criar conta grátis" no Header Superior Mobile */
             .btn-criar-conta-nav {
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
                 gap: 6px !important;
-                padding: 8px 14px !important;
+                padding: 8px 8px !important;
                 min-height: 38px !important;
                 border-radius: 9999px !important;
                 font-size: 0.8125rem !important; /* 13px */
@@ -1149,9 +1190,9 @@ function siteHeader($secao = '') {
                 white-space: nowrap !important;
                 color: #ffffff !important;
                 text-decoration: none !important;
-                background: linear-gradient(135deg, #0057ec 0%, #0047c4 100%) !important;
+                background: linear-gradient(135deg, var(--fintech-primary) 0%, var(--fintech-primary-hover) 100%) !important;
                 border: 1px solid rgba(255, 255, 255, 0.28) !important;
-                box-shadow: 0 4px 14px -1px rgba(0, 87, 236, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+                box-shadow: 0 4px 14px -1px rgba(15, 23, 42, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
                 transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease, filter 0.15s ease !important;
                 -webkit-tap-highlight-color: transparent !important;
                 touch-action: manipulation !important;
@@ -1160,7 +1201,7 @@ function siteHeader($secao = '') {
 
             .btn-criar-conta-nav:active {
                 transform: scale(0.96) !important;
-                box-shadow: 0 2px 6px -1px rgba(0, 87, 236, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+                box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
                 filter: brightness(0.95) !important;
             }
 
@@ -1170,7 +1211,7 @@ function siteHeader($secao = '') {
                 justify-content: center !important;
                 width: 13px !important;
                 height: 13px !important;
-                color: #ffdd44 !important;
+                color: var(--fintech-warning-dot) !important;
                 filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2)) !important;
                 animation: brilho-icone-mobile 2.8s infinite ease-in-out !important;
             }
@@ -1196,9 +1237,9 @@ function siteHeader($secao = '') {
                 letter-spacing: -0.01em !important;
                 color: #ffffff !important;
                 text-decoration: none !important;
-                background: linear-gradient(135deg, #0057ec 0%, #0043bf 55%, #003099 100%) !important;
+                background: linear-gradient(135deg, var(--fintech-primary) 0%, var(--fintech-primary-hover) 55%, var(--fintech-primary-active) 100%) !important;
                 border: 1px solid rgba(255, 255, 255, 0.22) !important;
-                box-shadow: 0 10px 24px -4px rgba(0, 87, 236, 0.45), 0 4px 10px -2px rgba(0, 87, 236, 0.25), inset 0 1px 1.5px rgba(255, 255, 255, 0.4) !important;
+                box-shadow: 0 10px 24px -4px rgba(15, 23, 42, 0.45), 0 4px 10px -2px rgba(15, 23, 42, 0.25), inset 0 1px 1.5px rgba(255, 255, 255, 0.4) !important;
                 position: relative !important;
                 overflow: hidden !important;
                 transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease !important;
@@ -1209,7 +1250,7 @@ function siteHeader($secao = '') {
             .btn-criar-conta-drawer:active {
                 transform: scale(0.985) !important;
                 filter: brightness(0.96) !important;
-                box-shadow: 0 6px 16px -3px rgba(0, 87, 236, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+                box-shadow: 0 6px 16px -3px rgba(15, 23, 42, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
             }
 
             /* Efeito Shimmer moderno que percorre o botão do menu gaveta */
@@ -1250,7 +1291,7 @@ function siteHeader($secao = '') {
                 height: 30px !important;
                 border-radius: 10px !important;
                 background: rgba(255, 255, 255, 0.18) !important;
-                color: #ffdd44 !important;
+                color: var(--fintech-warning-dot) !important;
                 flex-shrink: 0 !important;
                 box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
             }
@@ -1272,7 +1313,7 @@ function siteHeader($secao = '') {
                 font-weight: 800 !important;
                 text-transform: uppercase !important;
                 letter-spacing: 0.04em !important;
-                color: #00389a !important;
+                color: var(--fintech-primary) !important;
                 background: #ffffff !important;
                 border-radius: 9999px !important;
                 box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
@@ -1293,7 +1334,7 @@ function siteHeader($secao = '') {
             /* Ajuste harmônico fino para telas pequenas (< 380px, ex: iPhone SE) */
             @media (max-width: 380px) {
                 .btn-criar-conta-nav {
-                    padding: 7px 11px !important;
+                    padding: 7px 8px !important;
                     font-size: 0.75rem !important; /* 12px */
                     gap: 4px !important;
                 }
@@ -1312,7 +1353,7 @@ function siteHeader($secao = '') {
         }
     </style>
 </head>
-<body class="bg-white text-slate-800 antialiased font-sans">
+<body class="bg-[#f8f9ff] text-slate-700 antialiased font-sans">
 <!-- Navegação -->
 <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-28 flex items-center justify-between gap-3">
@@ -1325,7 +1366,7 @@ function siteHeader($secao = '') {
             <a href="<?= siteAsset('/planos.php') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_planos') ?></a>
             <a href="<?= siteAsset('/#faq') ?>" class="hover:text-brand-700 transition"><?= siteT('nav_duvidas') ?></a>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="header-acoes flex items-center gap-2">
             <div class="relative" id="idioma-selector">
             <button type="button" id="idioma-btn" aria-haspopup="listbox" aria-expanded="false"
                     class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 focus:outline-none focus:border-brand-400 cursor-pointer">
@@ -1378,7 +1419,7 @@ function siteHeader($secao = '') {
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 9.563c0-.82.745-1.46 1.55-1.33.85.14 1.25.63 1.25 1.02 0 .78-2.25 1.24-2.25 2.94a.873.873 0 001.66.39M12 14.5v.01"/></svg>
                 <?= siteT('nav_demo') ?>
             </a>
-            <a href="<?= siteAsset('/admin') ?>" class="inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-brand-300 hover:text-brand-700 transition"><?= siteT('nav_login') ?></a>
+            <a href="<?= siteAsset('/admin') ?>" class="btn-login-nav inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-brand-300 hover:text-brand-700 transition"><?= siteT('nav_login') ?></a>
             <a href="<?= siteAsset('/cadastro.php' . ($secao ? '?plano=' . $secao : '')) ?>" class="btn-criar-conta-nav rounded-full px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-200 transition">
                 <svg class="btn-criar-conta-nav-icone" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
