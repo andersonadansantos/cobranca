@@ -143,8 +143,11 @@ function tutorialModalScriptOnce() {
 }
 
 // Renderiza o bloco completo (cover clicável + modal) na lateral das abas de API de Pagamento.
-function renderTutorialVideo($gateway, $titulo = 'Tutorial em vídeo') {
+function renderTutorialVideo($gateway, $titulo = 'Tutorial em vídeo', $urlPadrao = '') {
     $url = getTutorialUrl($gateway);
+    if (trim((string)$url) === '') {
+        $url = trim((string)$urlPadrao);
+    }
     if (trim((string)$url) === '') return;
 
     echo '<div class="form-card mt-3">';

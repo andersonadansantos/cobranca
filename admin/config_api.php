@@ -317,7 +317,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
-                        <?php renderTutorialVideo('mercadopago', 'Tutorial: Como configurar o Mercado Pago'); ?>
+                        <?php renderTutorialVideo('mercadopago', 'Tutorial: Como configurar o Mercado Pago', 'https://www.youtube.com/watch?v=sJ3xJJjEpfg'); ?>
                     </div>
                 </div>
             </div>
@@ -440,7 +440,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
-                        <?php renderTutorialVideo('inter', 'Tutorial: Como configurar o Banco Inter'); ?>
+                        <?php renderTutorialVideo('inter', 'Tutorial: Como configurar o Banco Inter', 'https://www.youtube.com/watch?v=mFW0nGGNZ50'); ?>
                     </div>
                 </div>
             </div>
@@ -536,7 +536,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
-                        <?php renderTutorialVideo('pix_manual', 'Tutorial: Como configurar o PIX Manual'); ?>
+                        <?php renderTutorialVideo('pix_manual', 'Tutorial: Como configurar o PIX Manual', 'https://www.youtube.com/watch?v=Zpdrz94C_To'); ?>
                     </div>
                 </div>
             </div>
@@ -634,7 +634,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                                 </div>
                             <?php endif; ?>
                         </div>
-                        <?php renderTutorialVideo('asaas', 'Tutorial: Como configurar o ASAAS'); ?>
+                        <?php renderTutorialVideo('asaas', 'Tutorial: Como configurar o ASAAS', 'https://www.youtube.com/watch?v=q55ppiU0tOk'); ?>
                     </div>
                 </div>
             </div>
