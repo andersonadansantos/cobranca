@@ -33,3 +33,5 @@ config/marketing_uploads/*
 config/marketing_imports/*
 !config/marketing_imports/.htaccess
 !config/marketing_imports/.gitignore
+
+config/.sms_key

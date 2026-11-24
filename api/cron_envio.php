@@ -13,6 +13,7 @@ require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/email_helpers.php';
 require_once __DIR__ . '/../config/mercadopago.php';
 require_once __DIR__ . '/../api/whatsapp_send.php';
+require_once __DIR__ . '/../includes/sms_textbee.php';
 
 $isHttp = (php_sapi_name() !== 'cli');
 if ($isHttp) {
@@ -486,24 +487,51 @@ foreach ($faturas as &$fat) {
             $emailEnviado = enviarEAtualizar($pdo, $fat, $tipoEnviado, montarAssunto($antes, $fat), montarMensagemHtml($fat, $antes ? 'antes' : 'depois', $diasRef), montarMensagemTxt($fat, $antes ? 'antes' : 'depois', $diasRef), $s, $log);
         }
 
-        // WhatsApp — enviado sempre que a fatura estiver na régua, independente de SMTP
+        // WhatsApp — enviado sempre que a fatura estiver na régua, independente de SMTP.
+        // O tipo real da régua (geracao/lembrete1/lembrete2/vencimento/atraso) é
+        // repassado à função: antes ela recebia apenas 'antes'/'depois', o que
+        // gravava um tipo genérico no histórico e podia montar a mensagem errada
+        // (por exemplo, "vencimento" saía como atraso).
         $whatsEnviado = false;
-        if ($tipoEnviado === 'geracao' && enviarWhatsAppFatura($fat, 'antes', $diasRef)) {
+        if ($tipoEnviado === 'geracao' && enviarWhatsAppFatura($fat, $tipoEnviado, $diasRef)) {
             $whatsEnviado = true;
             $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
-        if (!$whatsEnviado && in_array($tipoEnviado, ['lembrete1','lembrete2']) && enviarWhatsAppFatura($fat, 'antes', $diasRef)) {
+        if (!$whatsEnviado && in_array($tipoEnviado, ['lembrete1','lembrete2']) && enviarWhatsAppFatura($fat, $tipoEnviado, $diasRef)) {
             $whatsEnviado = true;
             $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
-        if (!$whatsEnviado && in_array($tipoEnviado, ['vencimento','atraso']) && enviarWhatsAppFatura($fat, 'depois', $diasRef)) {
+        if (!$whatsEnviado && in_array($tipoEnviado, ['vencimento','atraso']) && enviarWhatsAppFatura($fat, $tipoEnviado, $diasRef)) {
             $whatsEnviado = true;
             $log[] = "[whatsapp_{$tipoEnviado}] {$fat['numero']} -> " . ($fat['celular'] ?? $fat['telefone']);
         }
 
-        // Sem SMTP (ou sem e-mail): marca o envio quando o WhatsApp foi entregue,
+        // SMS — independente de e-mail/WhatsApp. Usa template configurado em API SMS Config.
+        // Só envia se SMS estiver conectado para o admin; deduplica por fatura/tipo no envios_log.
+        $smsEnviado = false;
+        try {
+            $smsCfg = function_exists('smsObterConfig') ? smsObterConfig($fat['admin_id'] ?? 0, $pdo) : null;
+            $smsConectado = $smsCfg && (($smsCfg['connection_status'] ?? '') === 'conectado') && !empty($smsCfg['device_id']);
+            $temTelefoneSms = !empty($fat['celular']) || !empty($fat['telefone']);
+            if ($smsConectado && $temTelefoneSms && function_exists('smsEnviarCobrancaFatura')) {
+                $resSms = smsEnviarCobrancaFatura((int)$fat['admin_id'], $fat, [
+                    'tipo_log' => $tipoEnviado,
+                    'deduplicar_regua' => true,
+                ], $pdo);
+                if (!empty($resSms['sucesso'])) {
+                    $smsEnviado = true;
+                    $log[] = "[sms_{$tipoEnviado}] {$fat['numero']} -> " . ($resSms['destino'] ?? ($fat['celular'] ?? $fat['telefone']));
+                } elseif (($resSms['status'] ?? '') !== 'duplicado') {
+                    $log[] = "[sms_erro_{$tipoEnviado}] {$fat['numero']} -> " . ($resSms['mensagem'] ?? 'erro');
+                }
+            }
+        } catch (Throwable $eSms) {
+            $log[] = "[sms_excecao_{$tipoEnviado}] {$fat['numero']} -> " . $eSms->getMessage();
+        }
+
+        // Sem SMTP/e-mail: marca o envio quando WhatsApp OU SMS foi entregue,
         // evitando disparos repetidos a cada execução do cron.
-        if ($whatsEnviado && !$emailEnviado) {
+        if (($whatsEnviado || $smsEnviado) && !$emailEnviado) {
             $stmtTipo = $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = ? WHERE id = ?");
             $stmtTipo->execute([$tipoEnviado, $fat['id']]);
         }

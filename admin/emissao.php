@@ -12,6 +12,7 @@ require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../config/mercadopago.php';
 require_once __DIR__ . '/../config/email_helpers.php';
 require_once __DIR__ . '/../api/whatsapp_send.php';
+require_once __DIR__ . '/../includes/sms_textbee.php';
 
 $pdo = getConnection();
 $adminIdE = (int)$_SESSION['admin_id'];
@@ -199,6 +200,35 @@ if (isset($_GET['fatura_whatsapp'])) {
     exit;
 }
 
+// Envio manual imediato de SMS (sem modal/confirmação)
+if (isset($_GET['fatura_sms'])) {
+    if (!csrf_validar($_GET['_csrf'] ?? '')) {
+        header('Location: emissao.php?msg=sms_erro&det=' . urlencode('Requisição inválida. Recarregue a página e tente novamente.'));
+        exit;
+    }
+    $id = intval($_GET['fatura_sms']);
+    $stmt = $pdo->prepare("
+        SELECT f.id, f.admin_id, f.numero, f.descricao, f.valor, f.valor_final, f.data_vencimento, f.link_pagamento,
+               c.nome_razao, c.celular, c.telefone
+        FROM faturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.id = ? AND f.admin_id = ?
+    ");
+    $stmt->execute([$id, $adminIdE]);
+    $fat = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$fat) {
+        header('Location: emissao.php?msg=sms_erro&det=' . urlencode('Fatura não encontrada.'));
+        exit;
+    }
+    $res = smsEnviarCobrancaFatura($adminIdE, $fat, ['tipo_log' => 'sms_manual'], $pdo);
+    if (!empty($res['sucesso'])) {
+        header('Location: emissao.php?msg=sms_enviado');
+    } else {
+        header('Location: emissao.php?msg=sms_erro&det=' . urlencode($res['mensagem'] ?? 'Erro no envio SMS.'));
+    }
+    exit;
+}
+
 // Gerar boleto (PDF) de uma fatura gerada específica
 if (isset($_GET['fatura_boleto'])) {
     $id = intval($_GET['fatura_boleto']);
@@ -382,6 +412,8 @@ if (isset($_GET['msg'])) {
         'sem_email' => ['Cliente não possui e-mail cadastrado.', 'warning'],
         'whatsapp_enviado' => ['Fatura enviada via WhatsApp com sucesso!', 'success'],
         'whatsapp_erro' => ['Erro ao enviar WhatsApp. Verifique as configurações.', 'danger'],
+        'sms_enviado' => ['SMS de cobrança enviado com sucesso!', 'success'],
+        'sms_erro' => ['Erro ao enviar SMS: ' . htmlspecialchars(($_GET['det'] ?? 'verifique a configuração da API SMS.'), ENT_QUOTES, 'UTF-8'), 'danger'],
         'sem_fatura' => ['Nenhuma fatura pendente encontrada para esta recorrência.', 'warning'],
         'erro_boleto' => ['Erro ao gerar boleto. Verifique a configuração da API de pagamento.', 'danger'],
         'lote_criado' => ['Boleto em Lote criado com sucesso!', 'success'],
@@ -1199,6 +1231,7 @@ if (($fr['status'] ?? 'ativa') !== 'cancelado'
                                                         <?php if (!in_array($fh['status'], ['pago', 'cancelado'])): ?>
                                                         <a href="#" class="acao-btn acao-btn-success" title="Enviar fatura via WhatsApp" data-bs-toggle="modal" data-bs-target="#modalEnviarWhatsApp" data-url="?fatura_whatsapp=<?= $fh['id'] ?>"><i class="bi bi-whatsapp"></i></a>
                                                         <a href="#" class="acao-btn acao-btn-primary" title="Enviar e-mail de cobrança" data-bs-toggle="modal" data-bs-target="#modalEnviarEmail" data-url="?fatura_enviar=<?= $fh['id'] ?>"><i class="bi bi-envelope-fill"></i></a>
+                                                        <a href="?fatura_sms=<?= (int)$fh['id'] ?>&_csrf=<?= urlencode(csrf_token()) ?>" class="acao-btn acao-btn-info text-white js-sms-send" title="Enviar SMS de cobrança" data-sms-confirm="Enviar SMS de cobrança agora?"><i class="bi bi-chat-left-text-fill"></i></a>
                                                         <a href="?fatura_boleto=<?= $fh['id'] ?>" target="_blank" class="acao-btn acao-btn-secondary" title="Gerar boleto em PDF"><i class="bi bi-upc-scan"></i></a>
                                                         <button type="button" class="acao-btn acao-btn-dark" title="Copiar código PIX copia e cola" data-fatura="<?= $fh['id'] ?>" onclick="copiarPixFatura(this)"><i class="bi bi-qr-code"></i></button>
                                                         <a href="#" class="acao-btn acao-btn-success" title="Pago" data-bs-toggle="modal" data-bs-target="#modalMarcarPago" data-url="?fatura_pago=<?= $fh['id'] ?>"><i class="bi bi-check-circle-fill"></i></a>
@@ -1541,6 +1574,20 @@ if (formNovaFatura) {
         } catch (e) { /* a pagina recarrega de qualquer forma */ }
     });
 }
+
+// Envio imediato de SMS: sem modal/confirmação; evita clique duplicado.
+document.querySelectorAll('.js-sms-send').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+        if (btn.dataset.sending === '1') { e.preventDefault(); return false; }
+        btn.dataset.sending = '1';
+        btn.classList.add('disabled');
+        btn.setAttribute('aria-disabled', 'true');
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.65';
+        var icon = btn.querySelector('i');
+        if (icon) { icon.dataset.originalClass = icon.className; icon.className = 'spinner-border spinner-border-sm'; }
+    });
+});
 function copiarPixFatura(btn) {
     var id = btn.getAttribute('data-fatura');
     if (!id) return;
