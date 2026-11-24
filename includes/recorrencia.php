@@ -66,13 +66,13 @@ define('RECORRENCIA_MESES', [
 
 // Periodicidades aceitas, em ordem de exibicao. Fonte da verdade para validar
 // o que vem do formulario e para montar as opcoes da interface.
-// 'lote' (Boleto em Lote) e 'carne' (Carne) nao tem ciclo: geram N faturas de uma vez, e por isso
-// nunca entram no motor do cron (ver recorrenciaSemCiclo).
-define('RECORRENCIAS_VALIDAS', ['diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote', 'carne']);
+// 'lote' (Boleto em Lote), 'carne' (Carne) e 'avulso' nao tem ciclo: geram
+// fatura(s) de uma vez e nunca entram no motor do cron (ver recorrenciaSemCiclo).
+define('RECORRENCIAS_VALIDAS', ['diaria', 'semanal', 'quinzenal', 'mensal', 'bimestral', 'trimestral', 'semestral', 'anual', 'lote', 'carne', 'avulso']);
 
 // Opcoes que o cadastro de cobranca oferece no campo Frequencia. Registros
 // antigos com outras periodicidades continuam sendo processados pelo motor.
-define('RECORRENCIAS_CADASTRO', ['mensal', 'semanal', 'quinzenal', 'trimestral', 'semestral', 'anual', 'carne']);
+define('RECORRENCIAS_CADASTRO', ['mensal', 'semanal', 'quinzenal', 'trimestral', 'semestral', 'anual', 'carne', 'avulso']);
 
 // Antecedencia da emissao automatica pelo CRON, em dias antes do vencimento.
 // Regra propria da emissao: nao altera os lembretes da regua de cobranca.
@@ -98,6 +98,7 @@ define('RECORRENCIA_ROTULOS', [
     'anual'      => 'Anual',
     'lote'       => 'Boleto em Lote',
     'carne'      => 'Carnê',
+    'avulso'     => 'Emitir Avulso',
     'unica'      => 'Fatura Única',
 ]);
 
@@ -138,10 +139,10 @@ function recorrenciaValida($frequencia) {
     return in_array(recorrenciaNormalizar($frequencia), RECORRENCIAS_VALIDAS, true);
 }
 
-/** true quando a frequencia NAO gera recorrencia (unica, lote, carne, vazia ou invalida). */
+/** true quando a frequencia NAO gera recorrencia (unica, avulso, lote, carne, vazia ou invalida). */
 function recorrenciaSemCiclo($frequencia) {
     $f = recorrenciaNormalizar($frequencia);
-    if ($f === 'unica' || $f === 'lote' || $f === 'carne' || $f === '') return true;
+    if ($f === 'unica' || $f === 'avulso' || $f === 'lote' || $f === 'carne' || $f === '') return true;
     return !isset(RECORRENCIA_DIAS[$f]) && !isset(RECORRENCIA_MESES[$f]);
 }
 

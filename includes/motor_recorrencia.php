@@ -677,7 +677,8 @@ function motorProcessar($pdo, array $opcoes = []) {
                 JOIN clientes c ON c.id = fr.cliente_id
                 WHERE fr.ativo = 1
                   AND fr.frequencia IS NOT NULL AND fr.frequencia <> ''
-                  AND fr.frequencia <> 'unica'");
+                  AND fr.frequencia <> 'unica'
+                  AND fr.frequencia <> 'avulso'");
             $stmt->execute();
             $lista = $stmt->fetchAll();
         } catch (Throwable $e) {

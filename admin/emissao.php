@@ -385,6 +385,7 @@ if (isset($_GET['msg'])) {
         'sem_fatura' => ['Nenhuma fatura pendente encontrada para esta recorrência.', 'warning'],
         'erro_boleto' => ['Erro ao gerar boleto. Verifique a configuração da API de pagamento.', 'danger'],
         'lote_criado' => ['Boleto em Lote criado com sucesso!', 'success'],
+        'avulso_criado' => ['Fatura avulsa emitida com sucesso! Foi gerada apenas 1 cobrança única, sem recorrência ou geração automática de cobranças futuras.', 'success'],
         'carne_criado' => ['Carnê gerado com sucesso!', 'success'],
         'erro' => ['Erro ao salvar.', 'danger'],
     ];
@@ -469,11 +470,120 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Antecedencia da emissao automatica pelo CRON, definida pela frequencia.
     $antecedencia_emissao = recorrenciaAntecedenciaEmissao($frequencia);
 
+    // ===== EMITIR AVULSO =====
+    // Cobrança única: emite exatamente 1 fatura/boleto, sem recorrência,
+    // sem programação de próximas faturas e sem ciclo automático.
+    if ($frequencia === 'avulso') {
+        if ($cliente_id <= 0 || empty($descricao) || $valor <= 0) {
+            $mensagem = 'Preencha todos os campos obrigatórios.';
+            $tipo = 'danger';
+        } elseif (!$validacaoVenc['ok']) {
+            $mensagem = $validacaoVenc['motivo'];
+            $tipo = 'danger';
+        } else {
+            try {
+                $stChkCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ? AND admin_id = ?");
+                $stChkCli->execute([$cliente_id, $adminIdE]);
+                $cliAvulso = $stChkCli->fetch();
+                if (!$cliAvulso) {
+                    $mensagem = 'Cliente inválido.';
+                    $tipo = 'danger';
+                } else {
+                    $limiteFat = verificarLimitePlano('faturas', $adminIdE);
+                    if (!$limiteFat['ok']) {
+                        $mensagem = $limiteFat['mensagem'];
+                        $tipo = 'danger';
+                    } else {
+                        $fatNum = generateInvoiceNumber($adminIdE);
+                        $tokenAcesso = generateAcessoToken();
+                        $apiAgora = getApiAtiva();
+
+                        $pdo->beginTransaction();
+                        $stmtFat = $pdo->prepare("INSERT INTO faturas
+                            (admin_id, cliente_id, fatura_recorrente_id, carne_id, parcela_atual, total_parcelas,
+                             numero, descricao, valor, valor_final, data_emissao, competencia, data_vencimento,
+                             status, acesso_token, api_pagamento, ultimo_envio_tipo)
+                            VALUES (?, ?, NULL, NULL, 1, 1, ?, ?, ?, ?, CURDATE(), ?, ?, 'pendente', ?, ?, 'geracao')");
+                        $stmtFat->execute([
+                            $adminIdE, $cliente_id,
+                            $fatNum, $descricao, $valor, $valor,
+                            $primeiroVencimentoData, $primeiroVencimentoData,
+                            $tokenAcesso, $apiAgora,
+                        ]);
+                        $fid = (int)$pdo->lastInsertId();
+
+                        // Gera boleto no gateway configurado
+                        $resBol = criarBoleto(
+                            $descricao, $valor, $cliAvulso['nome_razao'] ?? '',
+                            $cliAvulso['cpf_cnpj'] ?? '', $cliAvulso['email'] ?? '', $cliAvulso['cep'] ?? '',
+                            $cliAvulso['logradouro'] ?? '', $cliAvulso['numero'] ?? '', $cliAvulso['bairro'] ?? '',
+                            $cliAvulso['cidade'] ?? '', $cliAvulso['estado'] ?? '', $primeiroVencimentoData
+                        );
+                        $temBoleto = false;
+                        if (is_array($resBol) && !empty($resBol['sucesso']) && !empty($resBol['boleto_url'])) {
+                            $pdo->prepare("UPDATE faturas SET boleto_url = ?, boleto_codigo_barras = ?, boleto_linha_digitavel = ?, mp_payment_id = ?, inter_codigo_solicitacao = ?, api_pagamento = ? WHERE id = ? AND admin_id = ?")
+                                ->execute([
+                                    $resBol['boleto_url'],
+                                    $resBol['boleto_codigo_barras'] ?? '',
+                                    $resBol['boleto_linha_digitavel'] ?? '',
+                                    $resBol['payment_id'] ?? '',
+                                    in_array($apiAgora, ['inter', 'bb'], true) ? ($resBol['payment_id'] ?? '') : '',
+                                    $resBol['api'] ?? $apiAgora,
+                                    $fid, $adminIdE,
+                                ]);
+                            if (in_array($apiAgora, ['inter', 'bb'], true)) {
+                                sincronizarNumeroFaturaBanco($fid, $resBol['payment_id'] ?? '', $pdo, $resBol['numero_documento'] ?? '');
+                            }
+                            $temBoleto = true;
+                        }
+
+                        // Gera PIX
+                        $pixCopia = (string)($resBol['qr_code_copia_cola'] ?? '');
+                        $pixQr = (string)($resBol['qr_code'] ?? '');
+                        $pixCod = $temBoleto ? (string)($resBol['payment_id'] ?? '') : '';
+                        $precisaPixExtra = in_array($apiAgora, ['inter', 'bb'], true) ? ($pixCopia === '') : true;
+                        if ($precisaPixExtra) {
+                            $resPix = criarPagamento($descricao, $valor, $cliAvulso['email'] ?? '', $cliAvulso['nome_razao'] ?? '', $primeiroVencimentoData, 2);
+                            if (is_array($resPix) && !empty($resPix['sucesso'])) {
+                                $pixCopia = (string)($resPix['qr_code_copia_cola'] ?? '');
+                                $pixQr = (string)($resPix['qr_code'] ?? '');
+                                $pixCod = (string)($resPix['payment_id'] ?? '');
+                            }
+                        }
+                        if ($pixCopia !== '' || $pixQr !== '') {
+                            $pdo->prepare("UPDATE faturas SET pix_qrcode = ?, pix_copia_cola = ?, link_pagamento = ?, pix_inter_codigo = ? WHERE id = ? AND admin_id = ?")
+                                ->execute([$pixQr, $pixCopia, '', $pixCod, $fid, $adminIdE]);
+                        }
+
+                        // Envio imediato (1 e-mail e 1 WhatsApp), sem agendamento recorrente
+                        $stF = $pdo->prepare("SELECT f.*, c.nome_razao, c.celular, c.telefone, c.email, c.email2, c.cpf_cnpj FROM faturas f JOIN clientes c ON f.cliente_id = c.id WHERE f.id = ? AND f.admin_id = ?");
+                        $stF->execute([$fid, $adminIdE]);
+                        $fatEnvio = $stF->fetch();
+                        if ($fatEnvio && !empty($fatEnvio['email'])) {
+                            enviarEmailFatura($fatEnvio, 'geracao');
+                        }
+                        if ($fatEnvio && (!empty($fatEnvio['celular']) || !empty($fatEnvio['telefone']))) {
+                            enviarWhatsAppFatura($fatEnvio, 'geracao');
+                        }
+                        $pdo->prepare("UPDATE faturas SET ultimo_envio = CURDATE(), ultimo_envio_tipo = 'geracao' WHERE id = ? AND admin_id = ?")
+                            ->execute([$fid, $adminIdE]);
+
+                        $pdo->commit();
+                        header('Location: emissao.php?msg=avulso_criado');
+                        exit;
+                    }
+                }
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $mensagem = 'Erro: ' . $e->getMessage();
+                $tipo = 'danger';
+            }
+        }
     // ===== CARNÊ (ou Boleto em Lote legado) =====
     // Materializa N faturas de uma vez com vencimentos mensais consecutivos
     // (a 1ª parcela vence na data escolhida em data_primeiro_vencimento e as demais
     // nos meses seguintes preservando o dia âncora com clamping de fim de mês).
-    if ($frequencia === 'carne' || $frequencia === 'lote') {
+    } elseif ($frequencia === 'carne' || $frequencia === 'lote') {
         $quantidade_boletos = max(1, min(72, intval($_POST['quantidade_boletos'] ?? ($_POST['quantidade_transacoes'] ?? 12))));
         if ($cliente_id <= 0 || empty($descricao) || $valor <= 0) {
             $mensagem = 'Preencha todos os campos obrigatórios.';
@@ -925,6 +1035,9 @@ include __DIR__ . '/../includes/sidebar_admin.php';
                     <div class="col-md-4" id="wrapCarneHint" style="display:none;">
                         <small class="text-muted d-block mt-4"><i class="fas fa-info-circle text-primary me-1"></i>O carnê gera todas as parcelas mensais de uma vez, cada uma com seu próprio boleto e PIX.</small>
                     </div>
+                    <div class="col-md-4" id="wrapAvulsoHint" style="display:none;">
+                        <small class="text-muted d-block mt-4"><i class="fas fa-info-circle text-success me-1"></i>A cobrança avulsa gera apenas 1 boleto, sem recorrência e sem criação automática de cobranças futuras.</small>
+                    </div>
                     <div class="col-md-2 d-flex align-items-end ms-auto">
                         <button type="submit" id="btnSubmitEmissao" class="btn btn-primary w-100">
                             <i class="fas fa-save me-1"></i> <span id="btnSubmitTexto">Criar Fatura</span>
@@ -1282,8 +1395,8 @@ function on(id, evento, fn) {
     if (el) el.addEventListener(evento, fn);
 }
 
-// Carnê: exibe dinamicamente o campo obrigatorio "Quantidade de boletos",
-// oculta controles de atraso do cron e atualiza o botao para "Criar Carnê".
+// Carnê: exibe dinamicamente o campo obrigatorio "Quantidade de boletos".
+// Emitir Avulso: cobrança única, sem recorrência/campos de ciclo.
 function aplicarModoCarne() {
     var freq = document.getElementById('frequencia');
     var wrapQtd = document.getElementById('wrapQtdBoletos');
@@ -1291,10 +1404,12 @@ function aplicarModoCarne() {
     var wrapPolitica = document.getElementById('wrapPoliticaAtraso');
     var wrapCronHint = document.getElementById('wrapCronHint');
     var wrapCarneHint = document.getElementById('wrapCarneHint');
+    var wrapAvulsoHint = document.getElementById('wrapAvulsoHint');
     var btnTexto = document.getElementById('btnSubmitTexto');
     if (!freq) return;
 
     var isCarne = (freq.value === 'carne' || freq.value === 'lote');
+    var isAvulso = (freq.value === 'avulso');
 
     if (wrapQtd) wrapQtd.style.display = isCarne ? 'block' : 'none';
     if (qtdInput) {
@@ -1304,11 +1419,12 @@ function aplicarModoCarne() {
             qtdInput.value = 12;
         }
     }
-    if (wrapPolitica) wrapPolitica.style.display = isCarne ? 'none' : 'block';
-    if (wrapCronHint) wrapCronHint.style.display = isCarne ? 'none' : 'block';
+    if (wrapPolitica) wrapPolitica.style.display = (isCarne || isAvulso) ? 'none' : 'block';
+    if (wrapCronHint) wrapCronHint.style.display = (isCarne || isAvulso) ? 'none' : 'block';
     if (wrapCarneHint) wrapCarneHint.style.display = isCarne ? 'block' : 'none';
+    if (wrapAvulsoHint) wrapAvulsoHint.style.display = isAvulso ? 'block' : 'none';
     if (btnTexto) {
-        btnTexto.textContent = isCarne ? 'Criar Carnê' : 'Criar Fatura';
+        btnTexto.textContent = isCarne ? 'Criar Carnê' : (isAvulso ? 'Emitir Boleto Avulso' : 'Criar Fatura');
     }
 }
 on('frequencia', 'change', aplicarModoCarne);
