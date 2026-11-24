@@ -5,6 +5,7 @@ requirePlanoAtivo();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/settings.php';
 require_once __DIR__ . '/../includes/sms_textbee.php';
+require_once __DIR__ . '/../includes/csrf.php';
 
 $adminId = (int)($_SESSION['admin_id'] ?? 0);
 $pdo = getConnection();
