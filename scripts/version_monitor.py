@@ -22,6 +22,7 @@ Uso:
 import os
 import sqlite3
 import sys
+import re
 from decimal import Decimal, InvalidOperation
 
 DB_PATH = os.environ.get('APP_VERSION_DB', '/etc/easypanel/data/data.sdb')
@@ -35,18 +36,37 @@ STATE_FILE = os.environ.get(
     'APP_VERSION_STATE',
     '/root/appdata/centraldefaturas/.version_last_deploy',
 )
+REPO_VERSION_FILES = [
+    p for p in [
+        os.environ.get('APP_VERSION_REPO_FILE', '').strip(),
+        '/etc/easypanel/projects/sites/centraldefaturas_com_br/code/config/version.txt',
+        '/root/cobranca-deploy/config/version.txt',
+    ] if p
+]
 VERSAO_INICIAL = '1.0'
 
 
-def ler_versao():
+def _ler_versao_arquivo(arquivo):
     try:
-        with open(VERSION_FILE, 'r', encoding='utf-8') as arquivo:
-            valor = arquivo.read().strip()
-        if Decimal(valor) >= Decimal('0'):
+        with open(arquivo, 'r', encoding='utf-8') as f:
+            valor = f.read().strip().replace('\ufeff', '')
+        if re.match(r'^\d+\.\d+$', valor):
             return valor
-    except (OSError, InvalidOperation, ValueError):
+    except (OSError, ValueError):
         pass
-    return VERSAO_INICIAL
+    return None
+
+
+def ler_versao():
+    candidatos = []
+    for arquivo in [VERSION_FILE] + REPO_VERSION_FILES:
+        valor = _ler_versao_arquivo(arquivo)
+        if valor is not None:
+            candidatos.append(Decimal(valor))
+    if not candidatos:
+        return VERSAO_INICIAL
+    maior = max(candidatos)
+    return '{:.1f}'.format(maior)
 
 
 def gravar_versao(valor):
@@ -116,6 +136,15 @@ def main():
         atual = Decimal(versao)
         versao = '{:.1f}'.format(atual + Decimal('0.1'))
         gravar_versao(versao)
+        # Sincroniza também a versão versionada no repositório da VPS, quando acessível.
+        for rv in REPO_VERSION_FILES:
+            try:
+                os.makedirs(os.path.dirname(rv), exist_ok=True)
+                with open(rv + '.tmp', 'w', encoding='utf-8') as f:
+                    f.write(versao + '\n')
+                os.replace(rv + '.tmp', rv)
+            except OSError:
+                pass
         gravar_estado(created)
         print('deploy {}: versao {} -> {}'.format(created, atual, versao))
 

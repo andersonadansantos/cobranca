@@ -3,10 +3,11 @@
 // CONTROLE CENTRAL DE VERSÃO DO SISTEMA
 // =====================================================
 //
-// A versão é lida de config/version.txt (versionada no repositório e
-// incrementada automaticamente pelo hook .githooks/pre-commit antes de cada
-// commit). Em produção, se existir uma versão gravada pelo monitor no volume
-// persistente, ela tem prioridade por ser a fonte operacional da VPS.
+// Versão automática no rodapé de todo o sistema.
+// - Commit Git: .githooks/pre-commit incrementa +0.1 em config/version.txt.
+// - Deploy VPS: scripts/version_monitor.py (cron no host) incrementa +0.1
+//   no arquivo persistente; na leitura, o sistema usa a maior versão válida
+//   entre repo e persistente, garantindo atualização em ambos os fluxos.
 
 if (!function_exists('sistemaVersao')) {
     function sistemaVersao() {
@@ -17,16 +18,15 @@ if (!function_exists('sistemaVersao')) {
         }
 
         $raiz = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__);
+        $candidatas = [];
 
-        // Prioridade 1: versão versionada no repositório (atualizada no pre-commit).
-        // É a fonte que acompanha cada commit, garantindo que o rodapé mude
-        // automaticamente após commit/deploy.
+        // Fonte 1: versão versionada no repositório (atualizada no pre-commit).
         $valorRepo = _sistemaVersaoLerArquivo($raiz . '/config/version.txt');
         if ($valorRepo !== null) {
-            return $versao = $valorRepo;
+            $candidatas[] = $valorRepo;
         }
 
-        // Prioridade 2: fallback operacional legado no volume persistente da VPS.
+        // Fonte 2: arquivos persistentes da VPS (atualizados pelo monitor de deploy).
         $arquivosPersistentes = [
             $raiz . '/config/marketing_imports/.system/version.txt',
             $raiz . '/config/marketing_imports/.system_version.txt',
@@ -34,11 +34,18 @@ if (!function_exists('sistemaVersao')) {
         foreach ($arquivosPersistentes as $arquivo) {
             $valor = _sistemaVersaoLerArquivo($arquivo);
             if ($valor !== null) {
-                return $versao = $valor;
+                $candidatas[] = $valor;
             }
         }
 
-        return $versao = '1.0';
+        if (empty($candidatas)) {
+            return $versao = '1.0';
+        }
+
+        usort($candidatas, function ($a, $b) {
+            return version_compare($a, $b);
+        });
+        return $versao = (string) end($candidatas);
     }
 }
 
