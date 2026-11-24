@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+if (!function_exists('csrf_field')) { require_once __DIR__ . '/../includes/csrf.php'; }
+require_once __DIR__ . '/../config/version.php';
 
 if (isMobileDevice()) {
     header('Location: ' . APP_BASE . '/app/');
@@ -18,6 +20,9 @@ if ($rateLimit['blocked']) {
     $erro = 'Muitas tentativas. Tente novamente em ' . $rateLimit['minutes'] . ' minuto(s).';
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
     $turnstile = trim($_POST['cf-turnstile-response'] ?? '');
     $turnstileSecret = getenv('TURNSTILE_SECRET_KEY') ?: '';
@@ -128,6 +133,7 @@ $nomeSistema = getNomeSistema();
                     <?php endif; ?>
 
                     <form method="POST" class="fin-form">
+                        <?= csrf_field() ?>
                         <div class="fin-field">
                             <label for="loginCpfCnpj">CPF ou CNPJ</label>
                             <div class="fin-input">
@@ -159,7 +165,7 @@ $nomeSistema = getNomeSistema();
 
                     <div class="fin-form-footer">
                         <span>Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</span>
-                        <span>Versão 1.0</span>
+                        <span>Versão <?= htmlspecialchars(sistemaVersao()) ?></span>
                     </div>
                 </div>
             </div>

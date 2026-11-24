@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/auth.php';
+if (!function_exists('csrf_field')) { require_once __DIR__ . '/../includes/csrf.php'; }
+require_once __DIR__ . '/../config/version.php';
 
 if (isLoggedInSuper()) {
     header('Location: index.php');
@@ -9,6 +11,13 @@ if (isLoggedInSuper()) {
 $erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
+
+    $rate = checkLoginRateLimit('superadmin', 'all');
+    if (!empty($rate['blocked'])) {
+        $erro = 'Muitas tentativas de acesso. Tente novamente em ' . (int)$rate['minutes'] . ' minuto(s).';
+    }
+
     $turnstile = trim($_POST['cf-turnstile-response'] ?? '');
     $turnstileSecret = getenv('TURNSTILE_SECRET_KEY') ?: '';
     if (empty($turnstileSecret)) {
@@ -39,9 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($usuario) || empty($senha)) {
             $erro = 'Preencha todos os campos.';
         } elseif (loginSuper($usuario, $senha)) {
+            clearLoginAttempts('superadmin', 'all');
             header('Location: index.php');
             exit;
         } else {
+            recordLoginAttempt('superadmin', 'all');
             $erro = 'Usuário ou senha inválidos.';
         }
     }
@@ -116,6 +127,7 @@ $nomeSistema = getNomeSistema();
                     <?php endif; ?>
 
                     <form method="POST" class="fin-form">
+                        <?= csrf_field() ?>
                         <div class="fin-field">
                             <label for="loginUsuarioSuper">Usuário</label>
                             <div class="fin-input">
@@ -141,7 +153,7 @@ $nomeSistema = getNomeSistema();
 
                     <div class="fin-form-footer">
                         <span>Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</span>
-                        <span>Versão 1.0</span>
+                        <span>Versão <?= htmlspecialchars(sistemaVersao()) ?></span>
                     </div>
 
                     <div class="fin-switch">

@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+if (!function_exists('csrf_field')) { require_once __DIR__ . '/../includes/csrf.php'; }
+require_once __DIR__ . '/../config/version.php';
 
 if (isLoggedInUser()) {
     header('Location: dashboard.php');
@@ -13,6 +15,9 @@ if ($rateLimit['blocked']) {
     $erro = 'Muitas tentativas. Tente novamente em ' . $rateLimit['minutes'] . ' minuto(s).';
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
     $turnstile = trim($_POST['cf-turnstile-response'] ?? '');
     $turnstileSecret = getenv('TURNSTILE_SECRET_KEY') ?: '';
@@ -98,6 +103,7 @@ $nomeSistema = getNomeSistema();
             <?php endif; ?>
 
             <form method="POST">
+                <?= csrf_field() ?>
                 <div class="form-group">
                     <label>CPF ou CNPJ</label>
                     <div class="app-input-icon">
@@ -123,7 +129,7 @@ $nomeSistema = getNomeSistema();
                         <i class="fas fa-key"></i> Esqueceu sua senha?
                     </a>
                 </div>
-                <div class="text-center"><small style="color:#94a3b8; font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#64748b;">Versão: 1.0</span></div>
+                <div class="text-center"><small style="color:#94a3b8; font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#64748b;">Versão: <?= htmlspecialchars(sistemaVersao()) ?></span></div>
             </form>
         </div>
     </div>

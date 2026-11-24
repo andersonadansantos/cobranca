@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+if (!function_exists('csrf_field')) { require_once __DIR__ . '/../includes/csrf.php'; }
+require_once __DIR__ . '/../config/version.php';
 require_once __DIR__ . '/../includes/lang_painel.php';
 
 if (isLoggedInAdmin()) {
@@ -15,6 +17,9 @@ if ($rateLimit['blocked']) {
     $erro = t('login.erro_rate', [$rateLimit['minutes']]);
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($erro)) {
     $turnstile = trim($_POST['cf-turnstile-response'] ?? '');
     $turnstileSecret = getenv('TURNSTILE_SECRET_KEY') ?: '';
@@ -126,6 +131,7 @@ $nomeSistema = getNomeSistema();
                     <?php endif; ?>
 
                     <form method="POST" class="fin-form">
+                        <?= csrf_field() ?>
                         <div class="fin-field">
                             <label for="loginUsuarioAdmin"><?= t('login.usuario') ?></label>
                             <div class="fin-input">
@@ -157,7 +163,7 @@ $nomeSistema = getNomeSistema();
 
                     <div class="fin-form-footer">
                         <span><?= t('login.direitos') ?></span>
-                        <span><?= t('login.versao') ?></span>
+                        <span><?= t('login.versao', [sistemaVersao()]) ?></span>
                     </div>
 
                     <div class="fin-switch">

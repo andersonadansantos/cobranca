@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../config/version.php';
 
 if (isLoggedInAdmin()) {
     $_SESSION['admin_template'] = 'classico';
@@ -104,7 +105,7 @@ $nomeSistema = getNomeSistema();
                     </div>
 
                     <div class="text-center mt-3">
-                        <small class="text-muted" style="font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: 1.0</span>
+                        <small class="text-muted" style="font-size:0.65rem;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</small><span style="float:right;font-size:0.65rem;color:#6c757d;">Versão: <?= htmlspecialchars(sistemaVersao()) ?></span>
                     </div>
                 </div>
             </div>
