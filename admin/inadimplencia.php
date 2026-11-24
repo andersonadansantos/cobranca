@@ -13,11 +13,13 @@ $adminIdN = (int)$_SESSION['admin_id'];
 
 $inadimplentesStmt = $pdo->prepare("
     SELECT f.*, c.nome_razao, c.cpf_cnpj, c.email, c.celular, c.telefone,
-           DATEDIFF(NOW(), f.data_vencimento) AS dias_atraso
+           DATEDIFF(CURDATE(), f.data_vencimento) AS dias_atraso
     FROM faturas f
     JOIN clientes c ON f.cliente_id = c.id
-    WHERE f.admin_id = ? AND f.status IN ('atrasado','vencido')
-    ORDER BY dias_atraso DESC
+    WHERE f.admin_id = ?
+      AND f.status NOT IN ('pago','cancelado')
+      AND f.data_vencimento < CURDATE()
+    ORDER BY dias_atraso DESC, f.data_vencimento ASC
 ");
 $inadimplentesStmt->execute([$adminIdN]);
 $inadimplentes = $inadimplentesStmt->fetchAll();

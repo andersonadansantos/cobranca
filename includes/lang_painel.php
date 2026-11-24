@@ -150,7 +150,7 @@ $GLOBALS['painel_pt'] = [
     'login.feat_envios' => 'Envios integrados',
     'login.rodape_seguranca' => 'Ambiente administrativo protegido e monitorado.',
     'login.direitos' => 'Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026',
-    'login.versao' => 'Versão 1.0',
+    'login.versao' => 'Versão %s',
 
     // Dashboard (admin)
     'dash.titulo' => 'Painel Geral',
@@ -436,7 +436,7 @@ $GLOBALS['painel_es'] = [
     'login.feat_envios' => 'Envíos integrados',
     'login.rodape_seguranca' => 'Entorno administrativo protegido y monitoreado.',
     'login.direitos' => 'Todos los Derechos Reservados - WD Soluções Digitais LTDA - 2010 - 2026',
-    'login.versao' => 'Versión 1.0',
+    'login.versao' => 'Versión %s',
 
     // Dashboard (admin)
     'dash.titulo' => 'Panel General',
