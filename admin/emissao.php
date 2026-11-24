@@ -13,6 +13,7 @@ require_once __DIR__ . '/../config/mercadopago.php';
 require_once __DIR__ . '/../config/email_helpers.php';
 require_once __DIR__ . '/../api/whatsapp_send.php';
 require_once __DIR__ . '/../includes/sms_textbee.php';
+require_once __DIR__ . '/../includes/csrf.php';
 
 $pdo = getConnection();
 $adminIdE = (int)$_SESSION['admin_id'];
