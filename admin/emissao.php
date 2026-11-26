@@ -23,15 +23,23 @@ $tipo = '';
 // Ações na fatura recorrente
 if (isset($_GET['pago'])) {
     $id = intval($_GET['pago']);
-    $stFat = $pdo->prepare("SELECT f.id FROM faturas f WHERE f.fatura_recorrente_id = ? AND f.admin_id = ? AND f.status != 'pago' ORDER BY f.data_vencimento DESC LIMIT 1");
-    $stFat->execute([$id, $adminIdE]);
-    $fatPagaId = (int)$stFat->fetchColumn();
+    $fatPagaId = 0;
+    if ($id >= 1000000000) {
+        $fid = $id - 1000000000;
+        $stFat = $pdo->prepare("SELECT id FROM faturas WHERE id = ? AND admin_id = ? AND status != 'pago' LIMIT 1");
+        $stFat->execute([$fid, $adminIdE]);
+        $fatPagaId = (int) $stFat->fetchColumn();
+    } else {
+        $stFat = $pdo->prepare("SELECT f.id FROM faturas f WHERE f.fatura_recorrente_id = ? AND f.admin_id = ? AND f.status != 'pago' ORDER BY f.data_vencimento DESC LIMIT 1");
+        $stFat->execute([$id, $adminIdE]);
+        $fatPagaId = (int) $stFat->fetchColumn();
+    }
     if ($fatPagaId > 0) {
         confirmarPagamentoEBaixarFatura($fatPagaId, [
             'gateway' => 'pix_manual',
             'tipo_pagamento' => 'pix_manual',
             'status_gateway' => 'manual',
-            'status_detail' => 'Confirmação manual / PIX Manual (Recorrência)'
+            'status_detail' => 'Confirmação manual / PIX Manual (Recorrência/Avulsa)'
         ]);
     }
     header('Location: emissao.php?msg=pago');
@@ -39,31 +47,53 @@ if (isset($_GET['pago'])) {
 }
 if (isset($_GET['cancelar'])) {
     $id = intval($_GET['cancelar']);
-
-    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ? AND status IN ('pendente','vencido','atrasado')");
-    $stFats->execute([$id, $adminIdE]);
-    while ($fat = $stFats->fetch()) {
-        cancelarCobrancaFatura($fat);
+    if ($id >= 1000000000) {
+        $fid = $id - 1000000000;
+        $stFat = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ? LIMIT 1");
+        $stFat->execute([$fid, $adminIdE]);
+        $fat = $stFat->fetch();
+        if ($fat && in_array($fat['status'], ['pendente', 'vencido', 'atrasado'], true)) {
+            cancelarCobrancaFatura($fat);
+            $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE id = ? AND admin_id = ?")->execute([$fid, $adminIdE]);
+        }
+    } else {
+        $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ? AND status IN ('pendente','vencido','atrasado')");
+        $stFats->execute([$id, $adminIdE]);
+        while ($fat = $stFats->fetch()) {
+            cancelarCobrancaFatura($fat);
+        }
+        $stmt = $pdo->prepare("UPDATE faturas_recorrentes SET status = 'cancelado' WHERE id = ? AND admin_id = ?");
+        $stmt->execute([$id, $adminIdE]);
+        $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE fatura_recorrente_id = ? AND admin_id = ? AND status IN ('pendente','vencido','atrasado')");
+        $stmt->execute([$id, $adminIdE]);
     }
-
-    $stmt = $pdo->prepare("UPDATE faturas_recorrentes SET status = 'cancelado' WHERE id = ? AND admin_id = ?");
-    $stmt->execute([$id, $adminIdE]);
-    $stmt = $pdo->prepare("UPDATE faturas SET status = 'cancelado' WHERE fatura_recorrente_id = ? AND admin_id = ? AND status IN ('pendente','vencido','atrasado')");
-    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=cancelado');
     exit;
 }
 if (isset($_GET['excluir'])) {
     $id = intval($_GET['excluir']);
-    $stmt = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ?");
-    $stmt->execute([$id, $adminIdE]);
-    $faturasRec = $stmt->fetchAll();
-    foreach ($faturasRec as $fat) {
-        cancelarCobrancaFatura($fat);
+    if ($id >= 1000000000) {
+        $fid = $id - 1000000000;
+        $stmt = $pdo->prepare("SELECT * FROM faturas WHERE id = ? AND admin_id = ? AND fatura_recorrente_id IS NULL AND carne_id IS NULL");
+        $stmt->execute([$fid, $adminIdE]);
+        $faturasRec = $stmt->fetchAll();
+        foreach ($faturasRec as $fat) {
+            cancelarCobrancaFatura($fat);
+        }
+        if ($faturasRec) {
+            excluirFaturasComLapide($pdo, $faturasRec, 'excluir_fatura_avulsa');
+        }
+    } else {
+        $stmt = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id = ? AND admin_id = ?");
+        $stmt->execute([$id, $adminIdE]);
+        $faturasRec = $stmt->fetchAll();
+        foreach ($faturasRec as $fat) {
+            cancelarCobrancaFatura($fat);
+        }
+        excluirFaturasComLapide($pdo, $faturasRec, 'excluir_recorrencia');
+        $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id = ? AND admin_id = ?");
+        $stmt->execute([$id, $adminIdE]);
     }
-    excluirFaturasComLapide($pdo, $faturasRec, 'excluir_recorrencia');
-    $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id = ? AND admin_id = ?");
-    $stmt->execute([$id, $adminIdE]);
     header('Location: emissao.php?msg=excluido');
     exit;
 }
@@ -393,16 +423,35 @@ if (isset($_GET['fatura_pix'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['bulk_delete']) || !empty($_POST['ids']))) {
     $ids = array_map('intval', $_POST['ids']);
-    $ph = implode(',', array_fill(0, count($ids), '?'));
-    $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id IN ($ph) AND admin_id = ?");
-    $stFats->execute(array_merge($ids, [$adminIdE]));
-    $faturasRec = $stFats->fetchAll();
+    $ids = array_values(array_unique(array_filter($ids)));
+    $idsRec = array_values(array_filter($ids, fn($x) => $x > 0 && $x < 1000000000));
+    $idsAvulsas = array_values(array_map(fn($x) => $x - 1000000000, array_filter($ids, fn($x) => $x >= 1000000000)));
+
+    $faturasRec = [];
+    if ($idsRec) {
+        $ph = implode(',', array_fill(0, count($idsRec), '?'));
+        $stFats = $pdo->prepare("SELECT * FROM faturas WHERE fatura_recorrente_id IN ($ph) AND admin_id = ?");
+        $stFats->execute(array_merge($idsRec, [$adminIdE]));
+        $faturasRec = $stFats->fetchAll();
+    }
+    if ($idsAvulsas) {
+        $phA = implode(',', array_fill(0, count($idsAvulsas), '?'));
+        $stAv = $pdo->prepare("SELECT * FROM faturas WHERE id IN ($phA) AND admin_id = ? AND fatura_recorrente_id IS NULL AND carne_id IS NULL");
+        $stAv->execute(array_merge($idsAvulsas, [$adminIdE]));
+        $faturasRec = array_merge($faturasRec, $stAv->fetchAll());
+    }
+
     foreach ($faturasRec as $fat) {
         cancelarCobrancaFatura($fat);
     }
-    excluirFaturasComLapide($pdo, $faturasRec, 'excluir_lote');
-    $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id IN ($ph) AND admin_id = ?");
-    $stmt->execute(array_merge($ids, [$adminIdE]));
+    if ($faturasRec) {
+        excluirFaturasComLapide($pdo, $faturasRec, 'excluir_lote');
+    }
+    if ($idsRec) {
+        $ph = implode(',', array_fill(0, count($idsRec), '?'));
+        $stmt = $pdo->prepare("DELETE FROM faturas_recorrentes WHERE id IN ($ph) AND admin_id = ?");
+        $stmt->execute(array_merge($idsRec, [$adminIdE]));
+    }
     header('Location: emissao.php?msg=excluido');
     exit;
 }
@@ -926,10 +975,53 @@ $sql = "
         FROM faturas_recorrentes fr 
         JOIN clientes c ON fr.cliente_id = c.id 
         WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?
+
+        UNION ALL
+
+        SELECT
+            (1000000000 + f.id) AS id,
+            f.admin_id,
+            f.cliente_id,
+            f.descricao,
+            f.valor_final AS valor,
+            'avulso' AS frequencia,
+            f.data_vencimento AS data_inicio,
+            NULL AS data_fim,
+            CASE WHEN f.status = 'cancelado' THEN 0 ELSE 1 END AS ativo,
+            f.data_emissao AS criado_em,
+            NULL AS dia_cobranca,
+            NULL AS quantidade_transacoes,
+            f.numero,
+            CASE WHEN f.status = 'cancelado' THEN 'cancelado' ELSE 'ativa' END AS status,
+            NULL AS dia_ancora,
+            NULL AS data_proxima_fatura,
+            NULL AS data_ultima_fatura,
+            0 AS antecedencia_emissao,
+            0 AS dias_vencimento,
+            'todas' AS politica_atraso,
+            0 AS tentativas_erro,
+            NULL AS ultimo_erro,
+            f.data_vencimento AS data_primeiro_vencimento,
+            c.nome_razao,
+            c.cpf_cnpj,
+            c.celular,
+            c.telefone,
+            f.link_pagamento AS ultimo_link,
+            COALESCE(NULLIF(TRIM(f.inter_seu_numero), ''), NULLIF(TRIM(f.inter_codigo_solicitacao), ''), f.numero) AS ultimo_numero,
+            f.status AS ultimo_status,
+            CASE WHEN f.status IN ('pendente','vencido','atrasado') THEN f.data_vencimento ELSE NULL END AS proximo_vencimento,
+            f.data_vencimento AS ultimo_vencimento
+        FROM faturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.admin_id = ?
+          AND f.fatura_recorrente_id IS NULL
+          AND f.carne_id IS NULL
+          AND (f.total_parcelas IS NULL OR f.total_parcelas <= 1)
+          AND f.status IN ('pendente','vencido','atrasado')
     ) AS base
     WHERE 1=1
 ";
-$params = [$adminIdE];
+$params = [$adminIdE, $adminIdE];
 
 if ($filtro_status !== '') {
     $sql .= " AND base.ultimo_status = ?";
@@ -946,14 +1038,40 @@ if ($filtro_busca !== '') {
 $sql .= " ORDER BY base.criado_em DESC";
 
 $countSql = "SELECT COUNT(*) FROM (
-    SELECT fr.id FROM faturas_recorrentes fr 
-    JOIN clientes c ON fr.cliente_id = c.id 
-    WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?";
-$countParams = [$adminIdE];
+    SELECT base.id FROM (
+        SELECT fr.id,
+               c.nome_razao, c.cpf_cnpj, fr.descricao,
+               (SELECT COALESCE(NULLIF(TRIM(f.inter_seu_numero), ''), NULLIF(TRIM(f.inter_codigo_solicitacao), ''), f.numero) FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_numero,
+               (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) AS ultimo_status
+        FROM faturas_recorrentes fr
+        JOIN clientes c ON fr.cliente_id = c.id
+        WHERE (fr.ativo = 1 OR fr.status = 'cancelado') AND fr.admin_id = ?
+        UNION ALL
+        SELECT (1000000000 + f.id) AS id,
+               c.nome_razao, c.cpf_cnpj, f.descricao,
+               COALESCE(NULLIF(TRIM(f.inter_seu_numero), ''), NULLIF(TRIM(f.inter_codigo_solicitacao), ''), f.numero) AS ultimo_numero,
+               f.status AS ultimo_status
+        FROM faturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.admin_id = ?
+          AND f.fatura_recorrente_id IS NULL
+          AND f.carne_id IS NULL
+          AND (f.total_parcelas IS NULL OR f.total_parcelas <= 1)
+          AND f.status IN ('pendente','vencido','atrasado')
+    ) AS base
+    WHERE 1=1";
+$countParams = [$adminIdE, $adminIdE];
 
 if ($filtro_status !== '') {
-    $countSql .= " AND (SELECT f.status FROM faturas f WHERE f.fatura_recorrente_id = fr.id ORDER BY f.data_vencimento DESC, f.id DESC LIMIT 1) = ?";
+    $countSql .= " AND base.ultimo_status = ?";
     $countParams[] = $filtro_status;
+}
+if ($filtro_busca !== '') {
+    $countSql .= " AND (base.nome_razao LIKE ? OR base.cpf_cnpj LIKE ? OR base.ultimo_numero LIKE ? OR base.descricao LIKE ?)";
+    $countParams[] = '%' . $filtro_busca . '%';
+    $countParams[] = '%' . $filtro_busca . '%';
+    $countParams[] = '%' . $filtro_busca . '%';
+    $countParams[] = '%' . $filtro_busca . '%';
 }
 
 $countSql .= ") AS cnt";
@@ -986,6 +1104,29 @@ if ($frIds) {
     $stmtFatsFr->execute(array_merge([$adminIdE], $frIds));
     foreach ($stmtFatsFr->fetchAll() as $ffr) {
         $faturasPorRecorrencia[$ffr['fatura_recorrente_id']][] = $ffr;
+    }
+}
+
+foreach ($faturasRecorrentes as $fr) {
+    $frId = (int) ($fr['id'] ?? 0);
+    if (($fr['frequencia'] ?? '') === 'avulso' && $frId >= 1000000000) {
+        $faturaRealId = $frId - 1000000000;
+        if (empty($faturasPorRecorrencia[$frId])) {
+            $faturasPorRecorrencia[$frId] = [[
+                'id' => $faturaRealId,
+                'fatura_recorrente_id' => null,
+                'numero' => $fr['ultimo_numero'] ?? $fr['numero'] ?? '',
+                'inter_seu_numero' => '',
+                'inter_codigo_solicitacao' => '',
+                'valor_final' => $fr['valor'] ?? 0,
+                'data_emissao' => $fr['criado_em'] ?? null,
+                'data_vencimento' => $fr['ultimo_vencimento'] ?? $fr['data_inicio'] ?? null,
+                'status' => $fr['ultimo_status'] ?? 'pendente',
+                'pix_copia_cola' => '',
+                'parcela_atual' => 1,
+                'total_parcelas' => 1,
+            ]];
+        }
     }
 }
 
@@ -1089,7 +1230,7 @@ include __DIR__ . '/../includes/sidebar_admin.php';
 
         <div class="table-card">
             <div class="p-3 border-bottom">
-                <h6 class="mb-0"><i class="fas fa-sync-alt me-2"></i>Recorrentes Ativas</h6>
+                <h6 class="mb-0"><i class="fas fa-sync-alt me-2"></i>Recorrentes Ativas e Faturas Avulsas</h6>
             </div>
             <div class="p-3 border-bottom">
                 <form method="GET" class="row g-2 align-items-end">

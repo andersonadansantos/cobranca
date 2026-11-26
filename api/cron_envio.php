@@ -315,23 +315,55 @@ function buscarFaturas($pdo, $statuses) {
 }
 
 function enviarEAtualizar($pdo, $fat, $tipo, $assunto, $html, $txt, $s, &$log) {
-    $anexoPdf = '';
-    if (!empty($fat['pix_copia_cola']) && !in_array($fat['status'] ?? '', ['pago', 'cancelado'])) {
+    $anexos = [];
+    $anexosTemp = [];
+    $faturaNum = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($fat['numero'] ?? $fat['id'] ?? 'fatura'));
+
+    if (!in_array($fat['status'] ?? '', ['pago', 'cancelado'])) {
         if (!function_exists('gerarPixPdfFatura')) {
             require_once __DIR__ . '/../config/pix_pdf.php';
         }
         try {
-            $anexoPdf = gerarPixPdfFatura($fat);
+            $pdfFatura = gerarPixPdfFatura($fat);
+            if ($pdfFatura && is_file($pdfFatura)) {
+                $anexos[] = ['caminho' => $pdfFatura, 'nome' => 'Fatura_' . $faturaNum . '.pdf', 'mime' => 'application/pdf'];
+                $anexosTemp[] = $pdfFatura;
+            }
         } catch (Throwable $e) {
-            $anexoPdf = '';
+            // ignora falha de PDF da fatura
+        }
+
+        if (!function_exists('resolverBoletoPdfAnexoFatura')) {
+            require_once __DIR__ . '/../config/email_helpers.php';
+        }
+        try {
+            $boletoPdf = resolverBoletoPdfAnexoFatura($fat, $pdo);
+            if ($boletoPdf && is_file($boletoPdf['caminho'])) {
+                $anexos[] = ['caminho' => $boletoPdf['caminho'], 'nome' => 'Boleto_' . $faturaNum . '.pdf', 'mime' => 'application/pdf'];
+                if (!empty($boletoPdf['temporario'])) {
+                    $anexosTemp[] = $boletoPdf['caminho'];
+                }
+            }
+        } catch (Throwable $e) {
+            // ignora falha de boleto
         }
     }
-    if ($anexoPdf && is_file($anexoPdf)) {
-        $enviado = enviarEmailComAnexo($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt, $anexoPdf, 'Fatura_' . $fat['numero'] . '.pdf');
-        @unlink($anexoPdf);
-    } else {
-        $enviado = enviarEmail($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt);
+
+    try {
+        if (!empty($anexos) && function_exists('enviarEmailComAnexos')) {
+            $enviado = enviarEmailComAnexos($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt, $anexos);
+        } elseif (!empty($anexos)) {
+            $primeiro = $anexos[0];
+            $enviado = enviarEmailComAnexo($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt, $primeiro['caminho'], $primeiro['nome']);
+        } else {
+            $enviado = enviarEmail($s['host'], $s['port'], $s['user'], $s['pass'], $s['from'], $s['nome'], $s['ssl'], $fat['email'], $fat['nome_razao'], $assunto, $html, $txt);
+        }
+    } finally {
+        foreach ($anexosTemp as $tmp) {
+            if ($tmp && is_file($tmp)) @unlink($tmp);
+        }
     }
+
     registrarEnvioLog($fat['admin_id'] ?? 0, $fat['id'], 'email', $tipo, $enviado ? 'enviado' : 'erro', $fat['email'],
         $enviado ? '' : 'SMTP nao confirmou o envio');
     if ($enviado) {
