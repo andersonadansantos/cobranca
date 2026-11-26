@@ -1119,8 +1119,9 @@ if (!function_exists('enviarEmailFaturaComContexto')) {
         $anexos = [];
         $anexosTemp = [];
         $faturaNum = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($fatura['numero'] ?? $fatura['id'] ?? 'fatura'));
+        $tiposCobrancaBoleto = ['antes', 'depois', 'geracao', 'lembrete1', 'lembrete2', 'vencimento', 'atraso'];
 
-        if (($fatura['status'] ?? '') !== 'pago' && ($fatura['status'] ?? '') !== 'cancelado') {
+        if (in_array($tipo, $tiposCobrancaBoleto, true) && ($fatura['status'] ?? '') !== 'pago' && ($fatura['status'] ?? '') !== 'cancelado') {
             if (!function_exists('gerarPixPdfFatura')) {
                 require_once __DIR__ . '/pix_pdf.php';
             }

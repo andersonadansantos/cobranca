@@ -318,8 +318,9 @@ function enviarEAtualizar($pdo, $fat, $tipo, $assunto, $html, $txt, $s, &$log) {
     $anexos = [];
     $anexosTemp = [];
     $faturaNum = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($fat['numero'] ?? $fat['id'] ?? 'fatura'));
+    $tiposCobrancaBoleto = ['antes', 'depois', 'geracao', 'lembrete1', 'lembrete2', 'vencimento', 'atraso'];
 
-    if (!in_array($fat['status'] ?? '', ['pago', 'cancelado'])) {
+    if (in_array($tipo, $tiposCobrancaBoleto, true) && !in_array($fat['status'] ?? '', ['pago', 'cancelado'])) {
         if (!function_exists('gerarPixPdfFatura')) {
             require_once __DIR__ . '/../config/pix_pdf.php';
         }
