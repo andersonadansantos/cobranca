@@ -10,6 +10,7 @@ if (!isLoggedInUser() && !empty($_GET['token'])) {
 requireUser();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/mercadopago.php';
+require_once __DIR__ . '/../config/version.php';
 
 $pdo = getConnection();
 $userId = $_SESSION['user_id'];
@@ -43,9 +44,16 @@ $cartaoPermitido = ($apiDaFatura === 'mercadopago')
     && $fatura['status'] !== 'pago';
 
 if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
-    if (!empty($fatura['boleto_url'])) {
-        header('Location: ' . $fatura['boleto_url']);
-        exit;
+    if (!empty($fatura['boleto_url']) || !empty($fatura['inter_codigo_solicitacao']) || !empty($fatura['mp_payment_id'])) {
+        $resBol = resolverBoletoUrlFatura($fatura, $pdo);
+        if (!empty($resBol['sucesso']) && !empty($resBol['boleto_url'])) {
+            header('Location: ' . $resBol['boleto_url']);
+            exit;
+        }
+        if (!empty($fatura['boleto_url'])) {
+            header('Location: fatura.php?id=' . $faturaId . '&erro=boleto&msg=' . urlencode($resBol['erro'] ?? 'Arquivo do boleto não encontrado.'));
+            exit;
+        }
     }
 
     $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
@@ -362,7 +370,7 @@ $nomeSistema = getNomeSistema();
     </div>
 
     <div style="text-align:center; padding:16px; font-size:0.65rem; color:#94a3b8;">
-        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</a><span style="float:right;">Versão: 1.0</span>
+        <a href="https://agenciawd.com.br" target="_blank" style="color:#94a3b8; text-decoration:none;">Todos os Direitos Reservados - WD Soluções Digitais LTDA - 2010 - 2026</a><span style="float:right;">Versão: <?= htmlspecialchars(sistemaVersao()) ?></span>
     </div>
 
     <nav class="app-bottom-nav">
@@ -447,7 +455,7 @@ $nomeSistema = getNomeSistema();
                 var pmContainer = document.getElementById('pmQrContainer');
                 if (pmContainer) {
                     new QRCode(pmContainer, {
-                        text: <?= json_encode($pmQrChave) ?>,
+                        text: <?= json_encode($pmQrChave, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
                         width: 170, height: 170,
                         colorDark: "#000000", colorLight: "#ffffff",
                         correctLevel: QRCode.CorrectLevel.M
@@ -461,7 +469,7 @@ $nomeSistema = getNomeSistema();
     <?php if ($fatura['status'] !== 'pago'): ?>
     <script>
     var _faturaId = <?= $faturaId ?>;
-var _token = <?= json_encode($fatura['acesso_token'] ?? '') ?>;
+var _token = <?= json_encode($fatura['acesso_token'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var _pollCount = 0;
     function verificarPagamento() {
         if (_pollCount >= 120) return;
@@ -553,9 +561,9 @@ var _token = <?= json_encode($fatura['acesso_token'] ?? '') ?>;
         var faturaId = <?= (int) $faturaId ?>;
         var faturaValor = <?= (float) $fatura['valor_final'] ?>;
         var maxParcelas = <?= (int) getMaxParcelasCartao() ?>;
-        var cpfCliente = <?= json_encode(preg_replace('/[^0-9]/', '', $_SESSION['user_cpf_cnpj'] ?? '')) ?>;
+        var cpfCliente = <?= json_encode(preg_replace('/[^0-9]/', '', $_SESSION['user_cpf_cnpj'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-        var mp = new MercadoPago(<?= json_encode($mpConfig['mp_public_key']) ?>, { locale: 'pt-BR' });
+        var mp = new MercadoPago(<?= json_encode($mpConfig['mp_public_key'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, { locale: 'pt-BR' });
 
         var btn = document.getElementById('ccBtn');
         var msg = document.getElementById('ccMsg');

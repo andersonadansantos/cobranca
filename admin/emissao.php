@@ -241,9 +241,16 @@ if (isset($_GET['fatura_boleto'])) {
         header('Location: emissao.php');
         exit;
     }
-    if (!empty($fat['boleto_url'])) {
-        header('Location: ' . $fat['boleto_url']);
-        exit;
+    if (!empty($fat['boleto_url']) || !empty($fat['inter_codigo_solicitacao']) || !empty($fat['mp_payment_id'])) {
+        $resBol = resolverBoletoUrlFatura($fat, $pdo);
+        if (!empty($resBol['sucesso']) && !empty($resBol['boleto_url'])) {
+            header('Location: ' . $resBol['boleto_url']);
+            exit;
+        }
+        if (!empty($fat['boleto_url'])) {
+            header('Location: emissao.php?msg=erro_boleto&det=' . urlencode($resBol['erro'] ?? 'Arquivo do boleto não encontrado.'));
+            exit;
+        }
     }
 
     $stmtCli = $pdo->prepare("SELECT * FROM clientes WHERE id = ? AND admin_id = ?");
@@ -416,7 +423,7 @@ if (isset($_GET['msg'])) {
         'sms_enviado' => ['SMS de cobrança enviado com sucesso!', 'success'],
         'sms_erro' => ['Erro ao enviar SMS: ' . htmlspecialchars(($_GET['det'] ?? 'verifique a configuração da API SMS.'), ENT_QUOTES, 'UTF-8'), 'danger'],
         'sem_fatura' => ['Nenhuma fatura pendente encontrada para esta recorrência.', 'warning'],
-        'erro_boleto' => ['Erro ao gerar boleto. Verifique a configuração da API de pagamento.', 'danger'],
+        'erro_boleto' => ['Erro ao gerar boleto: ' . htmlspecialchars(($_GET['det'] ?? 'Verifique a configuração da API de pagamento.'), ENT_QUOTES, 'UTF-8'), 'danger'],
         'lote_criado' => ['Boleto em Lote criado com sucesso!', 'success'],
         'avulso_criado' => ['Fatura avulsa emitida com sucesso! Foi gerada apenas 1 cobrança única, sem recorrência ou geração automática de cobranças futuras.', 'success'],
         'carne_criado' => ['Carnê gerado com sucesso!', 'success'],

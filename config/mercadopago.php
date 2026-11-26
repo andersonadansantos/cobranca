@@ -884,6 +884,85 @@ function obterPdfInter($codigoSolicitacao) {
 }
 
 /**
+ * Resolve a URL do boleto em PDF para uma fatura já gerada.
+ * Para boletos Inter/BB, o PDF é armazenado localmente e pode ter sido perdido
+ * em redeploy; nesse caso, tenta regenerar pelo código da cobrança sem alterar
+ * dados financeiros da fatura.
+ */
+function resolverBoletoUrlFatura(array $fatura, ?PDO $pdo = null) {
+    $url = trim((string) ($fatura['boleto_url'] ?? ''));
+    $api = strtolower(trim((string) ($fatura['api_pagamento'] ?? '')));
+    $codigo = trim((string) ($fatura['inter_codigo_solicitacao'] ?? ''));
+    if ($codigo === '') {
+        $codigo = trim((string) ($fatura['mp_payment_id'] ?? ''));
+    }
+
+    $isExterno = $url !== '' && preg_match('#^https?://#i', $url);
+    if ($isExterno) {
+        return ['sucesso' => true, 'boleto_url' => $url];
+    }
+
+    $arquivoLocal = '';
+    if ($url !== '') {
+        $path = parse_url($url, PHP_URL_PATH);
+        $path = is_string($path) ? $path : $url;
+        $path = preg_replace('#^/cobranca/#', '/', $path);
+        $path = '/' . ltrim($path, '/');
+        if (strpos($path, '/assets/boletos_') === 0) {
+            $arquivoLocal = __DIR__ . '/..' . $path;
+        }
+    }
+
+    if ($arquivoLocal !== '' && is_file($arquivoLocal) && filesize($arquivoLocal) > 0) {
+        return ['sucesso' => true, 'boleto_url' => $url];
+    }
+
+    $pdfBase64 = null;
+    $dirNome = '';
+    $nomeArquivo = '';
+    if ($codigo !== '' && in_array($api, ['inter', 'bb'], true)) {
+        if ($api === 'inter') {
+            $pdfBase64 = obterPdfInter($codigo);
+            $dirNome = 'boletos_inter';
+            $nomeArquivo = preg_replace('/[^A-Za-z0-9_-]/', '', $codigo) . '.pdf';
+        } elseif ($api === 'bb') {
+            $pdfBase64 = obterPdfBB($codigo);
+            $dirNome = 'boletos_bb';
+            $nomeArquivo = preg_replace('/[^A-Za-z0-9_-]/', '', $codigo) . '.pdf';
+        }
+    }
+
+    if ($pdfBase64 && $dirNome && $nomeArquivo) {
+        $pdfDir = __DIR__ . '/../assets/' . $dirNome;
+        if (!is_dir($pdfDir)) {
+            @mkdir($pdfDir, 0755, true);
+        }
+        $pdfFile = $pdfDir . '/' . $nomeArquivo;
+        $bytes = base64_decode($pdfBase64);
+        if ($bytes !== false && @file_put_contents($pdfFile, $bytes) !== false) {
+            $novaUrl = APP_BASE . '/assets/' . $dirNome . '/' . $nomeArquivo;
+            $faturaId = (int) ($fatura['id'] ?? 0);
+            if ($pdo instanceof PDO && $faturaId > 0 && $novaUrl !== $url) {
+                try {
+                    $stmt = $pdo->prepare("UPDATE faturas SET boleto_url = ? WHERE id = ? AND (boleto_url IS NULL OR boleto_url = '' OR boleto_url = ?)");
+                    $stmt->execute([$novaUrl, $faturaId, $url]);
+                } catch (Exception $e) {
+                    // Não bloqueia a exibição do PDF regenerado.
+                }
+            }
+            return ['sucesso' => true, 'boleto_url' => $novaUrl];
+        }
+    }
+
+    if ($url !== '') {
+        // URL local existente mas arquivo ausente e sem como regenerar: retorna erro claro.
+        return ['sucesso' => false, 'erro' => 'Arquivo do boleto não encontrado no servidor. Tente gerar o boleto novamente.'];
+    }
+
+    return ['sucesso' => false, 'erro' => 'Boleto não disponível para esta fatura.'];
+}
+
+/**
  * Converte o vencimento da fatura nos dois campos que o Inter usa na cobrança
  * PIX: dataVencimento e numDiasAgenda.
  *

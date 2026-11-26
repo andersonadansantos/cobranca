@@ -665,6 +665,29 @@ if (!function_exists('enviarEmailComAnexo')) {
         if ($anexoCaminho === '' || !is_file($anexoCaminho)) {
             return enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt);
         }
+        return enviarEmailComAnexos($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt, [
+            ['caminho' => $anexoCaminho, 'nome' => $anexoNome !== '' ? $anexoNome : basename($anexoCaminho)],
+        ]);
+    }
+}
+
+if (!function_exists('enviarEmailComAnexos')) {
+    function enviarEmailComAnexos($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt, $anexos = []) {
+        $validos = [];
+        foreach ((array) $anexos as $anexo) {
+            $caminho = trim((string) ($anexo['caminho'] ?? ''));
+            if ($caminho === '' || !is_file($caminho)) continue;
+            $nome = trim((string) ($anexo['nome'] ?? basename($caminho)));
+            $nome = preg_replace('/["\r\n]/', '', $nome);
+            if ($nome === '') $nome = basename($caminho);
+            $mime = trim((string) ($anexo['mime'] ?? 'application/pdf'));
+            if (!preg_match('#^[a-z0-9.+-]+/[a-z0-9.+-]+$#i', $mime)) $mime = 'application/pdf';
+            $validos[] = ['caminho' => $caminho, 'nome' => $nome, 'mime' => $mime];
+        }
+        if (empty($validos)) {
+            return enviarEmail($host, $port, $user, $pass, $fromEmail, $fromNome, $ssl, $paraEmail, $paraNome, $assunto, $mensagemHtml, $mensagemTxt);
+        }
+
         $connexion = null;
         $ehloResponse = '';
         $erro = '';
@@ -696,8 +719,6 @@ if (!function_exists('enviarEmailComAnexo')) {
         $boundary = "=?utf-8?B?" . base64_encode("b" . uniqid()) . "?=";
         $boundary = str_replace('=', '', $boundary);
         $boundaryMix = "mixed_" . $boundary;
-        $anexoNome = $anexoNome !== '' ? $anexoNome : basename($anexoCaminho);
-        $anexoNome = preg_replace('/["\r\n]/', '', $anexoNome);
 
         $body = "From: =?UTF-8?B?" . base64_encode($fromNome) . "?= <{$fromEmail}>\r\n";
         $body .= "Reply-To: {$fromEmail}\r\n";
@@ -721,13 +742,14 @@ if (!function_exists('enviarEmailComAnexo')) {
         $body .= "--{$boundary}--\r\n";
         $body .= "\r\n";
 
-        $pdfData = @file_get_contents($anexoCaminho);
-        if ($pdfData !== false) {
+        foreach ($validos as $anexo) {
+            $data = @file_get_contents($anexo['caminho']);
+            if ($data === false) continue;
             $body .= "--{$boundaryMix}\r\n";
-            $body .= "Content-Type: application/pdf; name=\"{$anexoNome}\"\r\n";
-            $body .= "Content-Disposition: attachment; filename=\"{$anexoNome}\"\r\n";
+            $body .= "Content-Type: {$anexo['mime']}; name=\"{$anexo['nome']}\"\r\n";
+            $body .= "Content-Disposition: attachment; filename=\"{$anexo['nome']}\"\r\n";
             $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
-            $body .= chunk_split(base64_encode($pdfData));
+            $body .= chunk_split(base64_encode($data));
             $body .= "\r\n";
         }
         $body .= "--{$boundaryMix}--\r\n.\r\n";
@@ -737,7 +759,6 @@ if (!function_exists('enviarEmailComAnexo')) {
         @fputs($connexion, "QUIT\r\n");
         @fclose($connexion);
 
-        // Só é envio concluído se o servidor aceitou a mensagem (250 após o DATA).
         return substr((string)$r, 0, 3) === '250';
     }
 }
@@ -886,6 +907,107 @@ if (!function_exists('enviarEmailMarketing')) {
     }
 }
 
+if (!function_exists('resolverBoletoPdfAnexoFatura')) {
+    function resolverBoletoPdfAnexoFatura(array $fatura, $pdo = null) {
+        if (($fatura['status'] ?? '') === 'pago' || ($fatura['status'] ?? '') === 'cancelado') {
+            return null;
+        }
+
+        if (!($pdo instanceof PDO)) {
+            $pdo = function_exists('getConnection') ? getConnection() : null;
+        }
+        $faturaId = (int) ($fatura['id'] ?? 0);
+        if ($pdo instanceof PDO && $faturaId > 0) {
+            try {
+                $st = $pdo->prepare("SELECT id, admin_id, numero, descricao, valor_final, data_vencimento, status, api_pagamento, boleto_url, inter_codigo_solicitacao, mp_payment_id, cliente_id FROM faturas WHERE id = ? LIMIT 1");
+                $st->execute([$faturaId]);
+                $fresh = $st->fetch(PDO::FETCH_ASSOC);
+                if (is_array($fresh)) {
+                    $fatura = array_merge($fatura, $fresh);
+                }
+            } catch (Throwable $e) {
+            }
+        }
+
+        $faturaNum = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($fatura['numero'] ?? $fatura['id'] ?? 'boleto'));
+        $api = strtolower(trim((string) ($fatura['api_pagamento'] ?? getApiAtiva())));
+        $url = trim((string) ($fatura['boleto_url'] ?? ''));
+        $codigo = trim((string) ($fatura['inter_codigo_solicitacao'] ?? ($fatura['mp_payment_id'] ?? '')));
+
+        $candidatos = [];
+        if ($url !== '' && !preg_match('#^https?://#i', $url)) {
+            $path = parse_url($url, PHP_URL_PATH);
+            $path = is_string($path) ? $path : $url;
+            $path = preg_replace('#^/cobranca/#', '/', $path);
+            $path = '/' . ltrim($path, '/');
+            $candidatos[] = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/\\') . str_replace('/', DIRECTORY_SEPARATOR, $path);
+            $candidatos[] = dirname(__DIR__) . $path;
+        }
+        if ($codigo !== '' && in_array($api, ['inter', 'bb'], true)) {
+            $dir = $api === 'inter' ? 'boletos_inter' : 'boletos_bb';
+            $nome = preg_replace('/[^A-Za-z0-9_-]/', '', $codigo) . '.pdf';
+            $candidatos[] = dirname(__DIR__) . '/assets/' . $dir . '/' . $nome;
+        }
+        foreach ($candidatos as $c) {
+            if ($c && is_file($c) && filesize($c) > 0) {
+                return ['caminho' => $c, 'temporario' => false];
+            }
+        }
+
+        if (!function_exists('resolverBoletoUrlFatura')) {
+            require_once __DIR__ . '/mercadopago.php';
+        }
+        try {
+            $res = resolverBoletoUrlFatura($fatura, $pdo instanceof PDO ? $pdo : null);
+            $urlResolvida = trim((string) ($res['boleto_url'] ?? ''));
+            if (!empty($res['sucesso']) && $urlResolvida !== '' && !preg_match('#^https?://#i', $urlResolvida)) {
+                $path = parse_url($urlResolvida, PHP_URL_PATH);
+                $path = is_string($path) ? $path : $urlResolvida;
+                $path = preg_replace('#^/cobranca/#', '/', $path);
+                $path = '/' . ltrim($path, '/');
+                $local = dirname(__DIR__) . $path;
+                if (is_file($local) && filesize($local) > 0) {
+                    return ['caminho' => $local, 'temporario' => false];
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('[EMAIL_FATURA] Falha ao resolver boleto PDF: ' . $e->getMessage());
+        }
+
+        // Fallback: baixa boleto externo (Mercado Pago/outros) para anexar.
+        if ($url !== '' && preg_match('#^https?://#i', $url)) {
+            $tmp = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'boleto_' . $faturaNum . '_' . uniqid('', true) . '.pdf';
+            $conteudo = null;
+            if (function_exists('curl_init')) {
+                $ch = curl_init($url);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_TIMEOUT => 20,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_USERAGENT => 'CentralDeFaturas/1.0',
+                ]);
+                $resp = curl_exec($ch);
+                $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                if ($resp !== false && $http >= 200 && $http < 300) $conteudo = $resp;
+            }
+            if ($conteudo === null) {
+                $ctx = stream_context_create(['http' => ['timeout' => 20, 'ignore_errors' => true]]);
+                $resp = @file_get_contents($url, false, $ctx);
+                if ($resp !== false) $conteudo = $resp;
+            }
+            if ($conteudo && strpos($conteudo, '%PDF') !== false && @file_put_contents($tmp, $conteudo) !== false) {
+                return ['caminho' => $tmp, 'temporario' => true];
+            }
+            if (is_file($tmp)) @unlink($tmp);
+        }
+
+        return null;
+    }
+}
+
 if (!function_exists('enviarEmailFatura')) {
     function enviarEmailFatura($fatura, $tipo = 'antes') {
         $adminId = (int)($fatura['admin_id'] ?? 0);
@@ -994,31 +1116,52 @@ if (!function_exists('enviarEmailFaturaComContexto')) {
         $msgHtml = montarMensagemHtml($fatura, $tipo);
         $msgTxt  = montarMensagemTxt($fatura, $tipo);
 
-        $anexoPdf = '';
-        if (!empty($fatura['pix_copia_cola']) && ($fatura['status'] ?? '') !== 'pago' && ($fatura['status'] ?? '') !== 'cancelado') {
+        $anexos = [];
+        $anexosTemp = [];
+        $faturaNum = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($fatura['numero'] ?? $fatura['id'] ?? 'fatura'));
+
+        if (($fatura['status'] ?? '') !== 'pago' && ($fatura['status'] ?? '') !== 'cancelado') {
             if (!function_exists('gerarPixPdfFatura')) {
                 require_once __DIR__ . '/pix_pdf.php';
             }
             try {
-                $anexoPdf = gerarPixPdfFatura($fatura);
+                $pdfFatura = gerarPixPdfFatura($fatura);
+                if ($pdfFatura && is_file($pdfFatura)) {
+                    $anexos[] = ['caminho' => $pdfFatura, 'nome' => 'Fatura_' . $faturaNum . '.pdf', 'mime' => 'application/pdf'];
+                    $anexosTemp[] = $pdfFatura;
+                }
             } catch (Throwable $e) {
-                $anexoPdf = '';
+                error_log('[EMAIL_FATURA] Falha ao gerar PDF da fatura: ' . $e->getMessage());
+            }
+
+            $pdoEmail = function_exists('getConnection') ? getConnection() : null;
+            $boletoPdf = resolverBoletoPdfAnexoFatura($fatura, $pdoEmail);
+            if ($boletoPdf && is_file($boletoPdf['caminho'])) {
+                $anexos[] = ['caminho' => $boletoPdf['caminho'], 'nome' => 'Boleto_' . $faturaNum . '.pdf', 'mime' => 'application/pdf'];
+                if (!empty($boletoPdf['temporario'])) {
+                    $anexosTemp[] = $boletoPdf['caminho'];
+                }
             }
         }
 
         $ret = false;
-        if ($anexoPdf && is_file($anexoPdf)) {
-            $ret = enviarEmailComAnexo($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexoPdf, 'Fatura_' . $fatura['numero'] . '.pdf');
-            @unlink($anexoPdf);
-        } else {
-            $ret = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
-        }
-
-        if (!empty($fatura['email2'])) {
-            if ($anexoPdf && is_file($anexoPdf)) {
-                enviarEmailComAnexo($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexoPdf, 'Fatura_' . $fatura['numero'] . '.pdf');
+        try {
+            if (!empty($anexos)) {
+                $ret = enviarEmailComAnexos($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexos);
             } else {
-                enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+                $ret = enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+            }
+
+            if (!empty($fatura['email2'])) {
+                if (!empty($anexos)) {
+                    enviarEmailComAnexos($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt, $anexos);
+                } else {
+                    enviarEmail($smtpHost, $smtpPort, $smtpUser, $smtpPass, $smtpFrom, $smtpNome, $smtpSsl, $fatura['email2'], $fatura['nome_razao'], $assunto, $msgHtml, $msgTxt);
+                }
+            }
+        } finally {
+            foreach ($anexosTemp as $tmp) {
+                if ($tmp && is_file($tmp)) @unlink($tmp);
             }
         }
 

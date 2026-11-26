@@ -51,9 +51,16 @@ $cartaoPermitido = ($apiDaFatura === 'mercadopago')
 
 // Gerar boleto
 if (isset($_GET['gerar_boleto']) && $fatura['status'] !== 'pago') {
-    if (!empty($fatura['boleto_url'])) {
-        header('Location: ' . $fatura['boleto_url']);
-        exit;
+    if (!empty($fatura['boleto_url']) || !empty($fatura['inter_codigo_solicitacao']) || !empty($fatura['mp_payment_id'])) {
+        $resBol = resolverBoletoUrlFatura($fatura, $pdo);
+        if (!empty($resBol['sucesso']) && !empty($resBol['boleto_url'])) {
+            header('Location: ' . $resBol['boleto_url']);
+            exit;
+        }
+        if (!empty($fatura['boleto_url'])) {
+            header('Location: fatura.php?id=' . $faturaId . '&erro=boleto&msg=' . urlencode($resBol['erro'] ?? 'Arquivo do boleto não encontrado.'));
+            exit;
+        }
     }
 
     $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
@@ -471,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var pmContainer = document.getElementById('pmQrContainer');
             if (pmContainer) {
                 new QRCode(pmContainer, {
-                    text: <?= json_encode($pmQrChave) ?>,
+                    text: <?= json_encode($pmQrChave, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
                     width: 200,
                     height: 200,
                     colorDark: "#000000",
@@ -486,7 +493,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php if ($fatura['status'] !== 'pago'): ?>
 <script>
 var _faturaId = <?= $faturaId ?>;
-var _token = <?= json_encode($fatura['acesso_token'] ?? '') ?>;
+var _token = <?= json_encode($fatura['acesso_token'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 var _pollCount = 0;
 var _pollMax = 120;
 function verificarPagamento() {
@@ -575,9 +582,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var faturaId = <?= (int) $faturaId ?>;
     var faturaValor = <?= (float) $fatura['valor_final'] ?>;
     var maxParcelas = <?= (int) getMaxParcelasCartao() ?>;
-    var cpfCliente = <?= json_encode(preg_replace('/[^0-9]/', '', $clienteCpfCnpj)) ?>;
+    var cpfCliente = <?= json_encode(preg_replace('/[^0-9]/', '', $clienteCpfCnpj), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-    var mp = new MercadoPago(<?= json_encode($mpConfig['mp_public_key']) ?>, { locale: 'pt-BR' });
+    var mp = new MercadoPago(<?= json_encode($mpConfig['mp_public_key'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, { locale: 'pt-BR' });
 
     var btn = document.getElementById('ccBtn');
     var msg = document.getElementById('ccMsg');
