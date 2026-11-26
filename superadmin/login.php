@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth.php';
 if (!function_exists('csrf_field')) { require_once __DIR__ . '/../includes/csrf.php'; }
+if (!function_exists('checkLoginRateLimit')) { require_once __DIR__ . '/../includes/rate_limit.php'; }
 require_once __DIR__ . '/../config/version.php';
 
 if (isLoggedInSuper()) {
